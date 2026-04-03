@@ -12,8 +12,9 @@ import '../domain/apply_edits.dart';
 import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
 import '../model/export_settings.dart';
+import '../domain/ai_provider.dart';
 import '../services/export_service.dart';
-import '../services/gemini_service.dart';
+import '../services/gemini_provider.dart';
 
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
@@ -25,7 +26,20 @@ class EditorViewModel extends ChangeNotifier {
   bool _isOnline = true;
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
+  OperationType _selectedOperation = OperationType.exposure;
+  ColorRange _selectedColorRange = ColorRange.red;
+  EditorMode _editorMode = EditorMode.basic;
+  ColorGradingZone _selectedGradingZone = ColorGradingZone.shadows;
+  final List<ChatMessage> _messages = [];
+  final AiProvider _aiProvider = GeminiProvider();
+  final ExportService _exportService = ExportService();
+  ExportSettings _exportSettings = const ExportSettings();
+  ParsedEdits? _pendingEdits;
+  Uint8List? _snapshotProcessedImage;
+  late String _selectedModel;
+
   EditorViewModel() {
+    _selectedModel = _aiProvider.defaultModel;
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
       if (online != _isOnline) {
@@ -44,24 +58,6 @@ class EditorViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
-  OperationType _selectedOperation = OperationType.exposure;
-  ColorRange _selectedColorRange = ColorRange.red;
-  EditorMode _editorMode = EditorMode.basic;
-  ColorGradingZone _selectedGradingZone = ColorGradingZone.shadows;
-  final List<ChatMessage> _messages = [];
-  final GeminiService _geminiService = GeminiService();
-  final ExportService _exportService = ExportService();
-  ExportSettings _exportSettings = const ExportSettings();
-  ParsedEdits? _pendingEdits;
-  Uint8List? _snapshotProcessedImage;
-  String _selectedModel = 'gemini-2.5-flash-lite';
-
-  static const List<String> availableModels = [
-    'gemini-fake-model',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.5-pro',
-  ];
 
   bool get hasImage => _photoEditingImage != null;
   PhotoEditingImage? getModel() => _photoEditingImage;
@@ -83,6 +79,8 @@ class EditorViewModel extends ChangeNotifier {
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get hasPendingEdits => _pendingEdits != null;
   String get selectedModel => _selectedModel;
+  AiProvider get aiProvider => _aiProvider;
+  List<String> get availableModels => _aiProvider.models;
 
   void setSelectedModel(String model) {
     _selectedModel = model;
@@ -298,7 +296,7 @@ class EditorViewModel extends ChangeNotifier {
       try {
         _isWaitingForAi = true;
         notifyListeners();
-        aiReply = await _geminiService.sendPrompt(
+        aiReply = await _aiProvider.sendPrompt(
           'Your previous response had an error: ${result.error}. Fix and resend as valid JSON.',
           model: _selectedModel,
           history: history,
@@ -360,7 +358,7 @@ class EditorViewModel extends ChangeNotifier {
     String stateJson,
   ) async {
     try {
-      return await _geminiService.sendPrompt(
+      return await _aiProvider.sendPrompt(
         text,
         imageBytes: _processedImage,
         model: _selectedModel,
@@ -370,7 +368,7 @@ class EditorViewModel extends ChangeNotifier {
     } on AiException catch (e) {
       if (e.retryable) {
         // One silent retry for server errors
-        return await _geminiService.sendPrompt(
+        return await _aiProvider.sendPrompt(
           text,
           imageBytes: _processedImage,
           model: _selectedModel,

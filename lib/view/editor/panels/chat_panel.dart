@@ -209,7 +209,7 @@ class _ChatPanelState extends State<ChatPanel> {
                       underline: const SizedBox.shrink(),
                       isDense: true,
                       icon: const Icon(Icons.arrow_drop_down, color: AppColors.muted, size: 16),
-                      items: EditorViewModel.availableModels.map((model) {
+                      items: widget.vm.availableModels.map((model) {
                         return DropdownMenuItem(
                           value: model,
                           child: Text(model, style: const TextStyle(fontSize: 11)),
