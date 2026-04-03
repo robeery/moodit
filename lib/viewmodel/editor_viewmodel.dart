@@ -13,6 +13,7 @@ import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
 import '../model/export_settings.dart';
 import '../domain/ai_provider.dart';
+import '../services/ai_profiles_storage.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
 
@@ -36,6 +37,7 @@ class EditorViewModel extends ChangeNotifier {
   ColorGradingZone _selectedGradingZone = ColorGradingZone.shadows;
   final List<ChatMessage> _messages = [];
   late AiProvider _aiProvider;
+  final AiProfilesStorage _aiProfilesStorage;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
@@ -43,10 +45,12 @@ class EditorViewModel extends ChangeNotifier {
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
 
-  EditorViewModel()
+  EditorViewModel({AiProfilesStorage? aiProfilesStorage})
       : _aiProfiles = [const AiProfileSettings()],
-        _activeAiProfileId = AiProfileSettings.defaultProfileId {
+        _activeAiProfileId = AiProfileSettings.defaultProfileId,
+        _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage() {
     _initializeAiProvider();
+    unawaited(_loadPersistedAiProfiles());
 
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
@@ -67,6 +71,29 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadPersistedAiProfiles() async {
+    final persisted = await _aiProfilesStorage.load();
+    if (persisted == null) return;
+
+    _applyAiProfilesUpdate(
+      AiProfilesUpdate(
+        profiles: persisted.profiles,
+        activeProfileId: persisted.activeProfileId,
+      ),
+    );
+  }
+
+  Future<void> _persistAiProfiles() async {
+    try {
+      await _aiProfilesStorage.save(
+        profiles: _aiProfiles,
+        activeProfileId: _activeAiProfileId,
+      );
+    } catch (_) {
+      // Persistence is best-effort; runtime state still stays valid in memory.
+    }
+  }
+
   String _resolveProviderId(String providerId) {
     if (_providerFactories.containsKey(providerId)) {
       return providerId;
@@ -84,6 +111,67 @@ class EditorViewModel extends ChangeNotifier {
   void _replaceActiveProfile(AiProfileSettings profile) {
     final index = _activeProfileIndex();
     _aiProfiles[index] = profile;
+  }
+
+  AiProfilesUpdate _normalizeAiProfilesUpdate(AiProfilesUpdate update) {
+    final incomingProfiles = update.profiles;
+    if (incomingProfiles.isEmpty) {
+      return const AiProfilesUpdate(
+        profiles: [AiProfileSettings()],
+        activeProfileId: AiProfileSettings.defaultProfileId,
+      );
+    }
+
+    final normalized = <AiProfileSettings>[];
+    final seenIds = <String>{};
+
+    for (final profile in incomingProfiles) {
+      final rawId = profile.id.trim();
+      final id = rawId.isEmpty || seenIds.contains(rawId)
+          ? '${DateTime.now().microsecondsSinceEpoch}_${normalized.length}'
+          : rawId;
+      seenIds.add(id);
+
+      final safeName = profile.profileName.trim().isEmpty
+          ? AiProfileSettings.defaultProfileName
+          : profile.profileName.trim();
+      final safeHistory = profile.historyWindowSize
+          .clamp(
+            AiProfileSettings.minHistoryWindowSize,
+            AiProfileSettings.maxHistoryWindowSize,
+          )
+          .toInt();
+
+      normalized.add(profile.copyWith(
+        id: id,
+        profileName: safeName,
+        historyWindowSize: safeHistory,
+      ));
+    }
+
+    final activeProfileId = normalized.any((p) => p.id == update.activeProfileId)
+        ? update.activeProfileId
+        : normalized.first.id;
+
+    return AiProfilesUpdate(
+      profiles: normalized,
+      activeProfileId: activeProfileId,
+    );
+  }
+
+  void _applyAiProfilesUpdate(
+    AiProfilesUpdate update, {
+    bool persistAfterApply = true,
+  }) {
+    final normalizedUpdate = _normalizeAiProfilesUpdate(update);
+    _aiProfiles = List<AiProfileSettings>.from(normalizedUpdate.profiles);
+    _activeAiProfileId = normalizedUpdate.activeProfileId;
+    _initializeAiProvider();
+    notifyListeners();
+
+    if (persistAfterApply) {
+      unawaited(_persistAiProfiles());
+    }
   }
 
   void _initializeAiProvider() {
@@ -149,46 +237,12 @@ class EditorViewModel extends ChangeNotifier {
 
     final active = _activeProfile();
     _replaceActiveProfile(active.copyWith(model: model));
+    unawaited(_persistAiProfiles());
     notifyListeners();
   }
 
   void updateAiProfiles(AiProfilesUpdate update) {
-    final incomingProfiles = update.profiles;
-    if (incomingProfiles.isEmpty) return;
-
-    final normalized = <AiProfileSettings>[];
-    final seenIds = <String>{};
-
-    for (final profile in incomingProfiles) {
-      final rawId = profile.id.trim();
-      final id = rawId.isEmpty || seenIds.contains(rawId)
-          ? '${DateTime.now().microsecondsSinceEpoch}_${normalized.length}'
-          : rawId;
-      seenIds.add(id);
-
-      final safeName = profile.profileName.trim().isEmpty
-          ? AiProfileSettings.defaultProfileName
-          : profile.profileName.trim();
-      final safeHistory = profile.historyWindowSize
-          .clamp(
-            AiProfileSettings.minHistoryWindowSize,
-            AiProfileSettings.maxHistoryWindowSize,
-          )
-          .toInt();
-
-      normalized.add(profile.copyWith(
-        id: id,
-        profileName: safeName,
-        historyWindowSize: safeHistory,
-      ));
-    }
-
-    _aiProfiles = normalized;
-    _activeAiProfileId = _aiProfiles.any((p) => p.id == update.activeProfileId)
-        ? update.activeProfileId
-        : _aiProfiles.first.id;
-    _initializeAiProvider();
-    notifyListeners();
+    _applyAiProfilesUpdate(update);
   }
 
   double getEditValue(OperationType type) {
