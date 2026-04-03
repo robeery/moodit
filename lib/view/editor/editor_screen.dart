@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../model/export_option.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
+import '../settings/ai_settings_screen.dart';
 import 'widgets/empty_state.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/pending_edits_bar.dart';
@@ -56,6 +57,7 @@ class _EditorScreenState extends State<EditorScreen> {
           backgroundColor: AppColors.bg,
           endDrawer: EditorDrawer(
             onPickImage: _pickImage,
+            onOpenAiSettings: _openAiSettings,
             onExport: _handleExport,
             exportSettings: _vm.exportSettings,
             onExportSettingsChanged: _vm.updateExportSettings,
@@ -128,6 +130,20 @@ class _EditorScreenState extends State<EditorScreen> {
         );
       }
     }
+  }
+
+  Future<void> _openAiSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AiSettingsScreen(
+          initialProfiles: _vm.aiProfiles,
+          initialActiveProfileId: _vm.activeAiProfileId,
+          availableProviders: _vm.availableProviders,
+          modelsForProvider: _vm.modelsForProvider,
+          onSave: _vm.updateAiProfiles,
+        ),
+      ),
+    );
   }
 
   void _showResetDialog() {

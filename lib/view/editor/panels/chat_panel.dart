@@ -196,6 +196,11 @@ class _ChatPanelState extends State<ChatPanel> {
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(
+                  widget.vm.aiProfileSettings.profileName,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 9, letterSpacing: 2),
+                ),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     const Text(

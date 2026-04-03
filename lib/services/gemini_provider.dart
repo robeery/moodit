@@ -111,8 +111,25 @@ class GeminiProvider implements AiProvider {
       throw AiException.fromStatusCode(response.statusCode, response.body);
     }
 
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final text = json['candidates'][0]['content']['parts'][0]['text'] as String;
-    return text;
+    try {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final candidates = json['candidates'] as List?;
+      if (candidates == null || candidates.isEmpty) {
+        throw const AiException(
+          type: AiErrorType.badResponse,
+          message: 'No response from AI - may have been blocked by safety filters.',
+        );
+      }
+      final text =
+          candidates[0]['content']['parts'][0]['text'] as String;
+      return text;
+    } on AiException {
+      rethrow;
+    } catch (_) {
+      throw const AiException(
+        type: AiErrorType.badResponse,
+        message: 'AI returned an unexpected response format.',
+      );
+    }
   }
 }

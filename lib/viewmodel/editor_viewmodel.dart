@@ -1,9 +1,9 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../model/ai_exception.dart';
+import '../model/ai_profile_settings.dart';
 import '../model/edit.dart';
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
@@ -19,6 +19,10 @@ import '../services/gemini_provider.dart';
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
 class EditorViewModel extends ChangeNotifier {
+  final Map<String, AiProvider Function()> _providerFactories = {
+    AiProfileSettings.geminiProviderId: () => GeminiProvider(),
+  };
+
   PhotoEditingImage? _photoEditingImage;
   Uint8List? _processedImage;
   bool _isProcessing = false;
@@ -31,15 +35,19 @@ class EditorViewModel extends ChangeNotifier {
   EditorMode _editorMode = EditorMode.basic;
   ColorGradingZone _selectedGradingZone = ColorGradingZone.shadows;
   final List<ChatMessage> _messages = [];
-  final AiProvider _aiProvider = GeminiProvider();
+  late AiProvider _aiProvider;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
   Uint8List? _snapshotProcessedImage;
-  late String _selectedModel;
+  List<AiProfileSettings> _aiProfiles;
+  String _activeAiProfileId;
 
-  EditorViewModel() {
-    _selectedModel = _aiProvider.defaultModel;
+  EditorViewModel()
+      : _aiProfiles = [const AiProfileSettings()],
+        _activeAiProfileId = AiProfileSettings.defaultProfileId {
+    _initializeAiProvider();
+
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
       if (online != _isOnline) {
@@ -59,6 +67,46 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
+  String _resolveProviderId(String providerId) {
+    if (_providerFactories.containsKey(providerId)) {
+      return providerId;
+    }
+    return _providerFactories.keys.first;
+  }
+
+  int _activeProfileIndex() {
+    final index = _aiProfiles.indexWhere((p) => p.id == _activeAiProfileId);
+    return index >= 0 ? index : 0;
+  }
+
+  AiProfileSettings _activeProfile() => _aiProfiles[_activeProfileIndex()];
+
+  void _replaceActiveProfile(AiProfileSettings profile) {
+    final index = _activeProfileIndex();
+    _aiProfiles[index] = profile;
+  }
+
+  void _initializeAiProvider() {
+    final active = _activeProfile();
+    final resolvedProviderId = _resolveProviderId(active.providerId);
+    final providerFactory = _providerFactories[resolvedProviderId]!;
+    _aiProvider = providerFactory();
+
+    if (!_aiProvider.models.contains(active.model)) {
+      _replaceActiveProfile(active.copyWith(
+        providerId: resolvedProviderId,
+        model: _aiProvider.defaultModel,
+      ));
+      return;
+    }
+
+    if (resolvedProviderId != active.providerId) {
+      _replaceActiveProfile(active.copyWith(
+        providerId: resolvedProviderId,
+      ));
+    }
+  }
+
   bool get hasImage => _photoEditingImage != null;
   PhotoEditingImage? getModel() => _photoEditingImage;
   Uint8List? get processedImage => _processedImage;
@@ -72,18 +120,74 @@ class EditorViewModel extends ChangeNotifier {
     _connectivitySub.cancel();
     super.dispose();
   }
+
   OperationType get selectedOperation => _selectedOperation;
   ColorRange get selectedColorRange => _selectedColorRange;
   EditorMode get editorMode => _editorMode;
   ColorGradingZone get selectedGradingZone => _selectedGradingZone;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get hasPendingEdits => _pendingEdits != null;
-  String get selectedModel => _selectedModel;
+  String get selectedModel => _activeProfile().model;
+  String get selectedProvider => _activeProfile().providerId;
   AiProvider get aiProvider => _aiProvider;
-  List<String> get availableModels => _aiProvider.models;
+  List<String> get availableModels => List.unmodifiable(_aiProvider.models);
+  List<String> get availableProviders =>
+      List.unmodifiable(_providerFactories.keys);
+  AiProfileSettings get aiProfileSettings => _activeProfile();
+  List<AiProfileSettings> get aiProfiles => List.unmodifiable(_aiProfiles);
+  String get activeAiProfileId => _activeAiProfileId;
+
+  List<String> modelsForProvider(String providerId) {
+    final resolvedProviderId = _resolveProviderId(providerId);
+    final providerFactory = _providerFactories[resolvedProviderId]!;
+    final provider = providerFactory();
+    return List.unmodifiable(provider.models);
+  }
 
   void setSelectedModel(String model) {
-    _selectedModel = model;
+    if (!_aiProvider.models.contains(model)) return;
+
+    final active = _activeProfile();
+    _replaceActiveProfile(active.copyWith(model: model));
+    notifyListeners();
+  }
+
+  void updateAiProfiles(AiProfilesUpdate update) {
+    final incomingProfiles = update.profiles;
+    if (incomingProfiles.isEmpty) return;
+
+    final normalized = <AiProfileSettings>[];
+    final seenIds = <String>{};
+
+    for (final profile in incomingProfiles) {
+      final rawId = profile.id.trim();
+      final id = rawId.isEmpty || seenIds.contains(rawId)
+          ? '${DateTime.now().microsecondsSinceEpoch}_${normalized.length}'
+          : rawId;
+      seenIds.add(id);
+
+      final safeName = profile.profileName.trim().isEmpty
+          ? AiProfileSettings.defaultProfileName
+          : profile.profileName.trim();
+      final safeHistory = profile.historyWindowSize
+          .clamp(
+            AiProfileSettings.minHistoryWindowSize,
+            AiProfileSettings.maxHistoryWindowSize,
+          )
+          .toInt();
+
+      normalized.add(profile.copyWith(
+        id: id,
+        profileName: safeName,
+        historyWindowSize: safeHistory,
+      ));
+    }
+
+    _aiProfiles = normalized;
+    _activeAiProfileId = _aiProfiles.any((p) => p.id == update.activeProfileId)
+        ? update.activeProfileId
+        : _aiProfiles.first.id;
+    _initializeAiProvider();
     notifyListeners();
   }
 
@@ -121,29 +225,27 @@ class EditorViewModel extends ChangeNotifier {
   void printLogs() {
     if (_photoEditingImage == null) return;
     final model = _photoEditingImage!;
-    if(model.edits.isNotEmpty)
-    {
+    if (model.edits.isNotEmpty) {
       print('Edits:');
-      for (final edit in model.edits)
+      for (final edit in model.edits) {
         print(edit.toString());
-
-
+      }
     }
-    if(model.colorEdits.isNotEmpty)
-    {
+    if (model.colorEdits.isNotEmpty) {
       print('Color Edits:');
-      for (final colorEdit in model.colorEdits)
+      for (final colorEdit in model.colorEdits) {
         print(colorEdit.toString());
-
+      }
     }
-    if(model.colorGradingEdits.isNotEmpty)
-    {
+    if (model.colorGradingEdits.isNotEmpty) {
       print('Color Grading Edits:');
-      for (final gradingEdit in model.colorGradingEdits)
+      for (final gradingEdit in model.colorGradingEdits) {
         print(gradingEdit.toString());
-
+      }
     }
-    if (model.edits.isEmpty && model.colorEdits.isEmpty && model.colorGradingEdits.isEmpty) {
+    if (model.edits.isEmpty &&
+        model.colorEdits.isEmpty &&
+        model.colorGradingEdits.isEmpty) {
       print('No edits applied.');
     }
   }
@@ -253,28 +355,27 @@ class EditorViewModel extends ChangeNotifier {
   Future<String?> sendMessage(String text) async {
     if (text.trim().isEmpty) return null;
     if (_photoEditingImage == null) return 'No image loaded';
+    final aiSettings = _activeProfile();
 
-    // Auto-apply any pending edits before processing new prompt
     if (_pendingEdits != null) {
       applyPendingEdits();
     }
 
-    // Capture history and state BEFORE adding current message
-    final history = _messages.length > 10
-        ? _messages.sublist(_messages.length - 10)
+    final historyWindowSize = aiSettings.historyWindowSize;
+    final history = _messages.length > historyWindowSize
+        ? _messages.sublist(_messages.length - historyWindowSize)
         : List<ChatMessage>.from(_messages);
     final stateJson = _buildCurrentStateJson();
 
     _messages.add(ChatMessage(text: text, type: MessageType.user));
     notifyListeners();
 
-    // Call Gemini API
     _isWaitingForAi = true;
     notifyListeners();
 
     String aiReply;
     try {
-      aiReply = await _sendWithRetry(text, history, stateJson);
+      aiReply = await _sendWithRetry(text, history, stateJson, aiSettings.model);
     } on AiException catch (e) {
       _isWaitingForAi = false;
       _messages.add(ChatMessage(text: e.message, type: MessageType.error));
@@ -282,23 +383,22 @@ class EditorViewModel extends ChangeNotifier {
       return null;
     } catch (e) {
       _isWaitingForAi = false;
-      _messages.add(ChatMessage(text: 'Unexpected error: $e', type: MessageType.error));
+      _messages
+          .add(ChatMessage(text: 'Unexpected error: $e', type: MessageType.error));
       notifyListeners();
       return null;
     }
 
     _isWaitingForAi = false;
 
-    // Parse with retry on bad response
     var result = parseEditsJson(aiReply);
     if (result.error != null) {
-      // Retry once with correction prompt
       try {
         _isWaitingForAi = true;
         notifyListeners();
         aiReply = await _aiProvider.sendPrompt(
           'Your previous response had an error: ${result.error}. Fix and resend as valid JSON.',
-          model: _selectedModel,
+          model: aiSettings.model,
           history: history,
           currentStateJson: stateJson,
         );
@@ -315,7 +415,8 @@ class EditorViewModel extends ChangeNotifier {
 
       if (result.error != null) {
         _messages.add(ChatMessage(
-          text: 'AI returned invalid response after retrying. Error: ${result.error}.\nPlease try again.',
+          text:
+              'AI returned invalid response after retrying. Error: ${result.error}.\nPlease try again.',
           type: MessageType.error,
         ));
         notifyListeners();
@@ -324,14 +425,14 @@ class EditorViewModel extends ChangeNotifier {
     }
 
     final parsed = result.edits!;
-    _messages.add(ChatMessage(text: parsed.message ?? 'Edits applied.', type: MessageType.ai));
+    _messages.add(
+      ChatMessage(text: parsed.message ?? 'Edits applied.', type: MessageType.ai),
+    );
 
-    // Snapshot current state before applying preview
     final model = _photoEditingImage!;
     model.saveSnapshot();
     _snapshotProcessedImage = _processedImage;
 
-    // Apply edits as preview
     for (final edit in parsed.edits) {
       model.addOrUpdateEdit(edit);
     }
@@ -356,22 +457,22 @@ class EditorViewModel extends ChangeNotifier {
     String text,
     List<ChatMessage> history,
     String stateJson,
+    String model,
   ) async {
     try {
       return await _aiProvider.sendPrompt(
         text,
         imageBytes: _processedImage,
-        model: _selectedModel,
+        model: model,
         history: history,
         currentStateJson: stateJson,
       );
     } on AiException catch (e) {
       if (e.retryable) {
-        // One silent retry for server errors
         return await _aiProvider.sendPrompt(
           text,
           imageBytes: _processedImage,
-          model: _selectedModel,
+          model: model,
           history: history,
           currentStateJson: stateJson,
         );
@@ -427,8 +528,14 @@ class EditorViewModel extends ChangeNotifier {
     final model = _photoEditingImage!;
     return jsonEncode({
       'edits': model.edits.where((e) => e.value != 0).map((e) => e.toJson()).toList(),
-      'colorEdits': model.colorEdits.where((e) => !e.isEmpty).map((e) => e.toJson()).toList(),
-      'colorGradingEdits': model.colorGradingEdits.where((e) => !e.isEmpty).map((e) => e.toJson()).toList(),
+      'colorEdits': model.colorEdits
+          .where((e) => !e.isEmpty)
+          .map((e) => e.toJson())
+          .toList(),
+      'colorGradingEdits': model.colorGradingEdits
+          .where((e) => !e.isEmpty)
+          .map((e) => e.toJson())
+          .toList(),
     });
   }
 }
