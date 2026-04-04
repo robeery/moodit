@@ -137,10 +137,11 @@ class _EditorScreenState extends State<EditorScreen> {
       MaterialPageRoute(
         builder: (_) => AiSettingsScreen(
           initialProfiles: _vm.aiProfiles,
+          initialApiKeysByProfileId: _vm.aiProfileApiKeys,
           initialActiveProfileId: _vm.activeAiProfileId,
           availableProviders: _vm.availableProviders,
           modelsForProvider: _vm.modelsForProvider,
-          onSave: _vm.updateAiProfiles,
+          onSave: _vm.updateAiSettings,
         ),
       ),
     );

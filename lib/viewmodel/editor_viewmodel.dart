@@ -13,6 +13,7 @@ import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
 import '../model/export_settings.dart';
 import '../domain/ai_provider.dart';
+import '../services/ai_profiles_api_key_storage.dart';
 import '../services/ai_profiles_storage.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
@@ -20,8 +21,8 @@ import '../services/gemini_provider.dart';
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
 class EditorViewModel extends ChangeNotifier {
-  final Map<String, AiProvider Function()> _providerFactories = {
-    AiProfileSettings.geminiProviderId: () => GeminiProvider(),
+  final Map<String, AiProvider Function(String? apiKey)> _providerFactories = {
+    AiProfileSettings.geminiProviderId: (apiKey) => GeminiProvider(apiKey: apiKey),
   };
 
   PhotoEditingImage? _photoEditingImage;
@@ -29,6 +30,7 @@ class EditorViewModel extends ChangeNotifier {
   bool _isProcessing = false;
   bool _isWaitingForAi = false;
   bool _isOnline = true;
+  bool _isAiReady = false;
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
   OperationType _selectedOperation = OperationType.exposure;
@@ -37,6 +39,7 @@ class EditorViewModel extends ChangeNotifier {
   ColorGradingZone _selectedGradingZone = ColorGradingZone.shadows;
   final List<ChatMessage> _messages = [];
   late AiProvider _aiProvider;
+  final AiProfilesApiKeyStorage _aiProfilesApiKeyStorage;
   final AiProfilesStorage _aiProfilesStorage;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
@@ -44,10 +47,16 @@ class EditorViewModel extends ChangeNotifier {
   Uint8List? _snapshotProcessedImage;
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
+  Map<String, String> _apiKeysByProfileId = {};
 
-  EditorViewModel({AiProfilesStorage? aiProfilesStorage})
+  EditorViewModel({
+    AiProfilesStorage? aiProfilesStorage,
+    AiProfilesApiKeyStorage? aiProfilesApiKeyStorage,
+  })
       : _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
+        _aiProfilesApiKeyStorage =
+            aiProfilesApiKeyStorage ?? const AiProfilesApiKeyStorage(),
         _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage() {
     _initializeAiProvider();
     unawaited(_loadPersistedAiProfiles());
@@ -72,15 +81,22 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> _loadPersistedAiProfiles() async {
-    final persisted = await _aiProfilesStorage.load();
-    if (persisted == null) return;
-
-    _applyAiProfilesUpdate(
-      AiProfilesUpdate(
-        profiles: persisted.profiles,
-        activeProfileId: persisted.activeProfileId,
-      ),
-    );
+    try {
+      final persisted = await _aiProfilesStorage.load();
+      if (persisted != null) {
+        _applyAiProfilesUpdate(
+          AiProfilesUpdate(
+            profiles: persisted.profiles,
+            activeProfileId: persisted.activeProfileId,
+          ),
+          persistAfterApply: false,
+        );
+      }
+      await _loadApiKeysForCurrentProfiles();
+    } finally {
+      _isAiReady = true;
+      notifyListeners();
+    }
   }
 
   Future<void> _persistAiProfiles() async {
@@ -90,8 +106,46 @@ class EditorViewModel extends ChangeNotifier {
         activeProfileId: _activeAiProfileId,
       );
     } catch (_) {
-      // Persistence is best-effort; runtime state still stays valid in memory.
+      // Persistence is best-effort; runtime state still stays valid in memory
     }
+  }
+
+  Future<void> _loadApiKeysForCurrentProfiles() async {
+    try {
+      _apiKeysByProfileId = await _aiProfilesApiKeyStorage.readMany(
+        _aiProfiles.map((p) => p.id),
+      );
+      _initializeAiProvider();
+    } catch (_) {
+      // Secure storage read failures should not block app usage
+    }
+  }
+
+  Future<void> _persistApiKeys() async {
+    try {
+      await _aiProfilesApiKeyStorage.saveForProfiles(
+        apiKeysByProfileId: _apiKeysByProfileId,
+        validProfileIds: _aiProfiles.map((p) => p.id).toSet(),
+      );
+    } catch (_) {
+      // Secure storage writes are best-effort
+    }
+  }
+
+  Map<String, String> _normalizeApiKeys(
+    Map<String, String> apiKeysByProfileId,
+    Iterable<String> validProfileIds,
+  ) {
+    final valid = validProfileIds.toSet();
+    final normalized = <String, String>{};
+    for (final entry in apiKeysByProfileId.entries) {
+      final profileId = entry.key.trim();
+      if (profileId.isEmpty || !valid.contains(profileId)) continue;
+      final apiKey = entry.value.trim();
+      if (apiKey.isEmpty) continue;
+      normalized[profileId] = apiKey;
+    }
+    return normalized;
   }
 
   String _resolveProviderId(String providerId) {
@@ -166,8 +220,6 @@ class EditorViewModel extends ChangeNotifier {
     final normalizedUpdate = _normalizeAiProfilesUpdate(update);
     _aiProfiles = List<AiProfileSettings>.from(normalizedUpdate.profiles);
     _activeAiProfileId = normalizedUpdate.activeProfileId;
-    _initializeAiProvider();
-    notifyListeners();
 
     if (persistAfterApply) {
       unawaited(_persistAiProfiles());
@@ -178,7 +230,8 @@ class EditorViewModel extends ChangeNotifier {
     final active = _activeProfile();
     final resolvedProviderId = _resolveProviderId(active.providerId);
     final providerFactory = _providerFactories[resolvedProviderId]!;
-    _aiProvider = providerFactory();
+    final apiKey = _apiKeysByProfileId[active.id];
+    _aiProvider = providerFactory(apiKey);
 
     if (!_aiProvider.models.contains(active.model)) {
       _replaceActiveProfile(active.copyWith(
@@ -202,6 +255,7 @@ class EditorViewModel extends ChangeNotifier {
   bool get isProcessing => _isProcessing;
   bool get isWaitingForAi => _isWaitingForAi;
   bool get isOnline => _isOnline;
+  bool get isAiReady => _isAiReady;
 
   @override
   void dispose() {
@@ -224,11 +278,13 @@ class EditorViewModel extends ChangeNotifier {
   AiProfileSettings get aiProfileSettings => _activeProfile();
   List<AiProfileSettings> get aiProfiles => List.unmodifiable(_aiProfiles);
   String get activeAiProfileId => _activeAiProfileId;
+  Map<String, String> get aiProfileApiKeys =>
+      Map.unmodifiable(_apiKeysByProfileId);
 
   List<String> modelsForProvider(String providerId) {
     final resolvedProviderId = _resolveProviderId(providerId);
     final providerFactory = _providerFactories[resolvedProviderId]!;
-    final provider = providerFactory();
+    final provider = providerFactory(null);
     return List.unmodifiable(provider.models);
   }
 
@@ -241,8 +297,18 @@ class EditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateAiProfiles(AiProfilesUpdate update) {
-    _applyAiProfilesUpdate(update);
+  Future<void> updateAiSettings(
+    AiProfilesUpdate profilesUpdate,
+    Map<String, String> apiKeysByProfileId,
+  ) async {
+    _applyAiProfilesUpdate(profilesUpdate);
+    _apiKeysByProfileId = _normalizeApiKeys(
+      apiKeysByProfileId,
+      _aiProfiles.map((p) => p.id),
+    );
+    _initializeAiProvider();
+    notifyListeners();
+    await _persistApiKeys();
   }
 
   double getEditValue(OperationType type) {

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../domain/ai_provider.dart';
 import '../model/ai_exception.dart';
@@ -15,7 +14,7 @@ class GeminiProvider implements AiProvider {
 
   GeminiProvider({String? apiKey}) : _apiKeyOverride = apiKey;
 
-  String get _apiKey => _apiKeyOverride ?? dotenv.env['GEMINI_API_KEY'] ?? '';
+  String get _apiKey => _apiKeyOverride ?? '';
 
   @override
   String get name => 'Gemini';

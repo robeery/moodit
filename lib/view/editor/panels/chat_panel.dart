@@ -22,6 +22,20 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 
   Future<void> _sendChat() async {
+    if (!widget.vm.isAiReady) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'AI settings are still loading. Please wait.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     final text = _chatController.text;
     if (text.trim().isEmpty) return;
     _chatController.clear();
@@ -186,6 +200,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
   Widget _buildInputArea() {
     final isOnline = widget.vm.isOnline;
+    final isAiReady = widget.vm.isAiReady;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
@@ -193,7 +208,8 @@ class _ChatPanelState extends State<ChatPanel> {
         border: Border(top: BorderSide(color: AppColors.muted, width: 0.5)),
       ),
       child: isOnline
-          ? Column(
+          ? (isAiReady
+              ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -256,6 +272,28 @@ class _ChatPanelState extends State<ChatPanel> {
                 ),
               ],
             )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        color: AppColors.muted,
+                        strokeWidth: 1.5,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'LOADING AI SETTINGS',
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ))
           : const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
