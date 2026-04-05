@@ -28,6 +28,29 @@ class _EditorScreenState extends State<EditorScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _savedBannerVisible = false;
   bool _savedBannerOpaque = false;
+  int? _lastShownBenchmarkMs; // temporary benchmark
+
+  @override
+  void initState() {
+    super.initState();
+    _vm.addListener(_onVmChanged); // temporary benchmark
+  }
+
+  void _onVmChanged() { // temporary benchmark
+    final ms = _vm.lastBenchmarkMs;
+    if (ms == null || ms == _lastShownBenchmarkMs) return;
+    _lastShownBenchmarkMs = ms;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Processed in ${ms}ms'),
+        backgroundColor: AppColors.surface,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
@@ -44,6 +67,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   void dispose() {
+    _vm.removeListener(_onVmChanged); // temporary benchmark
     _vm.dispose();
     super.dispose();
   }

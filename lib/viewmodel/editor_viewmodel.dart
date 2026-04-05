@@ -28,6 +28,7 @@ class EditorViewModel extends ChangeNotifier {
   PhotoEditingImage? _photoEditingImage;
   Uint8List? _processedImage;
   bool _isProcessing = false;
+  int? _lastBenchmarkMs; // temporary benchmark
   bool _isWaitingForAi = false;
   bool _isOnline = true;
   bool _isAiReady = false;
@@ -253,6 +254,7 @@ class EditorViewModel extends ChangeNotifier {
   Uint8List? get processedImage => _processedImage;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
   bool get isProcessing => _isProcessing;
+  int? get lastBenchmarkMs => _lastBenchmarkMs; // temporary benchmark
   bool get isWaitingForAi => _isWaitingForAi;
   bool get isOnline => _isOnline;
   bool get isAiReady => _isAiReady;
@@ -438,8 +440,11 @@ class EditorViewModel extends ChangeNotifier {
     _isProcessing = true;
     notifyListeners();
 
+    final sw = Stopwatch()..start(); // temporary benchmark
     _photoEditingImage!.addOrUpdateEdit(edit);
     final result = await _processAllEdits();
+    sw.stop(); // temporary benchmark
+    _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     _processedImage = result;
     _isProcessing = false;
@@ -451,8 +456,11 @@ class EditorViewModel extends ChangeNotifier {
     _isProcessing = true;
     notifyListeners();
 
+    final sw = Stopwatch()..start(); // temporary benchmark
     _photoEditingImage!.addOrUpdateColorEdit(colorEdit);
     final result = await _processAllEdits();
+    sw.stop(); // temporary benchmark
+    _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     _processedImage = result;
     _isProcessing = false;
@@ -464,12 +472,20 @@ class EditorViewModel extends ChangeNotifier {
     _isProcessing = true;
     notifyListeners();
 
+    final sw = Stopwatch()..start(); // temporary benchmark
     _photoEditingImage!.addOrUpdateColorGradingEdit(edit);
     final result = await _processAllEdits();
+    sw.stop(); // temporary benchmark
+    _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     _processedImage = result;
     _isProcessing = false;
     notifyListeners();
+  }
+
+  void _recordBenchmark(int ms) { // temporary benchmark
+    _lastBenchmarkMs = ms;
+    print('[BENCHMARK] Edit processing: ${ms}ms'); // temporary benchmark
   }
 
   Future<String?> sendMessage(String text) async {
