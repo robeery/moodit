@@ -293,6 +293,9 @@ class _EditorScreenState extends State<EditorScreen> {
         ModeTabBar(
           currentMode: _vm.editorMode,
           onModeChanged: _vm.setEditorMode,
+          hasPendingBasicEdits: _vm.pendingAiEditTypes.isNotEmpty,
+          hasPendingColorEdits: _vm.pendingAiColorRanges.isNotEmpty,
+          hasPendingGradingEdits: _vm.pendingAiGradingZones.isNotEmpty,
         ),
         AnimatedSize(
           duration: const Duration(milliseconds: 300),

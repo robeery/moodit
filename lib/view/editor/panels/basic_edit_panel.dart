@@ -137,6 +137,7 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
               final operation = OperationType.values[index];
               final isSelected = operation == vm.selectedOperation;
               final hasEdit = vm.hasEdit(operation);
+              final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiEditTypes.contains(operation);
               final icon = _operationIcons[operation] ?? Icons.tune;
 
               return GestureDetector(
@@ -173,8 +174,15 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
                           width: 4,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: isSelected ? AppColors.highlight : AppColors.accent,
                             shape: BoxShape.circle,
+                            gradient: isPendingAiEdit
+                                ? const LinearGradient(
+                                    colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                                  )
+                                : null,
+                            color: isPendingAiEdit
+                                ? null
+                                : (isSelected ? AppColors.highlight : AppColors.accent),
                           ),
                         ),
                       ),

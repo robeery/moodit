@@ -271,6 +271,12 @@ class EditorViewModel extends ChangeNotifier {
   ColorGradingZone get selectedGradingZone => _selectedGradingZone;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get hasPendingEdits => _pendingEdits != null;
+  Set<OperationType> get pendingAiEditTypes =>
+      _pendingEdits?.edits.map((e) => e.type).toSet() ?? {};
+  Set<ColorRange> get pendingAiColorRanges =>
+      _pendingEdits?.colorEdits.map((e) => e.range).toSet() ?? {};
+  Set<ColorGradingZone> get pendingAiGradingZones =>
+      _pendingEdits?.colorGradingEdits.map((e) => e.zone).toSet() ?? {};
   String get selectedModel => _activeProfile().model;
   String get selectedProvider => _activeProfile().providerId;
   AiProvider get aiProvider => _aiProvider;

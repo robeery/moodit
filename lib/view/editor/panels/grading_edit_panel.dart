@@ -124,6 +124,7 @@ class GradingEditPanel extends StatelessWidget {
           final zone = ColorGradingZone.values[index];
           final isSelected = zone == vm.selectedGradingZone;
           final hasEdit = vm.hasColorGradingEdit(zone);
+          final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiGradingZones.contains(zone);
 
           return GestureDetector(
             onTap: () => vm.setSelectedGradingZone(zone),
@@ -156,8 +157,15 @@ class GradingEditPanel extends StatelessWidget {
                       width: 4,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.bg : AppColors.accent,
                         shape: BoxShape.circle,
+                        gradient: isPendingAiEdit
+                            ? const LinearGradient(
+                                colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                              )
+                            : null,
+                        color: isPendingAiEdit
+                            ? null
+                            : (isSelected ? AppColors.bg : AppColors.accent),
                       ),
                     ),
                   ],

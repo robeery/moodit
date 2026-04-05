@@ -5,11 +5,17 @@ import '../../../viewmodel/editor_viewmodel.dart';
 class ModeTabBar extends StatelessWidget {
   final EditorMode currentMode;
   final ValueChanged<EditorMode> onModeChanged;
+  final bool hasPendingBasicEdits;
+  final bool hasPendingColorEdits;
+  final bool hasPendingGradingEdits;
 
   const ModeTabBar({
     super.key,
     required this.currentMode,
     required this.onModeChanged,
+    this.hasPendingBasicEdits = false,
+    this.hasPendingColorEdits = false,
+    this.hasPendingGradingEdits = false,
   });
 
   static const _modes = [
@@ -34,6 +40,12 @@ class ModeTabBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: _modes.map((m) {
           final isActive = currentMode == m.mode;
+          final hasPending = switch (m.mode) {
+            EditorMode.basic => hasPendingBasicEdits,
+            EditorMode.selectiveColor => hasPendingColorEdits,
+            EditorMode.colorGrading => hasPendingGradingEdits,
+            _ => false,
+          };
           return GestureDetector(
             onTap: () => onModeChanged(m.mode),
             behavior: HitTestBehavior.opaque,
@@ -46,15 +58,41 @@ class ModeTabBar extends StatelessWidget {
                   color: isActive ? AppColors.highlight : AppColors.muted,
                 ),
                 const SizedBox(height: 1),
-                Text(
-                  m.label,
-                  style: TextStyle(
-                    color: isActive ? AppColors.highlight : AppColors.muted,
-                    fontSize: 8,
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                hasPending
+                    ? ShaderMask(
+                        blendMode: BlendMode.srcIn,
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ).createShader(bounds),
+                        child: Padding(
+                          // this padding makes it so the shader mask doesn't get cut off above the text
+                          padding: const EdgeInsets.symmetric(vertical: 0.2),
+                          child: Text(
+                            m.label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              letterSpacing: 1.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Padding(
+                        // this padding is here so the UI matches the mode above
+                        padding: const EdgeInsets.symmetric(vertical: 0.2),
+                        child: Text(
+                          m.label,
+                          style: TextStyle(
+                            color: isActive ? AppColors.highlight : AppColors.muted,
+                            fontSize: 8,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
               ],
             ),
           );

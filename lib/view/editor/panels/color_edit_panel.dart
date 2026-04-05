@@ -123,6 +123,7 @@ class ColorEditPanel extends StatelessWidget {
           final range = ColorRange.values[index];
           final isSelected = range == vm.selectedColorRange;
           final hasEdit = vm.hasColorEdit(range);
+          final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiColorRanges.contains(range);
           final color = AppColors.colorRange[range]!;
 
           return GestureDetector(
@@ -149,9 +150,14 @@ class ColorEditPanel extends StatelessWidget {
                     Container(
                       width: 4,
                       height: 4,
-                      decoration: const BoxDecoration(
-                        color: AppColors.accent,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        gradient: isPendingAiEdit
+                            ? const LinearGradient(
+                                colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                              )
+                            : null,
+                        color: isPendingAiEdit ? null : AppColors.accent,
                       ),
                     ),
                   ],
