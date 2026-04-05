@@ -7,12 +7,14 @@ class ColorGradingEdit {
   final double strength;   // 0-100 -> how strongly the tint is applied
   final double luminance;  // -100..+100 -> brighten/darken this zone
 
-  const ColorGradingEdit({
+  ColorGradingEdit({
     required this.zone,
-    this.hue = 0,
-    this.strength = 0,
-    this.luminance = 0,
-  });
+    double hue = 0,
+    double strength = 0,
+    double luminance = 0,
+  })  : hue = hue.round().toDouble(),
+        strength = strength.round().toDouble(),
+        luminance = luminance.round().toDouble();
 
   ColorGradingEdit copyWith({
     double? hue,
