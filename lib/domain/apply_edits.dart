@@ -14,70 +14,91 @@ Uint8List applyEditsSync({
   required List<ColorGradingEdit> colorGradingEdits,
 }) {
   img.Image image = img.decodeImage(originalBytes)!;
+  final editValues = <OperationType, double>{
+    for (final edit in edits) edit.type: edit.value / 100.0,
+  };
 
-  for (final operationType in OperationType.values) {
-    final edit = edits.where((e) => e.type == operationType).firstOrNull;
-    if (edit == null) continue;
-
+  void ensureRgba() {
     if (image.hasPalette ||
         image.format != img.Format.uint8 ||
         image.numChannels != 4) {
       image = image.convert(format: img.Format.uint8, numChannels: 4);
     }
+  }
 
-    final value = edit.value / 100.0;
+  double valueFor(OperationType type) => editValues[type] ?? 0.0;
+  bool hasSignedValue(OperationType type) => valueFor(type).abs() > 0.001;
+  bool hasPositiveValue(OperationType type) => valueFor(type) > 0.001;
 
-    switch (operationType) {
-      case OperationType.exposure:
-        image = applyExposure(image, value);
-        break;
-      case OperationType.brightness:
-        image = applyBrightness(image, value);
-        break;
-      case OperationType.highlights:
-        image = applyHighlights(image, value);
-        break;
-      case OperationType.shadows:
-        image = applyShadows(image, value);
-        break;
-      case OperationType.contrast:
-        image = applyContrast(image, value);
-        break;
-      case OperationType.warmth:
-        image = applyWarmth(image, value);
-        break;
-      case OperationType.tint:
-        image = applyTint(image, value);
-        break;
-      case OperationType.sharpness:
-        image = applySharpness(image, value);
-        break;
-      case OperationType.definition:
-        // Definition is temporarily disabled because it is still too slow for
-        // interactive editing I'll will optimize and re-enable it later
-        break;
-      case OperationType.saturation:
-        image = applySaturation(image, value);
-        break;
-      case OperationType.vibrance:
-        image = applyVibrance(image, value);
-        break;
-      case OperationType.blackpoint:
-        image = applyBlackpoint(image, value);
-        break;
-      case OperationType.vignette:
-        image = applyVignette(image, value);
-        break;
-      case OperationType.noiseReduction:
-        image = applyNoiseReduction(image, value);
-        break;
-      case OperationType.grain:
-        image = applyGrain(image, value);
-        break;
-      case OperationType.fade:
-        image = applyFade(image, value);
-        break;
-    }
+  if (hasSignedValue(OperationType.exposure) ||
+      hasSignedValue(OperationType.warmth) ||
+      hasSignedValue(OperationType.tint) ||
+      hasSignedValue(OperationType.brightness)) {
+    ensureRgba();
+    image = applyFusedColorBalanceOps(
+      image,
+      exposure: valueFor(OperationType.exposure),
+      warmth: valueFor(OperationType.warmth),
+      tint: valueFor(OperationType.tint),
+      brightness: valueFor(OperationType.brightness),
+    );
+  }
+
+  if (hasSignedValue(OperationType.highlights)) {
+    ensureRgba();
+    image = applyHighlights(image, valueFor(OperationType.highlights));
+  }
+
+  if (hasSignedValue(OperationType.shadows)) {
+    ensureRgba();
+    image = applyShadows(image, valueFor(OperationType.shadows));
+  }
+
+  if (hasSignedValue(OperationType.contrast)) {
+    ensureRgba();
+    image = applyContrast(image, valueFor(OperationType.contrast));
+  }
+
+  if (hasPositiveValue(OperationType.blackpoint)) {
+    ensureRgba();
+    image = applyBlackpoint(image, valueFor(OperationType.blackpoint));
+  }
+
+  if (hasSignedValue(OperationType.saturation)) {
+    ensureRgba();
+    image = applySaturation(image, valueFor(OperationType.saturation));
+  }
+
+  if (hasSignedValue(OperationType.vibrance)) {
+    ensureRgba();
+    image = applyVibrance(image, valueFor(OperationType.vibrance));
+  }
+
+  // Definition is still disabled because it is too slow for interactive use.
+
+  if (hasSignedValue(OperationType.sharpness)) {
+    ensureRgba();
+    image = applySharpness(image, valueFor(OperationType.sharpness));
+  }
+
+  if (hasSignedValue(OperationType.vignette)) {
+    ensureRgba();
+    image = applyVignette(image, valueFor(OperationType.vignette));
+  }
+
+  if (hasPositiveValue(OperationType.noiseReduction)) {
+    ensureRgba();
+    image = applyNoiseReduction(image, valueFor(OperationType.noiseReduction));
+  }
+
+  if (hasPositiveValue(OperationType.grain)) {
+    ensureRgba();
+    image = applyGrain(image, valueFor(OperationType.grain));
+  }
+
+  if (hasPositiveValue(OperationType.fade)) {
+    ensureRgba();
+    image = applyFade(image, valueFor(OperationType.fade));
   }
 
   image = color_ops.applyAllColorEdits(image, colorEdits);

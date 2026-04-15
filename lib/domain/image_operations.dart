@@ -35,6 +35,122 @@ int _clampCoord(int value, int maxValue) {
   return value;
 }
 
+double _clampChannelDouble(num value) {
+  if (value <= 0) return 0;
+  if (value >= 255) return 255;
+  return value.toDouble();
+}
+
+Float64List _identityFloatLut() {
+  final lut = Float64List(256);
+  for (var i = 0; i < lut.length; i++) {
+    lut[i] = i.toDouble();
+  }
+  return lut;
+}
+
+Uint8List _freezeFloatLut(Float64List lut) {
+  final frozen = Uint8List(lut.length);
+  for (var i = 0; i < lut.length; i++) {
+    // We compose in floating point, then quantize once when the LUT is ready.
+    frozen[i] = _clampByteRound(lut[i]);
+  }
+  return frozen;
+}
+
+void _applyRgbLuts(
+  img.Image image, {
+  required Uint8List lutR,
+  required Uint8List lutG,
+  required Uint8List lutB,
+}) {
+  final data = _rgbaBytes(image);
+
+  for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    // data[i] is red, data[i + 1] is green, data[i + 2] is blue.
+    data[i] = lutR[data[i]];
+    data[i + 1] = lutG[data[i + 1]];
+    data[i + 2] = lutB[data[i + 2]];
+  }
+}
+
+void _applySharedLut(img.Image image, Uint8List lut) {
+  final data = _rgbaBytes(image);
+
+  for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    // The same per-channel LUT is applied to R, G, and B.
+    data[i] = lut[data[i]];
+    data[i + 1] = lut[data[i + 1]];
+    data[i + 2] = lut[data[i + 2]];
+  }
+}
+
+img.Image applyFusedColorBalanceOps(
+  img.Image image, {
+  required double exposure,
+  required double warmth,
+  required double tint,
+  required double brightness,
+}) {
+  final hasAnyAdjustment =
+      exposure.abs() > 0.001 ||
+      warmth.abs() > 0.001 ||
+      tint.abs() > 0.001 ||
+      brightness.abs() > 0.001;
+  if (!hasAnyAdjustment) return image;
+
+  // These four ops are contiguous in the pipeline and each channel can be
+  // described as "old byte -> new byte", so we compose them once here.
+  final lutR = _identityFloatLut();
+  final lutG = _identityFloatLut();
+  final lutB = _identityFloatLut();
+
+  if (exposure.abs() > 0.001) {
+    final factor = pow(2.0, exposure).toDouble();
+    for (var i = 0; i < 256; i++) {
+      lutR[i] = _clampChannelDouble(lutR[i] * factor);
+      lutG[i] = _clampChannelDouble(lutG[i] * factor);
+      lutB[i] = _clampChannelDouble(lutB[i] * factor);
+    }
+  }
+
+  if (warmth.abs() > 0.001) {
+    final offset = warmth * 20;
+    for (var i = 0; i < 256; i++) {
+      // Warmth pushes red up and blue down. Green stays unchanged.
+      lutR[i] = _clampChannelDouble(lutR[i] + offset);
+      lutB[i] = _clampChannelDouble(lutB[i] - offset);
+    }
+  }
+
+  if (tint.abs() > 0.001) {
+    final offset = tint * 15;
+    for (var i = 0; i < 256; i++) {
+      // Positive tint adds magenta: R+, G-, B+.
+      lutR[i] = _clampChannelDouble(lutR[i] + offset);
+      lutG[i] = _clampChannelDouble(lutG[i] - offset * 1.5);
+      lutB[i] = _clampChannelDouble(lutB[i] + offset);
+    }
+  }
+
+  if (brightness.abs() > 0.001) {
+    final gamma = pow(2.0, -brightness).toDouble();
+    for (var i = 0; i < 256; i++) {
+      lutR[i] = _clampChannelDouble(pow(lutR[i] / 255.0, gamma) * 255);
+      lutG[i] = _clampChannelDouble(pow(lutG[i] / 255.0, gamma) * 255);
+      lutB[i] = _clampChannelDouble(pow(lutB[i] / 255.0, gamma) * 255);
+    }
+  }
+
+  _applyRgbLuts(
+    image,
+    lutR: _freezeFloatLut(lutR),
+    lutG: _freezeFloatLut(lutG),
+    lutB: _freezeFloatLut(lutB),
+  );
+  return image;
+}
+
 img.Image applyExposure(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
@@ -338,22 +454,19 @@ img.Image applyVibrance(img.Image image, double value) {
 img.Image applyBlackpoint(img.Image image, double value) {
   if (value <= 0.001) return image;
 
-  final data = _rgbaBytes(image);
   final threshold = value * 60; // max threshold ~60, not 255
   final scale = 255 / (255 - threshold);
+  final lut = Uint8List(256);
 
-  for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Same blackpoint transform applied to each color channel
-    int adjust(int channel) {
-      if (channel <= threshold) return 0;
-      return _clampByteFloor((channel - threshold) * scale);
+  for (var channel = 0; channel < 256; channel++) {
+    if (channel <= threshold) {
+      lut[channel] = 0;
+    } else {
+      lut[channel] = _clampByteFloor((channel - threshold) * scale);
     }
-
-    data[i] = adjust(data[i]);
-    data[i + 1] = adjust(data[i + 1]);
-    data[i + 2] = adjust(data[i + 2]);
   }
 
+  _applySharedLut(image, lut);
   return image;
 }
 
@@ -421,19 +534,15 @@ img.Image applyGrain(img.Image image, double value) {
 img.Image applyFade(img.Image image, double value) {
   if (value <= 0.001) return image;
 
-  final data = _rgbaBytes(image);
   //fade lifts shadows and slightly desaturates, like a film wash
   final strength = value * 0.4;
   final lift = strength * 80;
+  final lut = Uint8List(256);
 
-  for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    
-    data[i] = _clampByteFloor(data[i] * (1 - strength) + lift);
-    data[i + 1] =
-        _clampByteFloor(data[i + 1] * (1 - strength) + lift);
-    data[i + 2] =
-        _clampByteFloor(data[i + 2] * (1 - strength) + lift);
+  for (var channel = 0; channel < 256; channel++) {
+    lut[channel] = _clampByteFloor(channel * (1 - strength) + lift);
   }
 
+  _applySharedLut(image, lut);
   return image;
 }
