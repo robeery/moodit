@@ -7,14 +7,13 @@ import 'image_operations.dart';
 import 'color_operations.dart' as color_ops;
 import 'color_grading_operations.dart' as grading_ops;
 
-
-Uint8List _applyEdits(Map<String, dynamic> params) {
-  final bytes = params['bytes'] as Uint8List;
-  final edits = params['edits'] as List<Edit>;
-  final colorEdits = params['colorEdits'] as List<ColorEdit>;
-  final colorGradingEdits = params['colorGradingEdits'] as List<ColorGradingEdit>;
-
-  img.Image image = img.decodeImage(bytes)!;
+Uint8List applyEditsSync({
+  required Uint8List originalBytes,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+}) {
+  img.Image image = img.decodeImage(originalBytes)!;
 
   for (final operationType in OperationType.values) {
     final edit = edits.where((e) => e.type == operationType).firstOrNull;
@@ -81,6 +80,15 @@ Uint8List _applyEdits(Map<String, dynamic> params) {
   return Uint8List.fromList(img.encodeJpg(image));
 }
 
+Uint8List _applyEditsInIsolate(Map<String, dynamic> params) {
+  return applyEditsSync(
+    originalBytes: params['bytes'] as Uint8List,
+    edits: params['edits'] as List<Edit>,
+    colorEdits: params['colorEdits'] as List<ColorEdit>,
+    colorGradingEdits: params['colorGradingEdits'] as List<ColorGradingEdit>,
+  );
+}
+
 Future<Uint8List> processAllEdits({
   required Uint8List originalBytes,
   required List<Edit> edits,
@@ -91,7 +99,7 @@ Future<Uint8List> processAllEdits({
     return originalBytes;
   }
 
-  return await compute(_applyEdits, {
+  return await compute(_applyEditsInIsolate, {
     'bytes': originalBytes,
     'edits': edits,
     'colorEdits': colorEdits,
