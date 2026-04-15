@@ -19,6 +19,12 @@ Uint8List applyEditsSync({
     final edit = edits.where((e) => e.type == operationType).firstOrNull;
     if (edit == null) continue;
 
+    if (image.hasPalette ||
+        image.format != img.Format.uint8 ||
+        image.numChannels != 4) {
+      image = image.convert(format: img.Format.uint8, numChannels: 4);
+    }
+
     final value = edit.value / 100.0;
 
     switch (operationType) {
@@ -47,7 +53,8 @@ Uint8List applyEditsSync({
         image = applySharpness(image, value);
         break;
       case OperationType.definition:
-        image = applyDefinition(image, value);
+        // Definition is temporarily disabled because it is still too slow for
+        // interactive editing I'll will optimize and re-enable it later
         break;
       case OperationType.saturation:
         image = applySaturation(image, value);
