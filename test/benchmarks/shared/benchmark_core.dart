@@ -117,11 +117,12 @@ Map<String, Map<String, Object>> runBenchmark({
   int iterations = defaultIterations,
 }) {
   final results = <String, Map<String, Object>>{};
+  final fixtureFrame = decodeRgbaImageFrame(fixtureBytes);
 
   for (final scenario in scenarios) {
     for (var i = 0; i < warmup; i++) {
-      applyEditsSync(
-        originalBytes: fixtureBytes,
+      applyEditsToRgbaSync(
+        originalFrame: fixtureFrame,
         edits: scenario.edits,
         colorEdits: scenario.colorEdits,
         colorGradingEdits: scenario.gradingEdits,
@@ -131,8 +132,8 @@ Map<String, Map<String, Object>> runBenchmark({
     final samples = <int>[];
     for (var i = 0; i < iterations; i++) {
       final sw = Stopwatch()..start();
-      applyEditsSync(
-        originalBytes: fixtureBytes,
+      applyEditsToRgbaSync(
+        originalFrame: fixtureFrame,
         edits: scenario.edits,
         colorEdits: scenario.colorEdits,
         colorGradingEdits: scenario.gradingEdits,

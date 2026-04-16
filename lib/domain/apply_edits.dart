@@ -1,30 +1,77 @@
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
-import '../model/edit.dart';
+
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
-import 'image_operations.dart';
-import 'color_operations.dart' as color_ops;
+import '../model/edit.dart';
+import '../model/rgba_image_frame.dart';
 import 'color_grading_operations.dart' as grading_ops;
+import 'color_operations.dart' as color_ops;
+import 'image_operations.dart';
 
-Uint8List applyEditsSync({
-  required Uint8List originalBytes,
+img.Image _ensureEditableImage(img.Image image) {
+  if (image.hasPalette ||
+      image.format != img.Format.uint8 ||
+      image.numChannels != 4) {
+    return image.convert(format: img.Format.uint8, numChannels: 4);
+  }
+  return image;
+}
+
+img.Image _decodeEditableImage(Uint8List originalBytes) {
+  final decoded = img.decodeImage(originalBytes);
+  if (decoded == null) {
+    throw Exception('Failed to decode image');
+  }
+  return _ensureEditableImage(decoded);
+}
+
+img.Image imageFromRgbaFrame(RgbaImageFrame frame) {
+  return img.Image.fromBytes(
+    width: frame.width,
+    height: frame.height,
+    bytes: frame.rgbaBytes.buffer,
+    bytesOffset: frame.rgbaBytes.offsetInBytes,
+    rowStride: frame.width * 4,
+    numChannels: 4,
+    order: img.ChannelOrder.rgba,
+  );
+}
+
+RgbaImageFrame frameFromImage(img.Image image) {
+  final normalized = _ensureEditableImage(image);
+  return RgbaImageFrame(
+    rgbaBytes: Uint8List.fromList(normalized.toUint8List()),
+    width: normalized.width,
+    height: normalized.height,
+  );
+}
+
+RgbaImageFrame decodeRgbaImageFrame(Uint8List originalBytes) {
+  return frameFromImage(_decodeEditableImage(originalBytes));
+}
+
+Uint8List encodeJpgFromFrame(RgbaImageFrame frame, {int quality = 90}) {
+  return Uint8List.fromList(
+    img.encodeJpg(imageFromRgbaFrame(frame), quality: quality),
+  );
+}
+
+Uint8List encodePngFromFrame(RgbaImageFrame frame) {
+  return Uint8List.fromList(img.encodePng(imageFromRgbaFrame(frame)));
+}
+
+img.Image applyEditsToImageSync({
+  required img.Image image,
   required List<Edit> edits,
   required List<ColorEdit> colorEdits,
   required List<ColorGradingEdit> colorGradingEdits,
 }) {
-  img.Image image = img.decodeImage(originalBytes)!;
+  image = _ensureEditableImage(image);
+
   final editValues = <OperationType, double>{
     for (final edit in edits) edit.type: edit.value / 100.0,
   };
-
-  void ensureRgba() {
-    if (image.hasPalette ||
-        image.format != img.Format.uint8 ||
-        image.numChannels != 4) {
-      image = image.convert(format: img.Format.uint8, numChannels: 4);
-    }
-  }
 
   double valueFor(OperationType type) => editValues[type] ?? 0.0;
   bool hasSignedValue(OperationType type) => valueFor(type).abs() > 0.001;
@@ -34,7 +81,6 @@ Uint8List applyEditsSync({
       hasSignedValue(OperationType.warmth) ||
       hasSignedValue(OperationType.tint) ||
       hasSignedValue(OperationType.brightness)) {
-    ensureRgba();
     image = applyFusedColorBalanceOps(
       image,
       exposure: valueFor(OperationType.exposure),
@@ -45,67 +91,84 @@ Uint8List applyEditsSync({
   }
 
   if (hasSignedValue(OperationType.highlights)) {
-    ensureRgba();
     image = applyHighlights(image, valueFor(OperationType.highlights));
   }
 
   if (hasSignedValue(OperationType.shadows)) {
-    ensureRgba();
     image = applyShadows(image, valueFor(OperationType.shadows));
   }
 
   if (hasSignedValue(OperationType.contrast)) {
-    ensureRgba();
     image = applyContrast(image, valueFor(OperationType.contrast));
   }
 
   if (hasPositiveValue(OperationType.blackpoint)) {
-    ensureRgba();
     image = applyBlackpoint(image, valueFor(OperationType.blackpoint));
   }
 
   if (hasSignedValue(OperationType.saturation)) {
-    ensureRgba();
     image = applySaturation(image, valueFor(OperationType.saturation));
   }
 
   if (hasSignedValue(OperationType.vibrance)) {
-    ensureRgba();
     image = applyVibrance(image, valueFor(OperationType.vibrance));
   }
 
   // Definition is still disabled because it is too slow for interactive use.
 
   if (hasSignedValue(OperationType.sharpness)) {
-    ensureRgba();
     image = applySharpness(image, valueFor(OperationType.sharpness));
   }
 
   if (hasSignedValue(OperationType.vignette)) {
-    ensureRgba();
     image = applyVignette(image, valueFor(OperationType.vignette));
   }
 
   if (hasPositiveValue(OperationType.noiseReduction)) {
-    ensureRgba();
     image = applyNoiseReduction(image, valueFor(OperationType.noiseReduction));
   }
 
   if (hasPositiveValue(OperationType.grain)) {
-    ensureRgba();
     image = applyGrain(image, valueFor(OperationType.grain));
   }
 
   if (hasPositiveValue(OperationType.fade)) {
-    ensureRgba();
     image = applyFade(image, valueFor(OperationType.fade));
   }
 
   image = color_ops.applyAllColorEdits(image, colorEdits);
-
   image = grading_ops.applyColorGrading(image, colorGradingEdits);
+  return image;
+}
 
-  return Uint8List.fromList(img.encodeJpg(image));
+RgbaImageFrame applyEditsToRgbaSync({
+  required RgbaImageFrame originalFrame,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+}) {
+  final result = applyEditsToImageSync(
+    image: imageFromRgbaFrame(originalFrame),
+    edits: edits,
+    colorEdits: colorEdits,
+    colorGradingEdits: colorGradingEdits,
+  );
+  return frameFromImage(result);
+}
+
+Uint8List applyEditsSync({
+  required Uint8List originalBytes,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+}) {
+  final result = applyEditsToImageSync(
+    image: _decodeEditableImage(originalBytes),
+    edits: edits,
+    colorEdits: colorEdits,
+    colorGradingEdits: colorGradingEdits,
+  );
+  return Uint8List.fromList(img.encodeJpg(result));
 }
 
 Uint8List _applyEditsInIsolate(Map<String, dynamic> params) {
@@ -115,6 +178,17 @@ Uint8List _applyEditsInIsolate(Map<String, dynamic> params) {
     colorEdits: params['colorEdits'] as List<ColorEdit>,
     colorGradingEdits: params['colorGradingEdits'] as List<ColorGradingEdit>,
   );
+}
+
+Map<String, Object> _applyEditsFrameInIsolate(Map<String, dynamic> params) {
+  final frame = RgbaImageFrame.fromMap(params['frame'] as Map<String, dynamic>);
+  final result = applyEditsToRgbaSync(
+    originalFrame: frame,
+    edits: params['edits'] as List<Edit>,
+    colorEdits: params['colorEdits'] as List<ColorEdit>,
+    colorGradingEdits: params['colorGradingEdits'] as List<ColorGradingEdit>,
+  );
+  return result.toMap();
 }
 
 Future<Uint8List> processAllEdits({
@@ -133,4 +207,23 @@ Future<Uint8List> processAllEdits({
     'colorEdits': colorEdits,
     'colorGradingEdits': colorGradingEdits,
   });
+}
+
+Future<RgbaImageFrame> processAllEditsFrame({
+  required RgbaImageFrame originalFrame,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+}) async {
+  if (edits.isEmpty && colorEdits.isEmpty && colorGradingEdits.isEmpty) {
+    return originalFrame;
+  }
+
+  final result = await compute(_applyEditsFrameInIsolate, {
+    'frame': originalFrame.toMap(),
+    'edits': edits,
+    'colorEdits': colorEdits,
+    'colorGradingEdits': colorGradingEdits,
+  });
+  return RgbaImageFrame.fromMap(result);
 }

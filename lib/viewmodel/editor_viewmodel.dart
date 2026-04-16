@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../model/ai_exception.dart';
@@ -8,6 +9,7 @@ import '../model/edit.dart';
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
 import '../model/photo_editing_image.dart';
+import '../model/rgba_image_frame.dart';
 import '../domain/apply_edits.dart';
 import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
@@ -26,7 +28,10 @@ class EditorViewModel extends ChangeNotifier {
   };
 
   PhotoEditingImage? _photoEditingImage;
-  Uint8List? _processedImage;
+  RgbaImageFrame? _originalFrame;
+  RgbaImageFrame? _processedFrame;
+  ui.Image? _originalPreviewImage;
+  ui.Image? _processedPreviewImage;
   bool _isProcessing = false;
   int? _lastBenchmarkMs; // temporary benchmark
   bool _isWaitingForAi = false;
@@ -45,7 +50,7 @@ class EditorViewModel extends ChangeNotifier {
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
-  Uint8List? _snapshotProcessedImage;
+  RgbaImageFrame? _snapshotProcessedFrame;
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
   Map<String, String> _apiKeysByProfileId = {};
@@ -250,8 +255,11 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   bool get hasImage => _photoEditingImage != null;
+  bool get hasPreviewImages =>
+      _processedPreviewImage != null && _originalPreviewImage != null;
   PhotoEditingImage? getModel() => _photoEditingImage;
-  Uint8List? get processedImage => _processedImage;
+  ui.Image? get processedImage => _processedPreviewImage;
+  ui.Image? get originalPreviewImage => _originalPreviewImage;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
   bool get isProcessing => _isProcessing;
   int? get lastBenchmarkMs => _lastBenchmarkMs; // temporary benchmark
@@ -261,6 +269,7 @@ class EditorViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposePreviewImages();
     _connectivitySub.cancel();
     super.dispose();
   }
@@ -344,9 +353,48 @@ class EditorViewModel extends ChangeNotifier {
     return _photoEditingImage?.hasColorGradingEdit(zone) ?? false;
   }
 
-  void loadImage(Uint8List bytes) {
+  void _disposePreviewImages() {
+    _processedPreviewImage?.dispose();
+    _processedPreviewImage = null;
+    _originalPreviewImage?.dispose();
+    _originalPreviewImage = null;
+  }
+
+  Future<ui.Image> _uiImageFromFrame(RgbaImageFrame frame) {
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      frame.rgbaBytes,
+      frame.width,
+      frame.height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
+  }
+
+  Future<void> _setProcessedFrame(RgbaImageFrame frame) async {
+    final previewImage = await _uiImageFromFrame(frame);
+    final previousPreviewImage = _processedPreviewImage;
+    _processedPreviewImage = previewImage;
+    _processedFrame = frame;
+    previousPreviewImage?.dispose();
+  }
+
+  Future<void> loadImage(Uint8List bytes) async {
+    _isProcessing = true;
+    notifyListeners();
+
+    final originalFrame = decodeRgbaImageFrame(bytes);
+    final originalPreviewImage = await _uiImageFromFrame(originalFrame);
+
+    _disposePreviewImages();
     _photoEditingImage = PhotoEditingImage(originalBytes: bytes);
-    _processedImage = bytes;
+    _originalFrame = originalFrame;
+    _originalPreviewImage = originalPreviewImage;
+    _processedFrame = originalFrame;
+    _processedPreviewImage = await _uiImageFromFrame(originalFrame);
+    _snapshotProcessedFrame = null;
+    _isProcessing = false;
     notifyListeners();
   }
 
@@ -379,11 +427,16 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   void resetEdits() {
-    if (_photoEditingImage == null) return;
+    if (_photoEditingImage == null || _originalFrame == null) return;
     _photoEditingImage = PhotoEditingImage(
       originalBytes: _photoEditingImage!.originalBytes,
     );
-    _processedImage = _photoEditingImage!.originalBytes;
+    _snapshotProcessedFrame = null;
+    _pendingEdits = null;
+    unawaited(() async {
+      await _setProcessedFrame(_originalFrame!);
+      notifyListeners();
+    }());
     _editorMode = EditorMode.basic;
     _selectedOperation = OperationType.exposure;
     _selectedColorRange = ColorRange.red;
@@ -426,15 +479,15 @@ class EditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Uint8List> _processAllEdits() async {
+  Future<RgbaImageFrame> _processAllEdits() async {
     final model = _photoEditingImage!;
     if (model.edits.isEmpty &&
         model.colorEdits.isEmpty &&
         model.colorGradingEdits.isEmpty) {
-      return model.originalBytes;
+      return _originalFrame!;
     }
-    return await processAllEdits(
-      originalBytes: model.originalBytes,
+    return await processAllEditsFrame(
+      originalFrame: _originalFrame!,
       edits: model.edits,
       colorEdits: model.colorEdits,
       colorGradingEdits: model.colorGradingEdits,
@@ -452,7 +505,7 @@ class EditorViewModel extends ChangeNotifier {
     sw.stop(); // temporary benchmark
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
-    _processedImage = result;
+    await _setProcessedFrame(result);
     _isProcessing = false;
     notifyListeners();
   }
@@ -468,7 +521,7 @@ class EditorViewModel extends ChangeNotifier {
     sw.stop(); // temporary benchmark
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
-    _processedImage = result;
+    await _setProcessedFrame(result);
     _isProcessing = false;
     notifyListeners();
   }
@@ -484,7 +537,7 @@ class EditorViewModel extends ChangeNotifier {
     sw.stop(); // temporary benchmark
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
-    _processedImage = result;
+    await _setProcessedFrame(result);
     _isProcessing = false;
     notifyListeners();
   }
@@ -492,6 +545,12 @@ class EditorViewModel extends ChangeNotifier {
   void _recordBenchmark(int ms) { // temporary benchmark
     _lastBenchmarkMs = ms;
     print('[BENCHMARK] Edit processing: ${ms}ms'); // temporary benchmark
+  }
+
+  Uint8List? _currentAiImageBytes() {
+    final frame = _processedFrame ?? _originalFrame;
+    if (frame == null) return _photoEditingImage?.originalBytes;
+    return encodeJpgFromFrame(frame);
   }
 
   Future<String?> sendMessage(String text) async {
@@ -573,7 +632,7 @@ class EditorViewModel extends ChangeNotifier {
 
     final model = _photoEditingImage!;
     model.saveSnapshot();
-    _snapshotProcessedImage = _processedImage;
+    _snapshotProcessedFrame = _processedFrame;
 
     for (final edit in parsed.edits) {
       model.addOrUpdateEdit(edit);
@@ -588,7 +647,8 @@ class EditorViewModel extends ChangeNotifier {
     _isProcessing = true;
     notifyListeners();
 
-    _processedImage = await _processAllEdits();
+    final resultFrame = await _processAllEdits();
+    await _setProcessedFrame(resultFrame);
     _pendingEdits = parsed;
     _isProcessing = false;
     notifyListeners();
@@ -604,7 +664,7 @@ class EditorViewModel extends ChangeNotifier {
     try {
       return await _aiProvider.sendPrompt(
         text,
-        imageBytes: _processedImage,
+        imageBytes: _currentAiImageBytes(),
         model: model,
         history: history,
         currentStateJson: stateJson,
@@ -613,7 +673,7 @@ class EditorViewModel extends ChangeNotifier {
       if (e.retryable) {
         return await _aiProvider.sendPrompt(
           text,
-          imageBytes: _processedImage,
+          imageBytes: _currentAiImageBytes(),
           model: model,
           history: history,
           currentStateJson: stateJson,
@@ -626,7 +686,7 @@ class EditorViewModel extends ChangeNotifier {
   void applyPendingEdits() {
     _pendingEdits = null;
     _photoEditingImage?.clearSnapshot();
-    _snapshotProcessedImage = null;
+    _snapshotProcessedFrame = null;
     notifyListeners();
   }
 
@@ -640,13 +700,14 @@ class EditorViewModel extends ChangeNotifier {
     _photoEditingImage!.revertSnapshot();
     _pendingEdits = null;
 
-    if (_snapshotProcessedImage != null) {
-      _processedImage = _snapshotProcessedImage;
+    if (_snapshotProcessedFrame != null) {
+      await _setProcessedFrame(_snapshotProcessedFrame!);
     } else {
-      _processedImage = await _processAllEdits();
+      final resultFrame = await _processAllEdits();
+      await _setProcessedFrame(resultFrame);
     }
 
-    _snapshotProcessedImage = null;
+    _snapshotProcessedFrame = null;
   }
 
   void clearChat() {
@@ -662,8 +723,9 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> exportToGallery() async {
-    if (_processedImage == null) return;
-    await _exportService.saveToGallery(_processedImage!, _exportSettings);
+    final frame = _processedFrame ?? _originalFrame;
+    if (frame == null) return;
+    await _exportService.saveToGallery(frame, _exportSettings);
   }
 
   String _buildCurrentStateJson() {

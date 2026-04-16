@@ -1,17 +1,17 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
 
 class ImageViewer extends StatefulWidget {
-  final Uint8List imageBytes;
-  final Uint8List originalBytes;
+  final ui.Image image;
+  final ui.Image originalImage;
   final bool isLoading;
 
   const ImageViewer({
     super.key,
-    required this.imageBytes,
-    required this.originalBytes,
+    required this.image,
+    required this.originalImage,
     required this.isLoading,
   });
 
@@ -48,8 +48,8 @@ class _ImageViewerState extends State<ImageViewer> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Image.memory(
-            _showingOriginal ? widget.originalBytes : widget.imageBytes,
+          RawImage(
+            image: _showingOriginal ? widget.originalImage : widget.image,
             fit: BoxFit.contain,
           ),
           if (_showingOriginal)

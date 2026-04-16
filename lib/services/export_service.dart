@@ -1,24 +1,23 @@
 import 'dart:typed_data';
+
 import 'package:gal/gal.dart';
-import 'package:image/image.dart' as img;
+import '../domain/apply_edits.dart';
 import '../model/export_settings.dart';
+import '../model/rgba_image_frame.dart';
 
 class ExportService {
-  Future<void> saveToGallery(Uint8List imageBytes, ExportSettings settings) async {
-    final encoded = _encode(imageBytes, settings);
+  Future<void> saveToGallery(RgbaImageFrame frame, ExportSettings settings) async {
+    final encoded = _encode(frame, settings);
     final name = 'edited_${DateTime.now().millisecondsSinceEpoch}.${settings.format.extension}';
     await Gal.putImageBytes(encoded, name: name);
   }
 
-  Uint8List _encode(Uint8List imageBytes, ExportSettings settings) {
-    final image = img.decodeImage(imageBytes);
-    if (image == null) throw Exception('Failed to decode image');
-
+  Uint8List _encode(RgbaImageFrame frame, ExportSettings settings) {
     switch (settings.format) {
       case ImageFormat.jpg:
-        return Uint8List.fromList(img.encodeJpg(image, quality: settings.quality));
+        return encodeJpgFromFrame(frame, quality: settings.quality);
       case ImageFormat.png:
-        return Uint8List.fromList(img.encodePng(image));
+        return encodePngFromFrame(frame);
     }
   }
 }

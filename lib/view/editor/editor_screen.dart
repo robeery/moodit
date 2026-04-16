@@ -61,7 +61,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (pickedFile != null) {
       final bytes = await pickedFile.readAsBytes();
-      _vm.loadImage(bytes);
+      await _vm.loadImage(bytes);
     }
   }
 
@@ -229,6 +229,13 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildEditor() {
+    final processedImage = _vm.processedImage;
+    final originalPreviewImage = _vm.originalPreviewImage;
+    final canShowPreview =
+        processedImage != null &&
+        originalPreviewImage != null &&
+        _vm.hasPreviewImages;
+
     return Column(
       children: [
         Padding(
@@ -247,11 +254,18 @@ class _EditorScreenState extends State<EditorScreen> {
             child: Stack(
               children: [
               Positioned.fill(
-                child: ImageViewer(
-                  imageBytes: _vm.processedImage!,
-                  originalBytes: _vm.originalBytes!,
-                  isLoading: _vm.isProcessing || _vm.isWaitingForAi,
-                ),
+                child: canShowPreview
+                    ? ImageViewer(
+                        image: processedImage,
+                        originalImage: originalPreviewImage,
+                        isLoading: _vm.isProcessing || _vm.isWaitingForAi,
+                      )
+                    : const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.highlight,
+                          strokeWidth: 1,
+                        ),
+                      ),
               ),
               if (_vm.hasPendingEdits)
                 Positioned(
