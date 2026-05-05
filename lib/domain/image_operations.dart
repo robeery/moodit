@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import 'color_operations.dart' show rgbToHsl, hslToRgb;
+import 'color_operations.dart' show HslValues, RgbValues, rgbToHslValues, hslToRgbValues;
 
 //all of these should be improved/modified later in development
 //by using better/more complex formulas and more parameters
@@ -399,6 +399,8 @@ img.Image applySaturation(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
   final data = _rgbaBytes(image);
+  final hsl = HslValues();
+  final rgb = RgbValues();
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
     // Convert current pixel from RGB bytes to HSL, then write RGB back
@@ -406,15 +408,15 @@ img.Image applySaturation(img.Image image, double value) {
     final g = data[i + 1] / 255.0;
     final b = data[i + 2] / 255.0;
 
-    final hsl = rgbToHsl(r, g, b);
+    rgbToHslValues(r, g, b, hsl);
     //asymmetric: -100 fully desaturates, +100 gives a moderate boost
     final shift = value > 0 ? value * 40 : value * 100;
-    final newS = (hsl[1] + shift).clamp(0.0, 100.0);
-    final rgb = hslToRgb(hsl[0], newS, hsl[2]);
+    final newS = (hsl.saturation + shift).clamp(0.0, 100.0).toDouble();
+    hslToRgbValues(hsl.hue, newS, hsl.luminance, rgb);
 
-    data[i] = _clampByteFloor(rgb[0]);
-    data[i + 1] = _clampByteFloor(rgb[1]);
-    data[i + 2] = _clampByteFloor(rgb[2]);
+    data[i] = _clampByteFloor(rgb.r);
+    data[i + 1] = _clampByteFloor(rgb.g);
+    data[i + 2] = _clampByteFloor(rgb.b);
   }
 
   return image;

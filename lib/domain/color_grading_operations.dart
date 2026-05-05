@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import '../model/color_grading_edit.dart';
-import 'color_operations.dart' show rgbToHsl, hslToRgb;
+import 'color_operations.dart' show HslValues, RgbValues, rgbToHslValues, hslToRgbValues;
 
 const int _channelsPerPixel = 4;
 
@@ -15,11 +15,11 @@ int _clampByte(num value) {
   return value.toInt();
 }
 
-Float64List _boxBlur(Float64List data, int w, int h, int radius) {
-  if (radius <= 0) return Float64List.fromList(data);
+Float32List _boxBlur(Float32List data, int w, int h, int radius) {
+  if (radius <= 0) return Float32List.fromList(data);
 
-  final horizontal = Float64List(w * h);
-  final out = Float64List(w * h);
+  final horizontal = Float32List(w * h);
+  final out = Float32List(w * h);
 
   for (int y = 0; y < h; y++) {
     final rowStart = y * w;
@@ -110,9 +110,9 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
   final data = _rgbaBytes(image);
 
   // Pre-processing: smooth chroma noise via YCbCr
-  final cbArr = Float64List(n);
-  final crArr = Float64List(n);
-  final yArr = Float64List(n);
+  final cbArr = Float32List(n);
+  final crArr = Float32List(n);
+  final yArr = Float32List(n);
 
   for (var idx = 0, pixelOffset = 0;
       idx < n;
@@ -128,22 +128,24 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
 
   final smoothCb = _boxBlur(cbArr, imgW, imgH, 3);
   final smoothCr = _boxBlur(crArr, imgW, imgH, 3);
+  final hsl = HslValues();
+  final rgbOut = RgbValues();
 
   for (var idx = 0, pixelOffset = 0;
       idx < n;
       idx++, pixelOffset += _channelsPerPixel) {
     // Reconstruct smoothed RGB from original Y + blurred chroma
     final yVal = yArr[idx];
-    final sr = (yVal + 1.403 * smoothCr[idx]).clamp(0.0, 1.0);
-    final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0);
-    final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0);
+    final sr = (yVal + 1.403 * smoothCr[idx]).clamp(0.0, 1.0).toDouble();
+    final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0).toDouble();
+    final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0).toDouble();
 
     final lum = yVal * 255.0;
 
-    final hsl = rgbToHsl(sr, sg, sb);
-    double h = hsl[0];
-    double s = hsl[1];
-    final l = hsl[2];
+    rgbToHslValues(sr, sg, sb, hsl);
+    double h = hsl.hue;
+    double s = hsl.saturation;
+    final l = hsl.luminance;
 
     double newL = l;
 
@@ -169,11 +171,11 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
       }
     }
 
-    final rgb = hslToRgb(h, s, newL);
+    hslToRgbValues(h, s, newL, rgbOut);
 
-    data[pixelOffset] = _clampByte(rgb[0]);
-    data[pixelOffset + 1] = _clampByte(rgb[1]);
-    data[pixelOffset + 2] = _clampByte(rgb[2]);
+    data[pixelOffset] = _clampByte(rgbOut.r);
+    data[pixelOffset + 1] = _clampByte(rgbOut.g);
+    data[pixelOffset + 2] = _clampByte(rgbOut.b);
   }
 
   return image;

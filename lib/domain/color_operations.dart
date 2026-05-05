@@ -26,36 +26,68 @@ int _clampByte(num value) {
   return value.toInt();
 }
 
+class HslValues {
+  double hue = 0;
+  double saturation = 0;
+  double luminance = 0;
+}
+
+class RgbValues {
+  double r = 0;
+  double g = 0;
+  double b = 0;
+}
+
 List<double> rgbToHsl(double r, double g, double b) {
-  final max = [r, g, b].reduce((a, b) => a > b ? a : b);
-  final min = [r, g, b].reduce((a, b) => a < b ? a : b);
-  final delta = max - min;
+  final hsl = HslValues();
+  rgbToHslValues(r, g, b, hsl);
+  return [hsl.hue, hsl.saturation, hsl.luminance];
+}
+
+void rgbToHslValues(double r, double g, double b, HslValues out) {
+  final maxC = max(r, max(g, b));
+  final minC = min(r, min(g, b));
+  final delta = maxC - minC;
 
   double h = 0;
   double s = 0;
-  final l = (max + min) / 2;
+  final l = (maxC + minC) / 2;
 
   if (delta != 0) {
-    s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+    s = l > 0.5 ? delta / (2 - maxC - minC) : delta / (maxC + minC);
 
-    if (max == r) {
+    if (maxC == r) {
       h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
-    } else if (max == g) {
+    } else if (maxC == g) {
       h = ((b - r) / delta + 2) / 6;
     } else {
       h = ((r - g) / delta + 4) / 6;
     }
   }
 
-  return [h * 360, s * 100, l * 100];
+  out.hue = h * 360;
+  out.saturation = s * 100;
+  out.luminance = l * 100;
 }
 
 List<double> hslToRgb(double h, double s, double l) {
+  final rgb = RgbValues();
+  hslToRgbValues(h, s, l, rgb);
+  return [rgb.r, rgb.g, rgb.b];
+}
+
+void hslToRgbValues(double h, double s, double l, RgbValues out) {
   s /= 100;
   l /= 100;
   h /= 360;
 
-  if (s == 0) return [l * 255, l * 255, l * 255];
+  if (s == 0) {
+    final gray = l * 255;
+    out.r = gray;
+    out.g = gray;
+    out.b = gray;
+    return;
+  }
 
   double hue2rgb(double p, double q, double t) {
     if (t < 0) t += 1;
@@ -69,11 +101,9 @@ List<double> hslToRgb(double h, double s, double l) {
   final q = l < 0.5 ? l * (1 + s) : l + s - l * s;
   final p = 2 * l - q;
 
-  return [
-    hue2rgb(p, q, h + 1 / 3) * 255,
-    hue2rgb(p, q, h) * 255,
-    hue2rgb(p, q, h - 1 / 3) * 255,
-  ];
+  out.r = hue2rgb(p, q, h + 1 / 3) * 255;
+  out.g = hue2rgb(p, q, h) * 255;
+  out.b = hue2rgb(p, q, h - 1 / 3) * 255;
 }
 //raised cosine weight: 1.0 inside core, smooth fade at edges, 0 outside
 const double _fadeWidth = 10.0;
@@ -145,11 +175,11 @@ double _rgbColorWeight(double r, double g, double b, ColorRange range) {
 }
 
 //box blur on a flat array, averages available neighbors at edges
-Float64List _boxBlur(Float64List data, int w, int h, int radius) {
-  if (radius <= 0) return Float64List.fromList(data);
+Float32List _boxBlur(Float32List data, int w, int h, int radius) {
+  if (radius <= 0) return Float32List.fromList(data);
 
-  final horizontal = Float64List(w * h);
-  final out = Float64List(w * h);
+  final horizontal = Float32List(w * h);
+  final out = Float32List(w * h);
 
   for (int y = 0; y < h; y++) {
     final rowStart = y * w;
@@ -218,9 +248,12 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   )).toList();
 
   //pre-processing: smooth chroma noise via YCbCr
-  final yArr = Float64List(n);
-  final cbArr = Float64List(n);
-  final crArr = Float64List(n);
+  final yArr = Float32List(n);
+  final cbArr = Float32List(n);
+  final crArr = Float32List(n);
+  final originalSat = Float32List(n);
+  final originalLum = Float32List(n);
+  final hsl = HslValues();
 
   for (var idx = 0, pixelOffset = 0;
       idx < n;
@@ -228,10 +261,13 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
     final r = data[pixelOffset] / 255.0;
     final g = data[pixelOffset + 1] / 255.0;
     final b = data[pixelOffset + 2] / 255.0;
+    rgbToHslValues(r, g, b, hsl);
     final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
     yArr[idx] = yVal;
     cbArr[idx] = 0.564 * (b - yVal);
     crArr[idx] = 0.713 * (r - yVal);
+    originalSat[idx] = hsl.saturation;
+    originalLum[idx] = hsl.luminance;
   }
 
   //7x7 blur on chroma only, Y untouched
@@ -239,19 +275,19 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final smoothCr = _boxBlur(crArr, w, h, 3);
 
   //reconstruct smoothed RGB - HSL for smoothHue/smoothSat
-  final smoothHue = Float64List(n);
-  final smoothSat = Float64List(n);
+  final smoothHue = Float32List(n);
+  final smoothSat = Float32List(n);
   for (int i = 0; i < n; i++) {
-    final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0);
-    final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0);
-    final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0);
-    final hsl = rgbToHsl(sr, sg, sb);
-    smoothHue[i] = hsl[0];
-    smoothSat[i] = hsl[1];
+    final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+    final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+    final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0).toDouble();
+    rgbToHslValues(sr, sg, sb, hsl);
+    smoothHue[i] = hsl.hue;
+    smoothSat[i] = hsl.saturation;
   }
 
   //pass 1: compute per-pixel luminance delta using RGB ratio detection
-  final lumDeltas = Float64List(n);
+  final lumDeltas = Float32List(n);
 
   for (var idx = 0, pixelOffset = 0;
       idx < n;
@@ -259,8 +295,7 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
     final r = data[pixelOffset] / 255.0;
     final g = data[pixelOffset + 1] / 255.0;
     final b = data[pixelOffset + 2] / 255.0;
-    final hsl = rgbToHsl(r, g, b);
-    final l = hsl[2];
+    final l = originalLum[idx];
 
     double totalLum = 0;
     double totalLumW = 0;
@@ -292,17 +327,13 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
 
   //pass 2: 5x5 blur the luminance deltas
   final blurredLum = _boxBlur(lumDeltas, w, h, 2);
+  final rgbOut = RgbValues();
 
   //pass 3: apply hue/sat (using smoothed values) + blurred luminance
   for (var idx = 0, pixelOffset = 0;
       idx < n;
       idx++, pixelOffset += _channelsPerPixel) {
-    final r = data[pixelOffset] / 255.0;
-    final g = data[pixelOffset + 1] / 255.0;
-    final b = data[pixelOffset + 2] / 255.0;
-
-    final hsl = rgbToHsl(r, g, b);
-    final l = hsl[2];
+    final l = originalLum[idx];
 
     final sHue = smoothHue[idx];
     final sSat = smoothSat[idx];
@@ -326,14 +357,14 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
     if (maxW <= 0.01 && lumDelta.abs() <= 0.01) continue;
 
     final newH = (sHue + totalHue) % 360;
-    final newS = (hsl[1] + totalSat).clamp(0.0, 100.0);
-    final newL = (l + lumDelta).clamp(0.0, 100.0);
+    final newS = (originalSat[idx] + totalSat).clamp(0.0, 100.0).toDouble();
+    final newL = (l + lumDelta).clamp(0.0, 100.0).toDouble();
 
-    final rgb = hslToRgb(newH, newS, newL);
+    hslToRgbValues(newH, newS, newL, rgbOut);
 
-    data[pixelOffset] = _clampByte(rgb[0]);
-    data[pixelOffset + 1] = _clampByte(rgb[1]);
-    data[pixelOffset + 2] = _clampByte(rgb[2]);
+    data[pixelOffset] = _clampByte(rgbOut.r);
+    data[pixelOffset + 1] = _clampByte(rgbOut.g);
+    data[pixelOffset + 2] = _clampByte(rgbOut.b);
   }
 
   return image;
