@@ -16,24 +16,56 @@ int _clampByte(num value) {
 }
 
 Float64List _boxBlur(Float64List data, int w, int h, int radius) {
+  if (radius <= 0) return Float64List.fromList(data);
+
+  final horizontal = Float64List(w * h);
   final out = Float64List(w * h);
+
   for (int y = 0; y < h; y++) {
+    final rowStart = y * w;
+    double sum = 0;
+    int left = 0;
+    int right = -1;
+
     for (int x = 0; x < w; x++) {
-      double sum = 0;
-      int count = 0;
-      for (int dy = -radius; dy <= radius; dy++) {
-        final ny = y + dy;
-        if (ny < 0 || ny >= h) continue;
-        for (int dx = -radius; dx <= radius; dx++) {
-          final nx = x + dx;
-          if (nx < 0 || nx >= w) continue;
-          sum += data[ny * w + nx];
-          count++;
-        }
+      final nextRight = min(w - 1, x + radius);
+      while (right < nextRight) {
+        right++;
+        sum += data[rowStart + right];
       }
-      out[y * w + x] = sum / count;
+
+      final nextLeft = max(0, x - radius);
+      while (left < nextLeft) {
+        sum -= data[rowStart + left];
+        left++;
+      }
+
+      horizontal[rowStart + x] = sum / (right - left + 1);
     }
   }
+
+  for (int x = 0; x < w; x++) {
+    double sum = 0;
+    int top = 0;
+    int bottom = -1;
+
+    for (int y = 0; y < h; y++) {
+      final nextBottom = min(h - 1, y + radius);
+      while (bottom < nextBottom) {
+        bottom++;
+        sum += horizontal[bottom * w + x];
+      }
+
+      final nextTop = max(0, y - radius);
+      while (top < nextTop) {
+        sum -= horizontal[top * w + x];
+        top++;
+      }
+
+      out[y * w + x] = sum / (bottom - top + 1);
+    }
+  }
+
   return out;
 }
 
