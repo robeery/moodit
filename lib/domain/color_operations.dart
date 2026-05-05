@@ -16,6 +16,16 @@ const Map<ColorRange, (double, double)> _colorRangeParams = {
   ColorRange.magenta: (315, 30),
 };
 
+const int _channelsPerPixel = 4;
+
+Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
+
+int _clampByte(num value) {
+  if (value <= 0) return 0;
+  if (value >= 255) return 255;
+  return value.toInt();
+}
+
 List<double> rgbToHsl(double r, double g, double b) {
   final max = [r, g, b].reduce((a, b) => a > b ? a : b);
   final min = [r, g, b].reduce((a, b) => a < b ? a : b);
@@ -162,10 +172,10 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final activeEdits = edits.where((e) => !e.isEmpty).toList();
   if (activeEdits.isEmpty) return image;
 
-  final output = img.Image.from(image);
   final w = image.width;
   final h = image.height;
   final n = w * h;
+  final data = _rgbaBytes(image);
 
   //precompute shift values
   final shifts = activeEdits.map((e) => (
@@ -180,18 +190,16 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final cbArr = Float64List(n);
   final crArr = Float64List(n);
 
-  for (int y = 0; y < h; y++) {
-    for (int x = 0; x < w; x++) {
-      final pixel = image.getPixel(x, y);
-      final r = pixel.r / 255.0;
-      final g = pixel.g / 255.0;
-      final b = pixel.b / 255.0;
-      final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
-      final idx = y * w + x;
-      yArr[idx] = yVal;
-      cbArr[idx] = 0.564 * (b - yVal);
-      crArr[idx] = 0.713 * (r - yVal);
-    }
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
+    final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
+    yArr[idx] = yVal;
+    cbArr[idx] = 0.564 * (b - yVal);
+    crArr[idx] = 0.713 * (r - yVal);
   }
 
   //7x7 blur on chroma only, Y untouched
@@ -213,96 +221,88 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   //pass 1: compute per-pixel luminance delta using RGB ratio detection
   final lumDeltas = Float64List(n);
 
-  for (int y = 0; y < h; y++) {
-    for (int x = 0; x < w; x++) {
-      final pixel = image.getPixel(x, y);
-      final r = pixel.r / 255.0;
-      final g = pixel.g / 255.0;
-      final b = pixel.b / 255.0;
-      final hsl = rgbToHsl(r, g, b);
-      final l = hsl[2];
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
+    final hsl = rgbToHsl(r, g, b);
+    final l = hsl[2];
 
-      final idx = y * w + x;
+    double totalLum = 0;
+    double totalLumW = 0;
 
-      double totalLum = 0;
-      double totalLumW = 0;
-
-      for (final shift in shifts) {
-        final lumW = _rgbColorWeight(r, g, b, shift.range);
-        if (lumW > 0.01) {
-          totalLum += shift.lum * lumW;
-          totalLumW += lumW;
-        }
+    for (final shift in shifts) {
+      final lumW = _rgbColorWeight(r, g, b, shift.range);
+      if (lumW > 0.01) {
+        totalLum += shift.lum * lumW;
+        totalLumW += lumW;
       }
-
-      if (totalLumW > 1.0) totalLum /= totalLumW;
-
-      //soft power curve to compute the final delta
-      double newL;
-      if (totalLum >= 0) {
-        final t = l / 100.0;
-        final shifted = t + totalLum / 100.0 * (1 - t * t);
-        newL = shifted.clamp(0.0, 1.0) * 100.0;
-      } else {
-        final t = l / 100.0;
-        final shifted = t + totalLum / 100.0 * (t * (2 - t));
-        newL = shifted.clamp(0.0, 1.0) * 100.0;
-      }
-
-      lumDeltas[idx] = newL - l;
     }
+
+    if (totalLumW > 1.0) totalLum /= totalLumW;
+
+    //soft power curve to compute the final delta
+    double newL;
+    if (totalLum >= 0) {
+      final t = l / 100.0;
+      final shifted = t + totalLum / 100.0 * (1 - t * t);
+      newL = shifted.clamp(0.0, 1.0) * 100.0;
+    } else {
+      final t = l / 100.0;
+      final shifted = t + totalLum / 100.0 * (t * (2 - t));
+      newL = shifted.clamp(0.0, 1.0) * 100.0;
+    }
+
+    lumDeltas[idx] = newL - l;
   }
 
   //pass 2: 5x5 blur the luminance deltas
   final blurredLum = _boxBlur(lumDeltas, w, h, 2);
 
   //pass 3: apply hue/sat (using smoothed values) + blurred luminance
-  for (int y = 0; y < h; y++) {
-    for (int x = 0; x < w; x++) {
-      final pixel = image.getPixel(x, y);
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
 
-      final r = pixel.r / 255.0;
-      final g = pixel.g / 255.0;
-      final b = pixel.b / 255.0;
+    final hsl = rgbToHsl(r, g, b);
+    final l = hsl[2];
 
-      final hsl = rgbToHsl(r, g, b);
-      final l = hsl[2];
+    final sHue = smoothHue[idx];
+    final sSat = smoothSat[idx];
 
-      final idx = y * w + x;
-      final sHue = smoothHue[idx];
-      final sSat = smoothSat[idx];
+    final satGate = (sSat / 30.0).clamp(0.0, 1.0);
 
-      final satGate = (sSat / 30.0).clamp(0.0, 1.0);
+    double totalHue = 0;
+    double totalSat = 0;
+    double maxW = 0;
 
-      double totalHue = 0;
-      double totalSat = 0;
-      double maxW = 0;
-
-      for (final shift in shifts) {
-        final wt = _hueWeight(sHue, shift.range) * satGate;
-        if (wt > 0.01) {
-          totalHue += shift.hue * wt;
-          totalSat += shift.sat * wt;
-          if (wt > maxW) maxW = wt;
-        }
+    for (final shift in shifts) {
+      final wt = _hueWeight(sHue, shift.range) * satGate;
+      if (wt > 0.01) {
+        totalHue += shift.hue * wt;
+        totalSat += shift.sat * wt;
+        if (wt > maxW) maxW = wt;
       }
-
-      final lumDelta = blurredLum[idx];
-      if (maxW <= 0.01 && lumDelta.abs() <= 0.01) continue;
-
-      final newH = (sHue + totalHue) % 360;
-      final newS = (hsl[1] + totalSat).clamp(0.0, 100.0);
-      final newL = (l + lumDelta).clamp(0.0, 100.0);
-
-      final rgb = hslToRgb(newH, newS, newL);
-
-      output.setPixel(x, y, img.ColorRgb8(
-        rgb[0].clamp(0, 255).toInt(),
-        rgb[1].clamp(0, 255).toInt(),
-        rgb[2].clamp(0, 255).toInt(),
-      ));
     }
+
+    final lumDelta = blurredLum[idx];
+    if (maxW <= 0.01 && lumDelta.abs() <= 0.01) continue;
+
+    final newH = (sHue + totalHue) % 360;
+    final newS = (hsl[1] + totalSat).clamp(0.0, 100.0);
+    final newL = (l + lumDelta).clamp(0.0, 100.0);
+
+    final rgb = hslToRgb(newH, newS, newL);
+
+    data[pixelOffset] = _clampByte(rgb[0]);
+    data[pixelOffset + 1] = _clampByte(rgb[1]);
+    data[pixelOffset + 2] = _clampByte(rgb[2]);
   }
 
-  return output;
+  return image;
 }

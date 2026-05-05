@@ -5,6 +5,16 @@ import 'package:image/image.dart' as img;
 import '../model/color_grading_edit.dart';
 import 'color_operations.dart' show rgbToHsl, hslToRgb;
 
+const int _channelsPerPixel = 4;
+
+Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
+
+int _clampByte(num value) {
+  if (value <= 0) return 0;
+  if (value >= 255) return 255;
+  return value.toInt();
+}
+
 Float64List _boxBlur(Float64List data, int w, int h, int radius) {
   final out = Float64List(w * h);
   for (int y = 0; y < h; y++) {
@@ -62,83 +72,77 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
   final activeEdits = edits.where((e) => !e.isEmpty).toList();
   if (activeEdits.isEmpty) return image;
 
-  final output = img.Image.from(image);
   final imgW = image.width;
   final imgH = image.height;
   final n = imgW * imgH;
+  final data = _rgbaBytes(image);
 
   // Pre-processing: smooth chroma noise via YCbCr
   final cbArr = Float64List(n);
   final crArr = Float64List(n);
   final yArr = Float64List(n);
 
-  for (int y = 0; y < imgH; y++) {
-    for (int x = 0; x < imgW; x++) {
-      final pixel = image.getPixel(x, y);
-      final r = pixel.r / 255.0;
-      final g = pixel.g / 255.0;
-      final b = pixel.b / 255.0;
-      final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
-      final idx = y * imgW + x;
-      yArr[idx] = yVal;
-      cbArr[idx] = 0.564 * (b - yVal);
-      crArr[idx] = 0.713 * (r - yVal);
-    }
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
+    final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
+    yArr[idx] = yVal;
+    cbArr[idx] = 0.564 * (b - yVal);
+    crArr[idx] = 0.713 * (r - yVal);
   }
 
   final smoothCb = _boxBlur(cbArr, imgW, imgH, 3);
   final smoothCr = _boxBlur(crArr, imgW, imgH, 3);
 
-  for (int y = 0; y < imgH; y++) {
-    for (int x = 0; x < imgW; x++) {
-      final idx = y * imgW + x;
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    // Reconstruct smoothed RGB from original Y + blurred chroma
+    final yVal = yArr[idx];
+    final sr = (yVal + 1.403 * smoothCr[idx]).clamp(0.0, 1.0);
+    final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0);
+    final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0);
 
-      // Reconstruct smoothed RGB from original Y + blurred chroma
-      final yVal = yArr[idx];
-      final sr = (yVal + 1.403 * smoothCr[idx]).clamp(0.0, 1.0);
-      final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0);
-      final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0);
+    final lum = yVal * 255.0;
 
-      final lum = yVal * 255.0;
+    final hsl = rgbToHsl(sr, sg, sb);
+    double h = hsl[0];
+    double s = hsl[1];
+    final l = hsl[2];
 
-      final hsl = rgbToHsl(sr, sg, sb);
-      double h = hsl[0];
-      double s = hsl[1];
-      final l = hsl[2];
+    double newL = l;
 
-      double newL = l;
+    for (final edit in activeEdits) {
+      final w = _zoneWeight(lum, edit.zone);
+      final t = w * (edit.strength / 100.0);
 
-      for (final edit in activeEdits) {
-        final w = _zoneWeight(lum, edit.zone);
-        final t = w * (edit.strength / 100.0);
+      // Blend toward the target tint as a fixed color
+      const tintSat = 40.0;
+      h = _lerpHue(h, edit.hue, t);
+      s = s + (tintSat - s) * t;
+      s = s.clamp(0.0, 100.0);
 
-        // Blend toward the target tint as a fixed color
-        const tintSat = 40.0;
-        h = _lerpHue(h, edit.hue, t);
-        s = s + (tintSat - s) * t;
-        s = s.clamp(0.0, 100.0);
-
-        // Apply luminance shift with proportional power curve
-        if (edit.luminance.abs() > 0.001) {
-          final lumShift = w * (edit.luminance / 100.0) * 15;
-          final lt = newL / 100.0;
-          if (lumShift >= 0) {
-            newL = (lt + lumShift / 100.0 * (1 - lt * lt)).clamp(0.0, 1.0) * 100.0;
-          } else {
-            newL = (lt + lumShift / 100.0 * (lt * (2 - lt))).clamp(0.0, 1.0) * 100.0;
-          }
+      // Apply luminance shift with proportional power curve
+      if (edit.luminance.abs() > 0.001) {
+        final lumShift = w * (edit.luminance / 100.0) * 15;
+        final lt = newL / 100.0;
+        if (lumShift >= 0) {
+          newL = (lt + lumShift / 100.0 * (1 - lt * lt)).clamp(0.0, 1.0) * 100.0;
+        } else {
+          newL = (lt + lumShift / 100.0 * (lt * (2 - lt))).clamp(0.0, 1.0) * 100.0;
         }
       }
-
-      final rgb = hslToRgb(h, s, newL);
-
-      output.setPixel(x, y, img.ColorRgb8(
-        rgb[0].clamp(0, 255).toInt(),
-        rgb[1].clamp(0, 255).toInt(),
-        rgb[2].clamp(0, 255).toInt(),
-      ));
     }
+
+    final rgb = hslToRgb(h, s, newL);
+
+    data[pixelOffset] = _clampByte(rgb[0]);
+    data[pixelOffset + 1] = _clampByte(rgb[1]);
+    data[pixelOffset + 2] = _clampByte(rgb[2]);
   }
 
-  return output;
+  return image;
 }
