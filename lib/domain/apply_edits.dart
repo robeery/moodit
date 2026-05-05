@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
 import 'package:image/image.dart' as img;
 
 import '../model/color_edit.dart';
@@ -169,61 +170,4 @@ Uint8List applyEditsSync({
     colorGradingEdits: colorGradingEdits,
   );
   return Uint8List.fromList(img.encodeJpg(result));
-}
-
-Uint8List _applyEditsInIsolate(Map<String, dynamic> params) {
-  return applyEditsSync(
-    originalBytes: params['bytes'] as Uint8List,
-    edits: params['edits'] as List<Edit>,
-    colorEdits: params['colorEdits'] as List<ColorEdit>,
-    colorGradingEdits: params['colorGradingEdits'] as List<ColorGradingEdit>,
-  );
-}
-
-Map<String, Object> _applyEditsFrameInIsolate(Map<String, dynamic> params) {
-  final frame = RgbaImageFrame.fromMap(params['frame'] as Map<String, dynamic>);
-  final result = applyEditsToRgbaSync(
-    originalFrame: frame,
-    edits: params['edits'] as List<Edit>,
-    colorEdits: params['colorEdits'] as List<ColorEdit>,
-    colorGradingEdits: params['colorGradingEdits'] as List<ColorGradingEdit>,
-  );
-  return result.toMap();
-}
-
-Future<Uint8List> processAllEdits({
-  required Uint8List originalBytes,
-  required List<Edit> edits,
-  required List<ColorEdit> colorEdits,
-  required List<ColorGradingEdit> colorGradingEdits,
-}) async {
-  if (edits.isEmpty && colorEdits.isEmpty && colorGradingEdits.isEmpty) {
-    return originalBytes;
-  }
-
-  return await compute(_applyEditsInIsolate, {
-    'bytes': originalBytes,
-    'edits': edits,
-    'colorEdits': colorEdits,
-    'colorGradingEdits': colorGradingEdits,
-  });
-}
-
-Future<RgbaImageFrame> processAllEditsFrame({
-  required RgbaImageFrame originalFrame,
-  required List<Edit> edits,
-  required List<ColorEdit> colorEdits,
-  required List<ColorGradingEdit> colorGradingEdits,
-}) async {
-  if (edits.isEmpty && colorEdits.isEmpty && colorGradingEdits.isEmpty) {
-    return originalFrame;
-  }
-
-  final result = await compute(_applyEditsFrameInIsolate, {
-    'frame': originalFrame.toMap(),
-    'edits': edits,
-    'colorEdits': colorEdits,
-    'colorGradingEdits': colorGradingEdits,
-  });
-  return RgbaImageFrame.fromMap(result);
 }

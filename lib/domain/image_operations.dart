@@ -511,6 +511,9 @@ img.Image applyNoiseReduction(img.Image image, double value) {
   if (value <= 0.001) return image;
 
   final radius = (value * 3).round().clamp(1, 3);
+  //might be faster if we implement this ourselves
+  //to investigate later
+  //as of now, this is the slowest basic operation and takes in between 400-1000ms
   return img.gaussianBlur(image, radius: radius);
 }
 

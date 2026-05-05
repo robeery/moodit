@@ -17,6 +17,7 @@ import '../model/export_settings.dart';
 import '../domain/ai_provider.dart';
 import '../services/ai_profiles_api_key_storage.dart';
 import '../services/ai_profiles_storage.dart';
+import '../services/edit_pipeline_worker.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
 
@@ -47,6 +48,7 @@ class EditorViewModel extends ChangeNotifier {
   late AiProvider _aiProvider;
   final AiProfilesApiKeyStorage _aiProfilesApiKeyStorage;
   final AiProfilesStorage _aiProfilesStorage;
+  final EditPipelineWorker _editPipelineWorker;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
@@ -58,12 +60,14 @@ class EditorViewModel extends ChangeNotifier {
   EditorViewModel({
     AiProfilesStorage? aiProfilesStorage,
     AiProfilesApiKeyStorage? aiProfilesApiKeyStorage,
+    EditPipelineWorker? editPipelineWorker,
   })
       : _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
         _aiProfilesApiKeyStorage =
             aiProfilesApiKeyStorage ?? const AiProfilesApiKeyStorage(),
-        _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage() {
+        _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage(),
+        _editPipelineWorker = editPipelineWorker ?? EditPipelineWorker() {
     _initializeAiProvider();
     unawaited(_loadPersistedAiProfiles());
 
@@ -270,6 +274,7 @@ class EditorViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposePreviewImages();
+    _editPipelineWorker.dispose();
     _connectivitySub.cancel();
     super.dispose();
   }
@@ -386,6 +391,7 @@ class EditorViewModel extends ChangeNotifier {
 
     final originalFrame = decodeRgbaImageFrame(bytes);
     final originalPreviewImage = await _uiImageFromFrame(originalFrame);
+    await _editPipelineWorker.loadOriginalFrame(originalFrame);
 
     _disposePreviewImages();
     _photoEditingImage = PhotoEditingImage(originalBytes: bytes);
@@ -486,8 +492,7 @@ class EditorViewModel extends ChangeNotifier {
         model.colorGradingEdits.isEmpty) {
       return _originalFrame!;
     }
-    return await processAllEditsFrame(
-      originalFrame: _originalFrame!,
+    return await _editPipelineWorker.process(
       edits: model.edits,
       colorEdits: model.colorEdits,
       colorGradingEdits: model.colorGradingEdits,
