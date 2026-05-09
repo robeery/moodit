@@ -505,16 +505,95 @@ img.Image applyVignette(img.Image image, double value) {
   return image;
 }
 
-//gaussian blur for now
-//might rename this to blur later
+void _applySeparableBoxBlurRgb(img.Image image, int radius) {
+  if (radius <= 0) return;
+
+  final data = _rgbaBytes(image);
+  final source = Uint8List.fromList(data);
+  final horizontal = Uint8List(data.length);
+  final width = image.width;
+  final height = image.height;
+  final rowStride = width * _channelsPerPixel;
+  final maxX = width - 1;
+  final maxY = height - 1;
+
+  for (var y = 0; y < height; y++) {
+    final rowStart = y * rowStride;
+    var left = 0;
+    var right = -1;
+    var sumR = 0;
+    var sumG = 0;
+    var sumB = 0;
+
+    for (var x = 0; x < width; x++) {
+      final nextRight = min(maxX, x + radius);
+      while (right < nextRight) {
+        right++;
+        final offset = rowStart + right * _channelsPerPixel;
+        sumR += source[offset];
+        sumG += source[offset + 1];
+        sumB += source[offset + 2];
+      }
+
+      final nextLeft = max(0, x - radius);
+      while (left < nextLeft) {
+        final offset = rowStart + left * _channelsPerPixel;
+        sumR -= source[offset];
+        sumG -= source[offset + 1];
+        sumB -= source[offset + 2];
+        left++;
+      }
+
+      final count = right - left + 1;
+      final outOffset = rowStart + x * _channelsPerPixel;
+      horizontal[outOffset] = (sumR + count ~/ 2) ~/ count;
+      horizontal[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      horizontal[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+
+  for (var x = 0; x < width; x++) {
+    var top = 0;
+    var bottom = -1;
+    var sumR = 0;
+    var sumG = 0;
+    var sumB = 0;
+
+    for (var y = 0; y < height; y++) {
+      final nextBottom = min(maxY, y + radius);
+      while (bottom < nextBottom) {
+        bottom++;
+        final offset = bottom * rowStride + x * _channelsPerPixel;
+        sumR += horizontal[offset];
+        sumG += horizontal[offset + 1];
+        sumB += horizontal[offset + 2];
+      }
+
+      final nextTop = max(0, y - radius);
+      while (top < nextTop) {
+        final offset = top * rowStride + x * _channelsPerPixel;
+        sumR -= horizontal[offset];
+        sumG -= horizontal[offset + 1];
+        sumB -= horizontal[offset + 2];
+        top++;
+      }
+
+      final count = bottom - top + 1;
+      final outOffset = y * rowStride + x * _channelsPerPixel;
+      data[outOffset] = (sumR + count ~/ 2) ~/ count;
+      data[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      data[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+}
+
+//fast blur-based noise reduction placeholder
 img.Image applyNoiseReduction(img.Image image, double value) {
   if (value <= 0.001) return image;
 
-  final radius = (value * 3).round().clamp(1, 3);
-  //might be faster if we implement this ourselves
-  //to investigate later
-  //as of now, this is the slowest basic operation and takes in between 400-1000ms
-  return img.gaussianBlur(image, radius: radius);
+  final radius = (value * 3).round().clamp(1, 3).toInt();
+  _applySeparableBoxBlurRgb(image, radius);
+  return image;
 }
 
 img.Image applyGrain(img.Image image, double value) {
