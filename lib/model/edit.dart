@@ -12,7 +12,7 @@ enum OperationType {
   definition,
   sharpness,
   vignette,
-  noiseReduction,
+  blur,
   grain,
   fade,
 }
@@ -23,7 +23,7 @@ extension OperationTypeExtension on OperationType {
       case OperationType.sharpness:
       case OperationType.definition:
       case OperationType.blackpoint:
-      case OperationType.noiseReduction:
+      case OperationType.blur:
       case OperationType.grain:
       case OperationType.fade:
         return 0;

@@ -41,7 +41,7 @@ SCHEMA:
 
 OPERATION TYPES AND VALUE RANGES:
 Basic edits (range -100 to +100): exposure, brightness, highlights, shadows, contrast, warmth, tint, saturation, vibrance, vignette
-Basic edits (range 0 to +100): sharpness, definition, blackpoint, noiseReduction, grain, fade
+Basic edits (range 0 to +100): sharpness, definition, blackpoint, blur, grain, fade
 
 Selective color ranges: red, orange, yellow, green, cyan, blue, purple, magenta
   - hue: -100 to +100

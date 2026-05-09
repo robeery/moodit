@@ -587,8 +587,8 @@ void _applySeparableBoxBlurRgb(img.Image image, int radius) {
   }
 }
 
-//fast blur-based noise reduction placeholder
-img.Image applyNoiseReduction(img.Image image, double value) {
+//fast blur operation
+img.Image applyBlur(img.Image image, double value) {
   if (value <= 0.001) return image;
 
   final radius = (value * 3).round().clamp(1, 3).toInt();

@@ -125,8 +125,8 @@ img.Image applyEditsToImageSync({
     image = applyVignette(image, valueFor(OperationType.vignette));
   }
 
-  if (hasPositiveValue(OperationType.noiseReduction)) {
-    image = applyNoiseReduction(image, valueFor(OperationType.noiseReduction));
+  if (hasPositiveValue(OperationType.blur)) {
+    image = applyBlur(image, valueFor(OperationType.blur));
   }
 
   if (hasPositiveValue(OperationType.grain)) {

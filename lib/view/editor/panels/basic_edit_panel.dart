@@ -37,7 +37,7 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
     OperationType.vibrance: Icons.invert_colors,
     OperationType.blackpoint: Icons.album,
     OperationType.vignette: Icons.vignette,
-    OperationType.noiseReduction: Icons.blur_linear_sharp,
+    OperationType.blur: Icons.blur_linear_sharp,
     OperationType.grain: Icons.grain_sharp,
     OperationType.fade: Icons.deblur,
   };
