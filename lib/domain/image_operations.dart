@@ -35,12 +35,6 @@ int _clampByteInt(int value) {
   return value;
 }
 
-int _clampCoord(int value, int maxValue) {
-  if (value <= 0) return 0;
-  if (value >= maxValue) return maxValue;
-  return value;
-}
-
 double _clampChannelDouble(num value) {
   if (value <= 0) return 0;
   if (value >= 255) return 255;
@@ -327,40 +321,47 @@ img.Image applySharpness(img.Image image, double value) {
   final data = _rgbaBytes(image);
   final width = image.width;
   final height = image.height;
-  final maxX = width - 1;
-  final maxY = height - 1;
-
-  final kernel = [
-    0.0, -value, 0.0,
-    -value, 1.0 + 4 * value, -value,
-    0.0, -value, 0.0,
-  ];
+  final lastX = width - 1;
+  final lastY = height - 1;
+  final rowStride = width * _channelsPerPixel;
+  final centerWeight = 1.0 + 4.0 * value;
 
   for (var y = 0; y < height; y++) {
-    for (var x = 0; x < width; x++) {
-      double r = 0;
-      double g = 0;
-      double b = 0;
+    final rowStart = y * rowStride;
+    final upOffset = y == 0 ? 0 : -rowStride;
+    final downOffset = y == lastY ? 0 : rowStride;
 
-      for (var ky = -1, kernelIndex = 0; ky <= 1; ky++) {
-        final ny = _clampCoord(y + ky, maxY);
-        for (var kx = -1; kx <= 1; kx++, kernelIndex++) {
-          final nx = _clampCoord(x + kx, maxX);
-          // sampleIndex points to the R byte of neighbor pixel (nx, ny)
-          final sampleIndex =
-              (ny * width + nx) * _channelsPerPixel;
-          final weight = kernel[kernelIndex];
-          r += source[sampleIndex] * weight;
-          g += source[sampleIndex + 1] * weight;
-          b += source[sampleIndex + 2] * weight;
-        }
-      }
+    for (var x = 0, pixelIndex = rowStart;
+        x < width;
+        x++, pixelIndex += _channelsPerPixel) {
+      final leftIndex = x == 0 ? pixelIndex : pixelIndex - _channelsPerPixel;
+      final rightIndex =
+          x == lastX ? pixelIndex : pixelIndex + _channelsPerPixel;
+      final upIndex = pixelIndex + upOffset;
+      final downIndex = pixelIndex + downOffset;
 
-      final pixelIndex = (y * width + x) * _channelsPerPixel;
-      // pixelIndex points to the R byte of the output pixel (x, y)
-      data[pixelIndex] = _clampByteFloor(r);
-      data[pixelIndex + 1] = _clampByteFloor(g);
-      data[pixelIndex + 2] = _clampByteFloor(b);
+      final neighborR = source[leftIndex] +
+          source[rightIndex] +
+          source[upIndex] +
+          source[downIndex];
+      final neighborG = source[leftIndex + 1] +
+          source[rightIndex + 1] +
+          source[upIndex + 1] +
+          source[downIndex + 1];
+      final neighborB = source[leftIndex + 2] +
+          source[rightIndex + 2] +
+          source[upIndex + 2] +
+          source[downIndex + 2];
+
+      data[pixelIndex] = _clampByteFloor(
+        source[pixelIndex] * centerWeight - neighborR * value,
+      );
+      data[pixelIndex + 1] = _clampByteFloor(
+        source[pixelIndex + 1] * centerWeight - neighborG * value,
+      );
+      data[pixelIndex + 2] = _clampByteFloor(
+        source[pixelIndex + 2] * centerWeight - neighborB * value,
+      );
     }
   }
 

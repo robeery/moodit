@@ -103,6 +103,15 @@ void main() {
 
     expect(_bytes(first), orderedEquals(_bytes(second)));
   });
+
+  test('sharpness keeps a flat image unchanged', () {
+    final image = _solidImage(width: 11, height: 9, r: 90, g: 120, b: 150);
+    final before = _bytes(image);
+
+    applySharpness(image, 0.8);
+
+    expect(_bytes(image), orderedEquals(before));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {
@@ -141,4 +150,23 @@ bool _alphaPreserved(Uint8List before, Uint8List after) {
     if (before[i] != after[i]) return false;
   }
   return true;
+}
+
+img.Image _solidImage({
+  required int width,
+  required int height,
+  required int r,
+  required int g,
+  required int b,
+  int a = 255,
+}) {
+  final image = img.Image(width: width, height: height, numChannels: 4);
+
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      image.setPixelRgba(x, y, r, g, b, a);
+    }
+  }
+
+  return image;
 }
