@@ -93,6 +93,16 @@ void main() {
     expect(result.edits!.edits.single.type, OperationType.blur);
     expect(result.edits!.edits.single.value, 50);
   });
+
+  test('grain is deterministic for the same input and value', () {
+    final first = _fixtureImage(width: 13, height: 11);
+    final second = _fixtureImage(width: 13, height: 11);
+
+    applyGrain(first, 0.5);
+    applyGrain(second, 0.5);
+
+    expect(_bytes(first), orderedEquals(_bytes(second)));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {

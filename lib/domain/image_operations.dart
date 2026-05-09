@@ -29,6 +29,12 @@ int _clampByteRound(num value) {
   return value.round();
 }
 
+int _clampByteInt(int value) {
+  if (value <= 0) return 0;
+  if (value >= 255) return 255;
+  return value;
+}
+
 int _clampCoord(int value, int maxValue) {
   if (value <= 0) return 0;
   if (value >= maxValue) return maxValue;
@@ -600,19 +606,30 @@ img.Image applyGrain(img.Image image, double value) {
   if (value <= 0.001) return image;
 
   final data = _rgbaBytes(image);
-  final random = Random(42);
-  final intensity = value * 80;
+  var amplitude = (value * 80).round();
+  if (amplitude < 1) amplitude = 1;
+  final noiseRange = amplitude * 2 + 1;
+  var noiseState = 42;
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    noiseState = _nextGrainNoiseState(noiseState);
     // Grain adds the same monochrome noise amount to R, G, and B
-    final noise = (random.nextDouble() * 2 - 1) * intensity;
+    final noise = ((((noiseState >> 16) & 0xffff) * noiseRange) >> 16) -
+        amplitude;
 
-    data[i] = _clampByteFloor(data[i] + noise);
-    data[i + 1] = _clampByteFloor(data[i + 1] + noise);
-    data[i + 2] = _clampByteFloor(data[i + 2] + noise);
+    data[i] = _clampByteInt(data[i] + noise);
+    data[i + 1] = _clampByteInt(data[i + 1] + noise);
+    data[i + 2] = _clampByteInt(data[i + 2] + noise);
   }
 
   return image;
+}
+
+int _nextGrainNoiseState(int state) {
+  state ^= (state << 13) & 0xffffffff;
+  state ^= state >> 17;
+  state ^= (state << 5) & 0xffffffff;
+  return state & 0xffffffff;
 }
 
 img.Image applyFade(img.Image image, double value) {
