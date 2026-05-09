@@ -128,6 +128,22 @@ void main() {
     expect(bytes[1], lessThan(130));
     expect(bytes[2], lessThan(140));
   });
+
+  test('shadows lifts dark pixels and leaves bright pixels alone', () {
+    final image = img.Image(width: 2, height: 1, numChannels: 4);
+    image.setPixelRgba(0, 0, 50, 50, 50, 255);
+    image.setPixelRgba(1, 0, 220, 220, 220, 255);
+
+    applyShadows(image, 0.8);
+    final bytes = _bytes(image);
+
+    expect(bytes[0], greaterThan(50));
+    expect(bytes[1], greaterThan(50));
+    expect(bytes[2], greaterThan(50));
+    expect(bytes[4], 220);
+    expect(bytes[5], 220);
+    expect(bytes[6], 220);
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {

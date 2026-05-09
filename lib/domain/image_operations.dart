@@ -35,6 +35,10 @@ int _clampByteInt(int value) {
   return value;
 }
 
+int _luminanceByte(int r, int g, int b) {
+  return (77 * r + 150 * g + 29 * b + 128) >> 8;
+}
+
 double _clampChannelDouble(num value) {
   if (value <= 0) return 0;
   if (value >= 255) return 255;
@@ -217,28 +221,49 @@ img.Image applyShadows(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
   final data = _rgbaBytes(image);
-  final scaledValue = value * 0.7;
+  final lut = _buildShadowsLut(value);
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Read current pixel channels from the raw RGBA buffer
     final r = data[i];
     final g = data[i + 1];
     final b = data[i + 2];
-    final lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+    final offset = _luminanceByte(r, g, b) << 8;
 
-    //smooth weight: 0 above midtones, ramps up into shadows
-    final w = ((0.6 - lum) / 0.6).clamp(0.0, 1.0);
-    final strength = w * w * scaledValue;
-
-    //positive: lift shadows using gamma curve (like brightness)
-    //negative: crush shadows using gamma curve
-    final gamma = pow(2.0, -strength).toDouble();
-    data[i] = _clampByteFloor(pow(r / 255.0, gamma) * 255);
-    data[i + 1] = _clampByteFloor(pow(g / 255.0, gamma) * 255);
-    data[i + 2] = _clampByteFloor(pow(b / 255.0, gamma) * 255);
+    data[i] = lut[offset + r];
+    data[i + 1] = lut[offset + g];
+    data[i + 2] = lut[offset + b];
   }
 
   return image;
+}
+
+Uint8List _buildShadowsLut(double value) {
+  final lut = Uint8List(256 * 256);
+  final scaledValue = value * 0.7;
+
+  for (var lumByte = 0; lumByte < 256; lumByte++) {
+    final lum = lumByte / 255.0;
+    // Smooth weight: 0 above midtones, ramps up into shadows
+    final w = ((0.6 - lum) / 0.6).clamp(0.0, 1.0);
+    final strength = w * w * scaledValue;
+    final rowOffset = lumByte << 8;
+
+    if (strength.abs() <= 0.001) {
+      for (var channel = 0; channel < 256; channel++) {
+        lut[rowOffset + channel] = channel;
+      }
+      continue;
+    }
+
+    // Positive values lift shadows; negative values crush them
+    final gamma = pow(2.0, -strength).toDouble();
+    for (var channel = 0; channel < 256; channel++) {
+      lut[rowOffset + channel] =
+          _clampByteFloor(pow(channel / 255.0, gamma) * 255);
+    }
+  }
+
+  return lut;
 }
 
 img.Image applyContrast(img.Image image, double value) {
