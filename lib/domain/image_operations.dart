@@ -487,19 +487,23 @@ img.Image applyVignette(img.Image image, double value) {
   final height = image.height;
   final centerX = width / 2;
   final centerY = height / 2;
-  final maxDist = sqrt(centerX * centerX + centerY * centerY);
+  final invMaxDistSquared = 1.0 / (centerX * centerX + centerY * centerY);
+  final rowStride = width * _channelsPerPixel;
+  final falloffScale = value * invMaxDistSquared;
+  final columnFalloff = Float64List(width);
+  for (var x = 0; x < width; x++) {
+    final dx = x - centerX;
+    columnFalloff[x] = dx * dx * falloffScale;
+  }
 
   for (var y = 0; y < height; y++) {
     final dy = y - centerY;
-    for (var x = 0; x < width; x++) {
-      // pixelIndex points to the R byte of pixel (x, y)
-      final pixelIndex = (y * width + x) * _channelsPerPixel;
-
-      final dx = x - centerX;
-      final dist = sqrt(dx * dx + dy * dy);
-
-      final d = dist / maxDist;
-      final factor = 1.0 - (value * d * d);
+    final rowFalloff = dy * dy * falloffScale;
+    final rowStart = y * rowStride;
+    for (var x = 0, pixelIndex = rowStart;
+        x < width;
+        x++, pixelIndex += _channelsPerPixel) {
+      final factor = 1.0 - rowFalloff - columnFalloff[x];
 
       data[pixelIndex] = _clampByteFloor(data[pixelIndex] * factor);
       data[pixelIndex + 1] =

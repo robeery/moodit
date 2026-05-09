@@ -112,6 +112,22 @@ void main() {
 
     expect(_bytes(image), orderedEquals(before));
   });
+
+  test('vignette leaves the center unchanged and darkens edges', () {
+    final image = _solidImage(width: 10, height: 10, r: 120, g: 130, b: 140);
+
+    applyVignette(image, 0.8);
+    final bytes = _bytes(image);
+
+    final centerIndex = (5 * 10 + 5) * 4;
+    expect(bytes[centerIndex], 120);
+    expect(bytes[centerIndex + 1], 130);
+    expect(bytes[centerIndex + 2], 140);
+
+    expect(bytes[0], lessThan(120));
+    expect(bytes[1], lessThan(130));
+    expect(bytes[2], lessThan(140));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {
