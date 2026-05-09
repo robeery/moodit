@@ -195,26 +195,47 @@ img.Image applyHighlights(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
   final data = _rgbaBytes(image);
-  final scaledValue = value * 0.7;
+  final lut = _buildHighlightsLut(value);
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Read current pixel channels from the raw RGBA buffer
     final r = data[i];
     final g = data[i + 1];
     final b = data[i + 2];
-    final lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+    final offset = _luminanceByte(r, g, b) << 8;
 
-    //smooth weight: 0 below midtones, ramps up through highlights
-    final w = ((lum - 0.4) / 0.6).clamp(0.0, 1.0);
-    //squared for softer onset, stronger at the top
-    final strength = w * w * scaledValue;
-
-    data[i] = _clampByteFloor(r + r * strength);
-    data[i + 1] = _clampByteFloor(g + g * strength);
-    data[i + 2] = _clampByteFloor(b + b * strength);
+    data[i] = lut[offset + r];
+    data[i + 1] = lut[offset + g];
+    data[i + 2] = lut[offset + b];
   }
 
   return image;
+}
+
+Uint8List _buildHighlightsLut(double value) {
+  final lut = Uint8List(256 * 256);
+  final scaledValue = value * 0.7;
+
+  for (var lumByte = 0; lumByte < 256; lumByte++) {
+    final lum = lumByte / 255.0;
+    // Smooth weight: 0 below midtones, ramps up through highlights
+    final w = ((lum - 0.4) / 0.6).clamp(0.0, 1.0);
+    final strength = w * w * scaledValue;
+    final rowOffset = lumByte << 8;
+
+    if (strength.abs() <= 0.001) {
+      for (var channel = 0; channel < 256; channel++) {
+        lut[rowOffset + channel] = channel;
+      }
+      continue;
+    }
+
+    for (var channel = 0; channel < 256; channel++) {
+      lut[rowOffset + channel] =
+          _clampByteFloor(channel + channel * strength);
+    }
+  }
+
+  return lut;
 }
 
 img.Image applyShadows(img.Image image, double value) {

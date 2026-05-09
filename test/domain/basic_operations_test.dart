@@ -144,6 +144,22 @@ void main() {
     expect(bytes[5], 220);
     expect(bytes[6], 220);
   });
+
+  test('highlights boosts bright pixels and leaves dark pixels alone', () {
+    final image = img.Image(width: 2, height: 1, numChannels: 4);
+    image.setPixelRgba(0, 0, 50, 50, 50, 255);
+    image.setPixelRgba(1, 0, 180, 180, 180, 255);
+
+    applyHighlights(image, 0.8);
+    final bytes = _bytes(image);
+
+    expect(bytes[0], 50);
+    expect(bytes[1], 50);
+    expect(bytes[2], 50);
+    expect(bytes[4], greaterThan(180));
+    expect(bytes[5], greaterThan(180));
+    expect(bytes[6], greaterThan(180));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {
