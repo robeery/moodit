@@ -54,5 +54,6 @@ docs
 
 # Benchmark
 benchmark_results.json
+basic_operation_benchmark_results.json
 test/fixtures/synthetic_*.jpg
 test/golden/failures/

@@ -65,6 +65,16 @@ List<Scenario> buildScenarios() {
   ];
 }
 
+List<Scenario> buildIndividualOperationScenarios() {
+  return [
+    for (final type in OperationType.values)
+      Scenario(
+        type == OperationType.definition ? 'definition_disabled' : type.name,
+        edits: [Edit(type: type, value: type.minValue == 0 ? 50 : 30)],
+      ),
+  ];
+}
+
 Uint8List generateSyntheticFixture({int width = 1600, int height = 1200}) {
   final image = img.Image(width: width, height: height);
   for (var y = 0; y < height; y++) {
@@ -143,7 +153,9 @@ Map<String, Map<String, Object>> runBenchmark({
     }
 
     samples.sort();
+    final average = samples.reduce((a, b) => a + b) / samples.length / 1000.0;
     results[scenario.name] = {
+      'average_ms': average,
       'median_ms': samples[samples.length ~/ 2] / 1000.0,
       'min_ms': samples.first / 1000.0,
       'max_ms': samples.last / 1000.0,
@@ -159,10 +171,14 @@ void printResults(String title, Map<String, Map<String, Object>> results) {
   print('\n=== $title ===');
   for (final entry in results.entries) {
     final r = entry.value;
+    final average = (r['average_ms'] as double).toStringAsFixed(1).padLeft(9);
     final median = (r['median_ms'] as double).toStringAsFixed(1).padLeft(9);
     final min = (r['min_ms'] as double).toStringAsFixed(1);
     final max = (r['max_ms'] as double).toStringAsFixed(1);
     // ignore: avoid_print
-    print('${entry.key.padRight(24)} $median ms  (min $min, max $max)');
+    print(
+      '${entry.key.padRight(24)} avg $average ms  '
+      '(median $median, min $min, max $max)',
+    );
   }
 }
