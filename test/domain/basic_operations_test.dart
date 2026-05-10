@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:licenta/domain/apply_edits.dart';
+import 'package:licenta/domain/color_operations.dart' as color_ops;
 import 'package:licenta/domain/image_operations.dart';
 import 'package:licenta/domain/parse_edits_json.dart';
 import 'package:licenta/model/edit.dart';
@@ -193,6 +194,24 @@ void main() {
     expect(bytes[5], greaterThan(190));
     expect(bytes[6], greaterThan(190));
   });
+
+  test('saturation stays close to the HSL reference formula', () {
+    final image = _fixtureImage(width: 10, height: 7);
+    final expected = _referenceSaturationBytes(image, 0.7);
+
+    applySaturation(image, 0.7);
+
+    expect(_bytesClose(_bytes(image), expected, tolerance: 1), isTrue);
+  });
+
+  test('vibrance stays close to the reference formula', () {
+    final image = _fixtureImage(width: 10, height: 7);
+    final expected = _referenceVibranceBytes(image, 0.7);
+
+    applyVibrance(image, 0.7);
+
+    expect(_bytesClose(_bytes(image), expected, tolerance: 1), isTrue);
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {
@@ -287,6 +306,60 @@ Uint8List _referenceBlurBytes(img.Image image, int radius) {
   }
 
   return out;
+}
+
+Uint8List _referenceSaturationBytes(img.Image image, double value) {
+  final data = _bytes(image);
+  final hsl = color_ops.HslValues();
+  final rgb = color_ops.RgbValues();
+  final shift = value > 0 ? value * 40 : value * 100;
+
+  for (var i = 0; i < data.length; i += 4) {
+    color_ops.rgbToHslValues(
+      data[i] / 255.0,
+      data[i + 1] / 255.0,
+      data[i + 2] / 255.0,
+      hsl,
+    );
+    final newS = (hsl.saturation + shift).clamp(0.0, 100.0).toDouble();
+    color_ops.hslToRgbValues(hsl.hue, newS, hsl.luminance, rgb);
+
+    data[i] = _byte(rgb.r.toInt());
+    data[i + 1] = _byte(rgb.g.toInt());
+    data[i + 2] = _byte(rgb.b.toInt());
+  }
+
+  return data;
+}
+
+Uint8List _referenceVibranceBytes(img.Image image, double value) {
+  final data = _bytes(image);
+
+  for (var i = 0; i < data.length; i += 4) {
+    final r = data[i] / 255.0;
+    final g = data[i + 1] / 255.0;
+    final b = data[i + 2] / 255.0;
+
+    final maxC = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    final minC = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    final s = maxC == 0 ? 0.0 : (maxC - minC) / maxC;
+    final factor = 1.0 + value * (1.0 - s);
+    final mid = (r + g + b) / 3.0;
+
+    data[i] = _byte(((mid + (r - mid) * factor) * 255).toInt());
+    data[i + 1] = _byte(((mid + (g - mid) * factor) * 255).toInt());
+    data[i + 2] = _byte(((mid + (b - mid) * factor) * 255).toInt());
+  }
+
+  return data;
+}
+
+bool _bytesClose(Uint8List actual, Uint8List expected, {required int tolerance}) {
+  if (actual.length != expected.length) return false;
+  for (var i = 0; i < actual.length; i++) {
+    if ((actual[i] - expected[i]).abs() > tolerance) return false;
+  }
+  return true;
 }
 
 img.Image _solidImage({

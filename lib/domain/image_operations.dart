@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import 'color_operations.dart' show HslValues, RgbValues, rgbToHslValues, hslToRgbValues;
 
 //all of these should be improved/modified later in development
 //by using better/more complex formulas and more parameters
@@ -460,62 +459,105 @@ img.Image applyDefinition(img.Image image, double value) {
   return image;
 }
 
+// I might have to tweak these values later, same for Vibrance
 img.Image applySaturation(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
   final data = _rgbaBytes(image);
-  final hsl = HslValues();
-  final rgb = RgbValues();
+  final scaleLut = _buildSaturationScaleLut(value);
+  final graySaturation = value > 0 ? (value * 0.4).clamp(0.0, 1.0) : 0.0;
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Convert current pixel from RGB bytes to HSL, then write RGB back
-    final r = data[i] / 255.0;
-    final g = data[i + 1] / 255.0;
-    final b = data[i + 2] / 255.0;
+    final r = data[i];
+    final g = data[i + 1];
+    final b = data[i + 2];
+    var maxC = r > g ? r : g;
+    if (b > maxC) maxC = b;
+    var minC = r < g ? r : g;
+    if (b < minC) minC = b;
 
-    rgbToHslValues(r, g, b, hsl);
-    //asymmetric: -100 fully desaturates, +100 gives a moderate boost
-    final shift = value > 0 ? value * 40 : value * 100;
-    final newS = (hsl.saturation + shift).clamp(0.0, 100.0).toDouble();
-    hslToRgbValues(hsl.hue, newS, hsl.luminance, rgb);
+    if (maxC == minC) {
+      if (graySaturation <= 0.001) continue;
+      final l = maxC / 255.0;
+      final q = l < 0.5
+          ? l * (1 + graySaturation)
+          : l + graySaturation - l * graySaturation;
+      final p = 2 * l - q;
 
-    data[i] = _clampByteFloor(rgb.r);
-    data[i + 1] = _clampByteFloor(rgb.g);
-    data[i + 2] = _clampByteFloor(rgb.b);
+      data[i] = _clampByteFloor(q * 255);
+      data[i + 1] = _clampByteFloor(p * 255);
+      data[i + 2] = _clampByteFloor(p * 255);
+      continue;
+    }
+
+    final scale = scaleLut[(maxC << 8) + minC];
+    final lightness = (maxC + minC) * 0.5;
+    data[i] = _clampByteFloor(lightness + (r - lightness) * scale);
+    data[i + 1] = _clampByteFloor(lightness + (g - lightness) * scale);
+    data[i + 2] = _clampByteFloor(lightness + (b - lightness) * scale);
   }
 
   return image;
 }
 
+Float32List _buildSaturationScaleLut(double value) {
+  final scaleLut = Float32List(256 * 256);
+  final shift = value > 0 ? value * 40 : value * 100;
+
+  for (var maxC = 0; maxC < 256; maxC++) {
+    for (var minC = 0; minC < maxC; minC++) {
+      final delta = maxC - minC;
+      final denominator = maxC + minC > 255
+          ? 510 - maxC - minC
+          : maxC + minC;
+      final saturation = delta * 100 / denominator;
+      final newSaturation =
+          (saturation + shift).clamp(0.0, 100.0).toDouble();
+      scaleLut[(maxC << 8) + minC] = newSaturation / saturation;
+    }
+  }
+
+  return scaleLut;
+}
+
+// I might have to tweak these values later, same for Saturation
 img.Image applyVibrance(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
   final data = _rgbaBytes(image);
+  final factorLut = _buildVibranceFactorLut(value);
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Read normalized RGB from the current pixel in the flat byte buffer
-    final r = data[i] / 255.0;
-    final g = data[i + 1] / 255.0;
-    final b = data[i + 2] / 255.0;
+    final r = data[i];
+    final g = data[i + 1];
+    final b = data[i + 2];
+    var maxC = r > g ? r : g;
+    if (b > maxC) maxC = b;
+    var minC = r < g ? r : g;
+    if (b < minC) minC = b;
 
-    final maxC = max(r, max(g, b));
-    final minC = min(r, min(g, b));
-    final s = maxC == 0 ? 0.0 : (maxC - minC) / maxC;
-
-    //boost inversely proportional to existing saturation
-    final factor = 1.0 + value * (1.0 - s);
-
+    final factor = factorLut[(maxC << 8) + minC];
     final mid = (r + g + b) / 3.0;
-    final nr = (mid + (r - mid) * factor).clamp(0.0, 1.0);
-    final ng = (mid + (g - mid) * factor).clamp(0.0, 1.0);
-    final nb = (mid + (b - mid) * factor).clamp(0.0, 1.0);
-
-    data[i] = _clampByteFloor(nr * 255);
-    data[i + 1] = _clampByteFloor(ng * 255);
-    data[i + 2] = _clampByteFloor(nb * 255);
+    data[i] = _clampByteFloor(mid + (r - mid) * factor);
+    data[i + 1] = _clampByteFloor(mid + (g - mid) * factor);
+    data[i + 2] = _clampByteFloor(mid + (b - mid) * factor);
   }
 
   return image;
+}
+
+Float32List _buildVibranceFactorLut(double value) {
+  final factorLut = Float32List(256 * 256);
+
+  for (var maxC = 0; maxC < 256; maxC++) {
+    final rowOffset = maxC << 8;
+    for (var minC = 0; minC <= maxC; minC++) {
+      factorLut[rowOffset + minC] =
+          maxC == 0 ? 1.0 : 1.0 + value * (minC / maxC);
+    }
+  }
+
+  return factorLut;
 }
 
 img.Image applyBlackpoint(img.Image image, double value) {
