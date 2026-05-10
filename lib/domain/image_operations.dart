@@ -14,6 +14,7 @@ import 'color_operations.dart' show HslValues, RgbValues, rgbToHslValues, hslToR
 // data[i + 2] = blue
 // data[i + 3] = alpha
 const int _channelsPerPixel = 4;
+const int _rgbChannelsPerPixel = 3;
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
@@ -562,7 +563,7 @@ img.Image applyVignette(img.Image image, double value) {
   return image;
 }
 
-void _applySeparableBoxBlurRgb(img.Image image, int radius) {
+void _applySeparableBoxBlurRgbGeneral(img.Image image, int radius) {
   if (radius <= 0) return;
 
   final data = _rgbaBytes(image);
@@ -642,6 +643,155 @@ void _applySeparableBoxBlurRgb(img.Image image, int radius) {
       data[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
     }
   }
+}
+
+void _applySmallRadiusBoxBlurRgb(img.Image image, int radius) {
+  final data = _rgbaBytes(image);
+  final source = Uint8List.fromList(data);
+  final width = image.width;
+  final height = image.height;
+  final maxX = width - 1;
+  final maxY = height - 1;
+  final rowStride = width * _channelsPerPixel;
+  final rgbRowStride = width * _rgbChannelsPerPixel;
+  final kernelSize = radius * 2 + 1;
+  final horizontal = Uint8List(width * height * _rgbChannelsPerPixel);
+
+  for (var y = 0; y < height; y++) {
+    final sourceRowStart = y * rowStride;
+    final rgbRowStart = y * rgbRowStride;
+    var sumR = 0;
+    var sumG = 0;
+    var sumB = 0;
+
+    for (var x = 0; x <= radius; x++) {
+      final offset = sourceRowStart + x * _channelsPerPixel;
+      sumR += source[offset];
+      sumG += source[offset + 1];
+      sumB += source[offset + 2];
+    }
+
+    var outOffset = rgbRowStart;
+    var count = radius + 1;
+    horizontal[outOffset] = (sumR + count ~/ 2) ~/ count;
+    horizontal[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+    horizontal[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+
+    for (var x = 1; x <= radius; x++) {
+      final addOffset = sourceRowStart + (x + radius) * _channelsPerPixel;
+      sumR += source[addOffset];
+      sumG += source[addOffset + 1];
+      sumB += source[addOffset + 2];
+
+      count = radius + x + 1;
+      outOffset += _rgbChannelsPerPixel;
+      horizontal[outOffset] = (sumR + count ~/ 2) ~/ count;
+      horizontal[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      horizontal[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+
+    for (var x = radius + 1; x <= maxX - radius; x++) {
+      final addOffset = sourceRowStart + (x + radius) * _channelsPerPixel;
+      final removeOffset =
+          sourceRowStart + (x - radius - 1) * _channelsPerPixel;
+      sumR += source[addOffset] - source[removeOffset];
+      sumG += source[addOffset + 1] - source[removeOffset + 1];
+      sumB += source[addOffset + 2] - source[removeOffset + 2];
+
+      outOffset += _rgbChannelsPerPixel;
+      horizontal[outOffset] = (sumR + kernelSize ~/ 2) ~/ kernelSize;
+      horizontal[outOffset + 1] = (sumG + kernelSize ~/ 2) ~/ kernelSize;
+      horizontal[outOffset + 2] = (sumB + kernelSize ~/ 2) ~/ kernelSize;
+    }
+
+    for (var x = maxX - radius + 1; x <= maxX; x++) {
+      final removeOffset =
+          sourceRowStart + (x - radius - 1) * _channelsPerPixel;
+      sumR -= source[removeOffset];
+      sumG -= source[removeOffset + 1];
+      sumB -= source[removeOffset + 2];
+
+      count = maxX - x + radius + 1;
+      outOffset += _rgbChannelsPerPixel;
+      horizontal[outOffset] = (sumR + count ~/ 2) ~/ count;
+      horizontal[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      horizontal[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+
+  for (var x = 0; x < width; x++) {
+    final rgbColumnOffset = x * _rgbChannelsPerPixel;
+    final dataColumnOffset = x * _channelsPerPixel;
+    var sumR = 0;
+    var sumG = 0;
+    var sumB = 0;
+
+    for (var y = 0; y <= radius; y++) {
+      final offset = y * rgbRowStride + rgbColumnOffset;
+      sumR += horizontal[offset];
+      sumG += horizontal[offset + 1];
+      sumB += horizontal[offset + 2];
+    }
+
+    var count = radius + 1;
+    var outOffset = dataColumnOffset;
+    data[outOffset] = (sumR + count ~/ 2) ~/ count;
+    data[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+    data[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+
+    for (var y = 1; y <= radius; y++) {
+      final addOffset = (y + radius) * rgbRowStride + rgbColumnOffset;
+      sumR += horizontal[addOffset];
+      sumG += horizontal[addOffset + 1];
+      sumB += horizontal[addOffset + 2];
+
+      count = radius + y + 1;
+      outOffset += rowStride;
+      data[outOffset] = (sumR + count ~/ 2) ~/ count;
+      data[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      data[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+
+    for (var y = radius + 1; y <= maxY - radius; y++) {
+      final addOffset = (y + radius) * rgbRowStride + rgbColumnOffset;
+      final removeOffset =
+          (y - radius - 1) * rgbRowStride + rgbColumnOffset;
+      sumR += horizontal[addOffset] - horizontal[removeOffset];
+      sumG += horizontal[addOffset + 1] - horizontal[removeOffset + 1];
+      sumB += horizontal[addOffset + 2] - horizontal[removeOffset + 2];
+
+      outOffset += rowStride;
+      data[outOffset] = (sumR + kernelSize ~/ 2) ~/ kernelSize;
+      data[outOffset + 1] = (sumG + kernelSize ~/ 2) ~/ kernelSize;
+      data[outOffset + 2] = (sumB + kernelSize ~/ 2) ~/ kernelSize;
+    }
+
+    for (var y = maxY - radius + 1; y <= maxY; y++) {
+      final removeOffset =
+          (y - radius - 1) * rgbRowStride + rgbColumnOffset;
+      sumR -= horizontal[removeOffset];
+      sumG -= horizontal[removeOffset + 1];
+      sumB -= horizontal[removeOffset + 2];
+
+      count = maxY - y + radius + 1;
+      outOffset += rowStride;
+      data[outOffset] = (sumR + count ~/ 2) ~/ count;
+      data[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      data[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+}
+
+void _applySeparableBoxBlurRgb(img.Image image, int radius) {
+  if (radius <= 0) return;
+  if (radius <= 3 &&
+      image.width > radius * 2 &&
+      image.height > radius * 2) {
+    _applySmallRadiusBoxBlurRgb(image, radius);
+    return;
+  }
+
+  _applySeparableBoxBlurRgbGeneral(image, radius);
 }
 
 //fast blur operation

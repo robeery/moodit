@@ -94,6 +94,23 @@ void main() {
     expect(result.edits!.edits.single.value, 50);
   });
 
+  test('blur matches edge-averaged separable reference', () {
+    const cases = [
+      (value: 0.2, radius: 1),
+      (value: 0.5, radius: 2),
+      (value: 1.0, radius: 3),
+    ];
+
+    for (final c in cases) {
+      final image = _fixtureImage(width: 9, height: 8);
+      final expected = _referenceBlurBytes(image, c.radius);
+
+      applyBlur(image, c.value);
+
+      expect(_bytes(image), orderedEquals(expected), reason: 'radius ${c.radius}');
+    }
+  });
+
   test('grain is deterministic for the same input and value', () {
     final first = _fixtureImage(width: 13, height: 11);
     final second = _fixtureImage(width: 13, height: 11);
@@ -198,6 +215,62 @@ bool _alphaPreserved(Uint8List before, Uint8List after) {
     if (before[i] != after[i]) return false;
   }
   return true;
+}
+
+Uint8List _referenceBlurBytes(img.Image image, int radius) {
+  final data = _bytes(image);
+  final width = image.width;
+  final height = image.height;
+  final horizontal = Uint8List(data.length);
+  final out = Uint8List.fromList(data);
+
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final startX = x - radius < 0 ? 0 : x - radius;
+      final endX = x + radius >= width ? width - 1 : x + radius;
+      final count = endX - startX + 1;
+      var sumR = 0;
+      var sumG = 0;
+      var sumB = 0;
+
+      for (var sx = startX; sx <= endX; sx++) {
+        final offset = (y * width + sx) * 4;
+        sumR += data[offset];
+        sumG += data[offset + 1];
+        sumB += data[offset + 2];
+      }
+
+      final outOffset = (y * width + x) * 4;
+      horizontal[outOffset] = (sumR + count ~/ 2) ~/ count;
+      horizontal[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      horizontal[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+
+  for (var y = 0; y < height; y++) {
+    final startY = y - radius < 0 ? 0 : y - radius;
+    final endY = y + radius >= height ? height - 1 : y + radius;
+    final count = endY - startY + 1;
+    for (var x = 0; x < width; x++) {
+      var sumR = 0;
+      var sumG = 0;
+      var sumB = 0;
+
+      for (var sy = startY; sy <= endY; sy++) {
+        final offset = (sy * width + x) * 4;
+        sumR += horizontal[offset];
+        sumG += horizontal[offset + 1];
+        sumB += horizontal[offset + 2];
+      }
+
+      final outOffset = (y * width + x) * 4;
+      out[outOffset] = (sumR + count ~/ 2) ~/ count;
+      out[outOffset + 1] = (sumG + count ~/ 2) ~/ count;
+      out[outOffset + 2] = (sumB + count ~/ 2) ~/ count;
+    }
+  }
+
+  return out;
 }
 
 img.Image _solidImage({
