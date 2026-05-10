@@ -293,40 +293,51 @@ img.Image applyContrast(img.Image image, double value) {
   if (contrast == 0.0) return image;
 
   final data = _rgbaBytes(image);
+  final lut = _buildContrastLut(contrast.toDouble());
 
-  //note to self:
-  //maybe, in the future, implement a LUT to other functions as well
-
-  //piecewise S-curve via power function, pre-baked into a LUT
-  final gamma = pow(2.0, contrast);
-  final lut = List<int>.filled(256, 0);
-  for (int i = 0; i < 256; i++) {
-    final t = i / 255.0;
-    final adjusted = t < 0.5
-        ? 0.5 * pow(2.0 * t, gamma)
-        : 1.0 - 0.5 * pow(2.0 * (1.0 - t), gamma);
-    lut[i] = _clampByteFloor(adjusted * 255);
-  }
-
-  //apply via luminance ratio to preserve color balance
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Current pixel: R, G, B from the flat byte array
     final r = data[i];
     final g = data[i + 1];
     final b = data[i + 2];
+    final offset = _luminanceByte(r, g, b) << 8;
 
-    final lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    final lumInt = lum.round().clamp(0, 255);
-
-    if (lumInt > 0) {
-      final ratio = lut[lumInt] / lum;
-      data[i] = _clampByteRound(r * ratio);
-      data[i + 1] = _clampByteRound(g * ratio);
-      data[i + 2] = _clampByteRound(b * ratio);
-    }
+    data[i] = lut[offset + r];
+    data[i + 1] = lut[offset + g];
+    data[i + 2] = lut[offset + b];
   }
 
   return image;
+}
+
+Uint8List _buildContrastLut(double contrast) {
+  final luminanceCurve = Uint8List(256);
+  final gamma = pow(2.0, contrast);
+  for (var lum = 0; lum < 256; lum++) {
+    final t = lum / 255.0;
+    final adjusted = t < 0.5
+        ? 0.5 * pow(2.0 * t, gamma)
+        : 1.0 - 0.5 * pow(2.0 * (1.0 - t), gamma);
+    luminanceCurve[lum] = _clampByteFloor(adjusted * 255);
+  }
+
+  final lut = Uint8List(256 * 256);
+  for (var lum = 0; lum < 256; lum++) {
+    final rowOffset = lum << 8;
+
+    if (lum == 0) {
+      for (var channel = 0; channel < 256; channel++) {
+        lut[rowOffset + channel] = channel;
+      }
+      continue;
+    }
+
+    final ratio = luminanceCurve[lum] / lum;
+    for (var channel = 0; channel < 256; channel++) {
+      lut[rowOffset + channel] = _clampByteRound(channel * ratio);
+    }
+  }
+
+  return lut;
 }
 
 img.Image applyWarmth(img.Image image, double value) {

@@ -177,6 +177,22 @@ void main() {
     expect(bytes[5], greaterThan(180));
     expect(bytes[6], greaterThan(180));
   });
+
+  test('contrast darkens dark pixels and brightens bright pixels', () {
+    final image = img.Image(width: 2, height: 1, numChannels: 4);
+    image.setPixelRgba(0, 0, 70, 70, 70, 255);
+    image.setPixelRgba(1, 0, 190, 190, 190, 255);
+
+    applyContrast(image, 0.8);
+    final bytes = _bytes(image);
+
+    expect(bytes[0], lessThan(70));
+    expect(bytes[1], lessThan(70));
+    expect(bytes[2], lessThan(70));
+    expect(bytes[4], greaterThan(190));
+    expect(bytes[5], greaterThan(190));
+    expect(bytes[6], greaterThan(190));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {
