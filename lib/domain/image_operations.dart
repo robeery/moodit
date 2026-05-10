@@ -780,6 +780,74 @@ Float32List _buildSaturationScaleLut(double value) {
   return scaleLut;
 }
 
+img.Image applyFusedChromaOps(
+  img.Image image, {
+  required double saturation,
+  required double vibrance,
+}) {
+  final hasSaturation = saturation.abs() > 0.001;
+  final hasVibrance = vibrance.abs() > 0.001;
+
+  if (!hasSaturation && !hasVibrance) {
+    return image;
+  }
+  if (!hasSaturation) {
+    return applyVibrance(image, vibrance);
+  }
+  if (!hasVibrance) {
+    return applySaturation(image, saturation);
+  }
+
+  final data = _rgbaBytes(image);
+  final saturationScaleLut = _buildSaturationScaleLut(saturation);
+  final graySaturation =
+      saturation > 0 ? (saturation * 0.4).clamp(0.0, 1.0) : 0.0;
+  final vibranceFactorLut = _buildVibranceFactorLut(vibrance);
+
+  for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    var r = data[i];
+    var g = data[i + 1];
+    var b = data[i + 2];
+    var maxC = r > g ? r : g;
+    if (b > maxC) maxC = b;
+    var minC = r < g ? r : g;
+    if (b < minC) minC = b;
+
+    if (maxC == minC) {
+      if (graySaturation > 0.001) {
+        final l = maxC / 255.0;
+        final q = l < 0.5
+            ? l * (1 + graySaturation)
+            : l + graySaturation - l * graySaturation;
+        final p = 2 * l - q;
+
+        r = _clampByteFloor(q * 255);
+        g = _clampByteFloor(p * 255);
+        b = _clampByteFloor(p * 255);
+      }
+    } else {
+      final scale = saturationScaleLut[(maxC << 8) + minC];
+      final lightness = (maxC + minC) * 0.5;
+      r = _clampByteFloor(lightness + (r - lightness) * scale);
+      g = _clampByteFloor(lightness + (g - lightness) * scale);
+      b = _clampByteFloor(lightness + (b - lightness) * scale);
+    }
+
+    maxC = r > g ? r : g;
+    if (b > maxC) maxC = b;
+    minC = r < g ? r : g;
+    if (b < minC) minC = b;
+
+    final factor = vibranceFactorLut[(maxC << 8) + minC];
+    final mid = (r + g + b) / 3.0;
+    data[i] = _clampByteFloor(mid + (r - mid) * factor);
+    data[i + 1] = _clampByteFloor(mid + (g - mid) * factor);
+    data[i + 2] = _clampByteFloor(mid + (b - mid) * factor);
+  }
+
+  return image;
+}
+
 // I might have to tweak these values later, same for Saturation
 img.Image applyVibrance(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;

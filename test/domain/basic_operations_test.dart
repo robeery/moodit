@@ -290,6 +290,30 @@ void main() {
     expect(_bytesClose(_bytes(image), expected, tolerance: 1), isTrue);
   });
 
+  test('fused chroma ops match sequential saturation then vibrance', () {
+    final sequential = _fixtureImage(width: 17, height: 13);
+    final fused = img.Image.from(sequential);
+
+    applySaturation(sequential, 0.7);
+    applyVibrance(sequential, 0.6);
+
+    applyFusedChromaOps(fused, saturation: 0.7, vibrance: 0.6);
+
+    expect(_bytes(fused), orderedEquals(_bytes(sequential)));
+  });
+
+  test('fused chroma ops match sequential chroma ops for gray pixels', () {
+    final sequential = _stripedTextureImage(base: 128, amplitude: 24);
+    final fused = img.Image.from(sequential);
+
+    applySaturation(sequential, 0.7);
+    applyVibrance(sequential, 0.6);
+
+    applyFusedChromaOps(fused, saturation: 0.7, vibrance: 0.6);
+
+    expect(_bytes(fused), orderedEquals(_bytes(sequential)));
+  });
+
   test('vibrance stays close to the reference formula', () {
     final image = _fixtureImage(width: 10, height: 7);
     final expected = _referenceVibranceBytes(image, 0.7);

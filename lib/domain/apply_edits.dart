@@ -104,12 +104,13 @@ img.Image applyEditsToImageSync({
     );
   }
 
-  if (hasSignedValue(OperationType.saturation)) {
-    image = applySaturation(image, valueFor(OperationType.saturation));
-  }
-
-  if (hasSignedValue(OperationType.vibrance)) {
-    image = applyVibrance(image, valueFor(OperationType.vibrance));
+  if (hasSignedValue(OperationType.saturation) ||
+      hasSignedValue(OperationType.vibrance)) {
+    image = applyFusedChromaOps(
+      image,
+      saturation: valueFor(OperationType.saturation),
+      vibrance: valueFor(OperationType.vibrance),
+    );
   }
 
   if (hasSignedValue(OperationType.definition)) {
