@@ -115,7 +115,9 @@ img.Image applyEditsToImageSync({
     image = applyVibrance(image, valueFor(OperationType.vibrance));
   }
 
-  // Definition is still disabled because it is too slow for interactive use.
+  if (hasSignedValue(OperationType.definition)) {
+    image = applyDefinition(image, valueFor(OperationType.definition));
+  }
 
   if (hasSignedValue(OperationType.sharpness)) {
     image = applySharpness(image, valueFor(OperationType.sharpness));

@@ -69,7 +69,7 @@ List<Scenario> buildIndividualOperationScenarios() {
   return [
     for (final type in OperationType.values)
       Scenario(
-        type == OperationType.definition ? 'definition_disabled' : type.name,
+        type.name,
         edits: [Edit(type: type, value: type.minValue == 0 ? 50 : 30)],
       ),
   ];

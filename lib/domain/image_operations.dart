@@ -15,6 +15,7 @@ import 'package:image/image.dart' as img;
 const int _channelsPerPixel = 4;
 const int _rgbChannelsPerPixel = 3;
 const int _sharpnessNeighborLevels = 4 * 255 + 1;
+const int _definitionBlurRadius = 20;
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
@@ -535,35 +536,108 @@ Uint8List _buildSharpnessLut(double value) {
 img.Image applyDefinition(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
-  // This is very time consuming because it does a strong blur over the whole
-  // image. I will deal with this later, and for now the pipeline skips the
-  // definition stage temporarily in apply_edits.dart.
-  // Larger radius separates local contrast from fine edges.
-  final blurred = img.gaussianBlur(img.Image.from(image), radius: 20);
   final source = _rgbaBytes(image);
-  final blurData = blurred.toUint8List();
-  final strength = value * 1.2;
+  final width = image.width;
+  final height = image.height;
+  final luminance = Uint8List(width * height);
+  final integral = _buildLuminanceIntegral(source, width, height, luminance);
+  final integralStride = width + 1;
+  final leftBounds = Int32List(width);
+  final rightBounds = Int32List(width);
+  final areaWidths = Int32List(width);
+  final definitionDeltaLut = _buildDefinitionDeltaLut(value);
+  for (var x = 0; x < width; x++) {
+    final left = max(0, x - _definitionBlurRadius);
+    final right = min(width - 1, x + _definitionBlurRadius) + 1;
+    leftBounds[x] = left;
+    rightBounds[x] = right;
+    areaWidths[x] = right - left;
+  }
 
-  for (var i = 0; i < source.length; i += _channelsPerPixel) {
-    // source[...] is the original pixel, blurData[...] is the blurred version
-    final origR = source[i];
-    final origG = source[i + 1];
-    final origB = source[i + 2];
-    final blurR = blurData[i];
-    final blurG = blurData[i + 1];
-    final blurB = blurData[i + 2];
+  for (var y = 0; y < height; y++) {
+    final top = max(0, y - _definitionBlurRadius);
+    final bottom = min(height - 1, y + _definitionBlurRadius);
+    final topOffset = top * integralStride;
+    final bottomOffset = (bottom + 1) * integralStride;
+    final areaHeight = bottom - top + 1;
+    final rowStart = y * width;
+    var pixel = rowStart;
+    var sourceOffset = rowStart * _channelsPerPixel;
 
-    //apply uniform luminance shift to all channels, preserving color
-    final origLum = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-    final blurLum = 0.299 * blurR + 0.587 * blurG + 0.114 * blurB;
-    final delta = (origLum - blurLum) * strength;
+    for (var x = 0; x < width; x++) {
+      final left = leftBounds[x];
+      final right = rightBounds[x];
+      final area = areaHeight * areaWidths[x];
+      final sum = integral[bottomOffset + right] -
+          integral[bottomOffset + left] -
+          integral[topOffset + right] +
+          integral[topOffset + left];
+      final blurredLum = (sum + area ~/ 2) ~/ area;
+      final delta = definitionDeltaLut[(luminance[pixel] << 8) + blurredLum];
 
-    source[i] = _clampByteFloor(origR + delta);
-    source[i + 1] = _clampByteFloor(origG + delta);
-    source[i + 2] = _clampByteFloor(origB + delta);
+      source[sourceOffset] = _clampByteInt(source[sourceOffset] + delta);
+      source[sourceOffset + 1] =
+          _clampByteInt(source[sourceOffset + 1] + delta);
+      source[sourceOffset + 2] =
+          _clampByteInt(source[sourceOffset + 2] + delta);
+      pixel++;
+      sourceOffset += _channelsPerPixel;
+    }
   }
 
   return image;
+}
+
+Int16List _buildDefinitionDeltaLut(double value) {
+  final lut = Int16List(256 * 256);
+  final strength = value * 1.2;
+
+  for (var originalLum = 0; originalLum < 256; originalLum++) {
+    final distanceFromMidtone = (originalLum - 128).abs() / 128.0;
+    final midtoneWeight =
+        0.2 + 0.8 * (1.0 - distanceFromMidtone * distanceFromMidtone);
+    final rowOffset = originalLum << 8;
+
+    for (var blurredLum = 0; blurredLum < 256; blurredLum++) {
+      lut[rowOffset + blurredLum] =
+          ((originalLum - blurredLum) * strength * midtoneWeight).floor();
+    }
+  }
+
+  return lut;
+}
+
+Uint32List _buildLuminanceIntegral(
+  Uint8List source,
+  int width,
+  int height,
+  Uint8List luminance,
+) {
+  final integralStride = width + 1;
+  final integral = Uint32List((height + 1) * integralStride);
+  final sourceRowStride = width * _channelsPerPixel;
+
+  for (var y = 0; y < height; y++) {
+    final sourceRowStart = y * sourceRowStride;
+    final luminanceRowStart = y * width;
+    final integralRowStart = (y + 1) * integralStride;
+    final previousIntegralRowStart = y * integralStride;
+    var rowSum = 0;
+    for (var x = 0; x < width; x++) {
+      final sourceOffset = sourceRowStart + x * _channelsPerPixel;
+      final lum = _luminanceByte(
+        source[sourceOffset],
+        source[sourceOffset + 1],
+        source[sourceOffset + 2],
+      );
+      luminance[luminanceRowStart + x] = lum;
+      rowSum += lum;
+      integral[integralRowStart + x + 1] =
+          integral[previousIntegralRowStart + x + 1] + rowSum;
+    }
+  }
+
+  return integral;
 }
 
 // I might have to tweak these values later, same for Vibrance

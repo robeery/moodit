@@ -122,6 +122,41 @@ void main() {
     expect(_bytes(first), orderedEquals(_bytes(second)));
   });
 
+  test('definition is applied by the basic pipeline', () {
+    final originalFrame = frameFromImage(_fixtureImage(width: 64, height: 64));
+
+    final result = applyEditsToRgbaSync(
+      originalFrame: originalFrame,
+      edits: [Edit(type: OperationType.definition, value: 50)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    );
+
+    expect(_rgbChanged(originalFrame.rgbaBytes, result.rgbaBytes), isTrue);
+    expect(_alphaPreserved(originalFrame.rgbaBytes, result.rgbaBytes), isTrue);
+  });
+
+  test('definition favors textured midtones over shadows and highlights', () {
+    final shadows = _stripedTextureImage(base: 32, amplitude: 18);
+    final midtones = _stripedTextureImage(base: 128, amplitude: 18);
+    final highlights = _stripedTextureImage(base: 224, amplitude: 18);
+    final shadowsBefore = _bytes(shadows);
+    final midtonesBefore = _bytes(midtones);
+    final highlightsBefore = _bytes(highlights);
+
+    applyDefinition(shadows, 0.8);
+    applyDefinition(midtones, 0.8);
+    applyDefinition(highlights, 0.8);
+
+    final shadowsDelta = _totalRgbDelta(shadowsBefore, _bytes(shadows));
+    final midtonesDelta = _totalRgbDelta(midtonesBefore, _bytes(midtones));
+    final highlightsDelta =
+        _totalRgbDelta(highlightsBefore, _bytes(highlights));
+
+    expect(midtonesDelta, greaterThan(shadowsDelta));
+    expect(midtonesDelta, greaterThan(highlightsDelta));
+  });
+
   test('sharpness keeps a flat image unchanged', () {
     final image = _solidImage(width: 11, height: 9, r: 90, g: 120, b: 150);
     final before = _bytes(image);
@@ -281,6 +316,16 @@ bool _alphaPreserved(Uint8List before, Uint8List after) {
     if (before[i] != after[i]) return false;
   }
   return true;
+}
+
+int _totalRgbDelta(Uint8List before, Uint8List after) {
+  var total = 0;
+  for (var i = 0; i < before.length; i += 4) {
+    total += (before[i] - after[i]).abs();
+    total += (before[i + 1] - after[i + 1]).abs();
+    total += (before[i + 2] - after[i + 2]).abs();
+  }
+  return total;
 }
 
 Uint8List _referenceBlurBytes(img.Image image, int radius) {
@@ -453,6 +498,25 @@ img.Image _solidImage({
   for (var y = 0; y < height; y++) {
     for (var x = 0; x < width; x++) {
       image.setPixelRgba(x, y, r, g, b, a);
+    }
+  }
+
+  return image;
+}
+
+img.Image _stripedTextureImage({
+  required int base,
+  required int amplitude,
+  int width = 64,
+  int height = 64,
+}) {
+  final image = img.Image(width: width, height: height, numChannels: 4);
+
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final stripe = (x ~/ 2).isEven ? amplitude : -amplitude;
+      final value = _byte(base + stripe);
+      image.setPixelRgba(x, y, value, value, value, 255);
     }
   }
 
