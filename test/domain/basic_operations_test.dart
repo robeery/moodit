@@ -261,6 +261,26 @@ void main() {
     expect(bytes[6], greaterThan(190));
   });
 
+  test('fused tone ops match the sequential tone operations', () {
+    final sequential = _fixtureImage(width: 17, height: 13);
+    final fused = img.Image.from(sequential);
+
+    applyHighlights(sequential, 0.6);
+    applyShadows(sequential, 0.5);
+    applyContrast(sequential, 0.4);
+    applyBlackpoint(sequential, 0.3);
+
+    applyFusedToneOps(
+      fused,
+      highlights: 0.6,
+      shadows: 0.5,
+      contrast: 0.4,
+      blackpoint: 0.3,
+    );
+
+    expect(_bytes(fused), orderedEquals(_bytes(sequential)));
+  });
+
   test('saturation stays close to the HSL reference formula', () {
     final image = _fixtureImage(width: 10, height: 7);
     final expected = _referenceSaturationBytes(image, 0.7);

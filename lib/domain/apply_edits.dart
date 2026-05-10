@@ -91,20 +91,17 @@ img.Image applyEditsToImageSync({
     );
   }
 
-  if (hasSignedValue(OperationType.highlights)) {
-    image = applyHighlights(image, valueFor(OperationType.highlights));
-  }
-
-  if (hasSignedValue(OperationType.shadows)) {
-    image = applyShadows(image, valueFor(OperationType.shadows));
-  }
-
-  if (hasSignedValue(OperationType.contrast)) {
-    image = applyContrast(image, valueFor(OperationType.contrast));
-  }
-
-  if (hasPositiveValue(OperationType.blackpoint)) {
-    image = applyBlackpoint(image, valueFor(OperationType.blackpoint));
+  if (hasSignedValue(OperationType.highlights) ||
+      hasSignedValue(OperationType.shadows) ||
+      hasSignedValue(OperationType.contrast) ||
+      hasPositiveValue(OperationType.blackpoint)) {
+    image = applyFusedToneOps(
+      image,
+      highlights: valueFor(OperationType.highlights),
+      shadows: valueFor(OperationType.shadows),
+      contrast: valueFor(OperationType.contrast),
+      blackpoint: valueFor(OperationType.blackpoint),
+    );
   }
 
   if (hasSignedValue(OperationType.saturation)) {

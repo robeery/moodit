@@ -341,6 +341,85 @@ Uint8List _buildContrastLut(double contrast) {
   return lut;
 }
 
+img.Image applyFusedToneOps(
+  img.Image image, {
+  required double highlights,
+  required double shadows,
+  required double contrast,
+  required double blackpoint,
+}) {
+  final contrastValue = contrast.clamp(-1.0, 1.0).toDouble();
+  final hasHighlights = highlights.abs() > 0.001;
+  final hasShadows = shadows.abs() > 0.001;
+  final hasContrast = contrastValue != 0.0;
+  final hasBlackpoint = blackpoint > 0.001;
+  var activeCount = 0;
+  if (hasHighlights) activeCount++;
+  if (hasShadows) activeCount++;
+  if (hasContrast) activeCount++;
+  if (hasBlackpoint) activeCount++;
+
+  if (activeCount == 0) {
+    return image;
+  }
+  if (activeCount == 1) {
+    if (hasHighlights) return applyHighlights(image, highlights);
+    if (hasShadows) return applyShadows(image, shadows);
+    if (hasContrast) return applyContrast(image, contrastValue);
+    return applyBlackpoint(image, blackpoint);
+  }
+
+  final highlightsLut =
+      hasHighlights ? _buildHighlightsLut(highlights) : null;
+  final shadowsLut =
+      hasShadows ? _buildShadowsLut(shadows) : null;
+  final contrastLut =
+      hasContrast ? _buildContrastLut(contrastValue) : null;
+  final blackpointLut =
+      hasBlackpoint ? _buildBlackpointLut(blackpoint) : null;
+
+  final data = _rgbaBytes(image);
+
+  for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    var r = data[i];
+    var g = data[i + 1];
+    var b = data[i + 2];
+
+    if (highlightsLut != null) {
+      final offset = _luminanceByte(r, g, b) << 8;
+      r = highlightsLut[offset + r];
+      g = highlightsLut[offset + g];
+      b = highlightsLut[offset + b];
+    }
+
+    if (shadowsLut != null) {
+      final offset = _luminanceByte(r, g, b) << 8;
+      r = shadowsLut[offset + r];
+      g = shadowsLut[offset + g];
+      b = shadowsLut[offset + b];
+    }
+
+    if (contrastLut != null) {
+      final offset = _luminanceByte(r, g, b) << 8;
+      r = contrastLut[offset + r];
+      g = contrastLut[offset + g];
+      b = contrastLut[offset + b];
+    }
+
+    if (blackpointLut != null) {
+      r = blackpointLut[r];
+      g = blackpointLut[g];
+      b = blackpointLut[b];
+    }
+
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+  }
+
+  return image;
+}
+
 img.Image applyWarmth(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
@@ -744,6 +823,12 @@ Float32List _buildVibranceFactorLut(double value) {
 img.Image applyBlackpoint(img.Image image, double value) {
   if (value <= 0.001) return image;
 
+  final lut = _buildBlackpointLut(value);
+  _applySharedLut(image, lut);
+  return image;
+}
+
+Uint8List _buildBlackpointLut(double value) {
   final threshold = value * 60; // max threshold ~60, not 255
   final scale = 255 / (255 - threshold);
   final lut = Uint8List(256);
@@ -756,8 +841,7 @@ img.Image applyBlackpoint(img.Image image, double value) {
     }
   }
 
-  _applySharedLut(image, lut);
-  return image;
+  return lut;
 }
 
 img.Image applyVignette(img.Image image, double value) {
