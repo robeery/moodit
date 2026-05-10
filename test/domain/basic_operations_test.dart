@@ -322,6 +322,18 @@ void main() {
 
     expect(_bytesClose(_bytes(image), expected, tolerance: 1), isTrue);
   });
+
+  test('fused finish ops match sequential grain then fade', () {
+    final sequential = _fixtureImage(width: 17, height: 13);
+    final fused = img.Image.from(sequential);
+
+    applyGrain(sequential, 0.5);
+    applyFade(sequential, 0.4);
+
+    applyFusedFinishOps(fused, grain: 0.5, fade: 0.4);
+
+    expect(_bytes(fused), orderedEquals(_bytes(sequential)));
+  });
 }
 
 img.Image _fixtureImage({int width = 9, int height = 7}) {

@@ -1219,9 +1219,53 @@ int _nextGrainNoiseState(int state) {
   return state & 0xffffffff;
 }
 
+img.Image applyFusedFinishOps(
+  img.Image image, {
+  required double grain,
+  required double fade,
+}) {
+  final hasGrain = grain > 0.001;
+  final hasFade = fade > 0.001;
+
+  if (!hasGrain && !hasFade) {
+    return image;
+  }
+  if (!hasGrain) {
+    return applyFade(image, fade);
+  }
+  if (!hasFade) {
+    return applyGrain(image, grain);
+  }
+
+  final data = _rgbaBytes(image);
+  var amplitude = (grain * 80).round();
+  if (amplitude < 1) amplitude = 1;
+  final noiseRange = amplitude * 2 + 1;
+  final fadeLut = _buildFadeLut(fade);
+  var noiseState = 42;
+
+  for (var i = 0; i < data.length; i += _channelsPerPixel) {
+    noiseState = _nextGrainNoiseState(noiseState);
+    final noise = ((((noiseState >> 16) & 0xffff) * noiseRange) >> 16) -
+        amplitude;
+
+    data[i] = fadeLut[_clampByteInt(data[i] + noise)];
+    data[i + 1] = fadeLut[_clampByteInt(data[i + 1] + noise)];
+    data[i + 2] = fadeLut[_clampByteInt(data[i + 2] + noise)];
+  }
+
+  return image;
+}
+
 img.Image applyFade(img.Image image, double value) {
   if (value <= 0.001) return image;
 
+  final lut = _buildFadeLut(value);
+  _applySharedLut(image, lut);
+  return image;
+}
+
+Uint8List _buildFadeLut(double value) {
   //fade lifts shadows and slightly desaturates, like a film wash
   final strength = value * 0.4;
   final lift = strength * 80;
@@ -1231,6 +1275,5 @@ img.Image applyFade(img.Image image, double value) {
     lut[channel] = _clampByteFloor(channel * (1 - strength) + lift);
   }
 
-  _applySharedLut(image, lut);
-  return image;
+  return lut;
 }

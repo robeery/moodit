@@ -129,12 +129,13 @@ img.Image applyEditsToImageSync({
     image = applyBlur(image, valueFor(OperationType.blur));
   }
 
-  if (hasPositiveValue(OperationType.grain)) {
-    image = applyGrain(image, valueFor(OperationType.grain));
-  }
-
-  if (hasPositiveValue(OperationType.fade)) {
-    image = applyFade(image, valueFor(OperationType.fade));
+  if (hasPositiveValue(OperationType.grain) ||
+      hasPositiveValue(OperationType.fade)) {
+    image = applyFusedFinishOps(
+      image,
+      grain: valueFor(OperationType.grain),
+      fade: valueFor(OperationType.fade),
+    );
   }
 
   image = color_ops.applyAllColorEdits(image, colorEdits);
