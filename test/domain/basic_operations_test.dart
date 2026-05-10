@@ -131,6 +131,37 @@ void main() {
     expect(_bytes(image), orderedEquals(before));
   });
 
+  test('sharpness matches clamped-edge reference', () {
+    final image = _fixtureImage(width: 11, height: 9);
+    final expected = _referenceSharpnessBytes(image, 0.5);
+
+    applySharpness(image, 0.5);
+
+    expect(_bytes(image), orderedEquals(expected));
+  });
+
+  test('sharpness matches clamped-edge reference for tiny images', () {
+    const sizes = [
+      (width: 1, height: 1),
+      (width: 1, height: 5),
+      (width: 5, height: 1),
+      (width: 2, height: 2),
+    ];
+
+    for (final size in sizes) {
+      final image = _fixtureImage(width: size.width, height: size.height);
+      final expected = _referenceSharpnessBytes(image, 0.7);
+
+      applySharpness(image, 0.7);
+
+      expect(
+        _bytes(image),
+        orderedEquals(expected),
+        reason: '${size.width}x${size.height}',
+      );
+    }
+  });
+
   test('vignette leaves the center unchanged and darkens edges', () {
     final image = _solidImage(width: 10, height: 10, r: 120, g: 130, b: 140);
 
@@ -352,6 +383,53 @@ Uint8List _referenceVibranceBytes(img.Image image, double value) {
   }
 
   return data;
+}
+
+Uint8List _referenceSharpnessBytes(img.Image image, double value) {
+  final source = _bytes(image);
+  final out = Uint8List.fromList(source);
+  final width = image.width;
+  final height = image.height;
+  final centerWeight = 1.0 + 4.0 * value;
+
+  for (var y = 0; y < height; y++) {
+    final upY = y == 0 ? y : y - 1;
+    final downY = y == height - 1 ? y : y + 1;
+    for (var x = 0; x < width; x++) {
+      final leftX = x == 0 ? x : x - 1;
+      final rightX = x == width - 1 ? x : x + 1;
+      final pixelIndex = (y * width + x) * 4;
+      final leftIndex = (y * width + leftX) * 4;
+      final rightIndex = (y * width + rightX) * 4;
+      final upIndex = (upY * width + x) * 4;
+      final downIndex = (downY * width + x) * 4;
+
+      final neighborR = source[leftIndex] +
+          source[rightIndex] +
+          source[upIndex] +
+          source[downIndex];
+      final neighborG = source[leftIndex + 1] +
+          source[rightIndex + 1] +
+          source[upIndex + 1] +
+          source[downIndex + 1];
+      final neighborB = source[leftIndex + 2] +
+          source[rightIndex + 2] +
+          source[upIndex + 2] +
+          source[downIndex + 2];
+
+      out[pixelIndex] = _byte(
+        (source[pixelIndex] * centerWeight - neighborR * value).toInt(),
+      );
+      out[pixelIndex + 1] = _byte(
+        (source[pixelIndex + 1] * centerWeight - neighborG * value).toInt(),
+      );
+      out[pixelIndex + 2] = _byte(
+        (source[pixelIndex + 2] * centerWeight - neighborB * value).toInt(),
+      );
+    }
+  }
+
+  return out;
 }
 
 bool _bytesClose(Uint8List actual, Uint8List expected, {required int tolerance}) {

@@ -14,6 +14,7 @@ import 'package:image/image.dart' as img;
 // data[i + 3] = alpha
 const int _channelsPerPixel = 4;
 const int _rgbChannelsPerPixel = 3;
+const int _sharpnessNeighborLevels = 4 * 255 + 1;
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
@@ -381,48 +382,154 @@ img.Image applySharpness(img.Image image, double value) {
   final lastX = width - 1;
   final lastY = height - 1;
   final rowStride = width * _channelsPerPixel;
-  final centerWeight = 1.0 + 4.0 * value;
+  final lut = _buildSharpnessLut(value);
 
-  for (var y = 0; y < height; y++) {
-    final rowStart = y * rowStride;
-    final upOffset = y == 0 ? 0 : -rowStride;
-    final downOffset = y == lastY ? 0 : rowStride;
+  if (width > 2 && height > 2) {
+    for (var y = 1; y < lastY; y++) {
+      final rowStart = y * rowStride;
+      for (var x = 1, pixelIndex = rowStart + _channelsPerPixel;
+          x < lastX;
+          x++, pixelIndex += _channelsPerPixel) {
+        final leftIndex = pixelIndex - _channelsPerPixel;
+        final rightIndex = pixelIndex + _channelsPerPixel;
+        final upIndex = pixelIndex - rowStride;
+        final downIndex = pixelIndex + rowStride;
 
+        final neighborR = source[leftIndex] +
+            source[rightIndex] +
+            source[upIndex] +
+            source[downIndex];
+        final neighborG = source[leftIndex + 1] +
+            source[rightIndex + 1] +
+            source[upIndex + 1] +
+            source[downIndex + 1];
+        final neighborB = source[leftIndex + 2] +
+            source[rightIndex + 2] +
+            source[upIndex + 2] +
+            source[downIndex + 2];
+        final offsetR = source[pixelIndex] * _sharpnessNeighborLevels;
+        final offsetG = source[pixelIndex + 1] * _sharpnessNeighborLevels;
+        final offsetB = source[pixelIndex + 2] * _sharpnessNeighborLevels;
+
+        data[pixelIndex] = lut[offsetR + neighborR];
+        data[pixelIndex + 1] = lut[offsetG + neighborG];
+        data[pixelIndex + 2] = lut[offsetB + neighborB];
+      }
+    }
+  }
+
+  for (var x = 0, pixelIndex = 0;
+      x < width;
+      x++, pixelIndex += _channelsPerPixel) {
+    _applySharpnessPixel(
+      source: source,
+      data: data,
+      pixelIndex: pixelIndex,
+      leftIndex: x == 0 ? pixelIndex : pixelIndex - _channelsPerPixel,
+      rightIndex: x == lastX ? pixelIndex : pixelIndex + _channelsPerPixel,
+      upIndex: pixelIndex,
+      downIndex: lastY == 0 ? pixelIndex : pixelIndex + rowStride,
+      lut: lut,
+    );
+  }
+
+  if (lastY > 0) {
+    final rowStart = lastY * rowStride;
     for (var x = 0, pixelIndex = rowStart;
         x < width;
         x++, pixelIndex += _channelsPerPixel) {
-      final leftIndex = x == 0 ? pixelIndex : pixelIndex - _channelsPerPixel;
-      final rightIndex =
-          x == lastX ? pixelIndex : pixelIndex + _channelsPerPixel;
-      final upIndex = pixelIndex + upOffset;
-      final downIndex = pixelIndex + downOffset;
-
-      final neighborR = source[leftIndex] +
-          source[rightIndex] +
-          source[upIndex] +
-          source[downIndex];
-      final neighborG = source[leftIndex + 1] +
-          source[rightIndex + 1] +
-          source[upIndex + 1] +
-          source[downIndex + 1];
-      final neighborB = source[leftIndex + 2] +
-          source[rightIndex + 2] +
-          source[upIndex + 2] +
-          source[downIndex + 2];
-
-      data[pixelIndex] = _clampByteFloor(
-        source[pixelIndex] * centerWeight - neighborR * value,
+      _applySharpnessPixel(
+        source: source,
+        data: data,
+        pixelIndex: pixelIndex,
+        leftIndex: x == 0 ? pixelIndex : pixelIndex - _channelsPerPixel,
+        rightIndex: x == lastX ? pixelIndex : pixelIndex + _channelsPerPixel,
+        upIndex: pixelIndex - rowStride,
+        downIndex: pixelIndex,
+        lut: lut,
       );
-      data[pixelIndex + 1] = _clampByteFloor(
-        source[pixelIndex + 1] * centerWeight - neighborG * value,
-      );
-      data[pixelIndex + 2] = _clampByteFloor(
-        source[pixelIndex + 2] * centerWeight - neighborB * value,
+    }
+  }
+
+  for (var y = 1; y < lastY; y++) {
+    final rowStart = y * rowStride;
+    _applySharpnessPixel(
+      source: source,
+      data: data,
+      pixelIndex: rowStart,
+      leftIndex: rowStart,
+      rightIndex: lastX == 0 ? rowStart : rowStart + _channelsPerPixel,
+      upIndex: rowStart - rowStride,
+      downIndex: rowStart + rowStride,
+      lut: lut,
+    );
+
+    if (lastX > 0) {
+      final pixelIndex = rowStart + lastX * _channelsPerPixel;
+      _applySharpnessPixel(
+        source: source,
+        data: data,
+        pixelIndex: pixelIndex,
+        leftIndex: pixelIndex - _channelsPerPixel,
+        rightIndex: pixelIndex,
+        upIndex: pixelIndex - rowStride,
+        downIndex: pixelIndex + rowStride,
+        lut: lut,
       );
     }
   }
 
   return image;
+}
+
+void _applySharpnessPixel({
+  required Uint8List source,
+  required Uint8List data,
+  required int pixelIndex,
+  required int leftIndex,
+  required int rightIndex,
+  required int upIndex,
+  required int downIndex,
+  required Uint8List lut,
+}) {
+  final neighborR = source[leftIndex] +
+      source[rightIndex] +
+      source[upIndex] +
+      source[downIndex];
+  final neighborG = source[leftIndex + 1] +
+      source[rightIndex + 1] +
+      source[upIndex + 1] +
+      source[downIndex + 1];
+  final neighborB = source[leftIndex + 2] +
+      source[rightIndex + 2] +
+      source[upIndex + 2] +
+      source[downIndex + 2];
+  final offsetR = source[pixelIndex] * _sharpnessNeighborLevels;
+  final offsetG = source[pixelIndex + 1] * _sharpnessNeighborLevels;
+  final offsetB = source[pixelIndex + 2] * _sharpnessNeighborLevels;
+
+  data[pixelIndex] = lut[offsetR + neighborR];
+  data[pixelIndex + 1] = lut[offsetG + neighborG];
+  data[pixelIndex + 2] = lut[offsetB + neighborB];
+}
+
+Uint8List _buildSharpnessLut(double value) {
+  final lut = Uint8List(256 * _sharpnessNeighborLevels);
+  final centerWeight = 1.0 + 4.0 * value;
+
+  for (var center = 0; center < 256; center++) {
+    final rowOffset = center * _sharpnessNeighborLevels;
+    final weightedCenter = center * centerWeight;
+
+    for (var neighborTotal = 0;
+        neighborTotal < _sharpnessNeighborLevels;
+        neighborTotal++) {
+      lut[rowOffset + neighborTotal] =
+          _clampByteFloor(weightedCenter - neighborTotal * value);
+    }
+  }
+
+  return lut;
 }
 
 img.Image applyDefinition(img.Image image, double value) {
