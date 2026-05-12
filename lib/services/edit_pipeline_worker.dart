@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import '../domain/apply_edits.dart';
+import '../domain/color_operations.dart' as color_ops;
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
 import '../model/edit.dart';
@@ -158,7 +159,10 @@ class _EditPipelineWorkerIsolate {
   _EditPipelineWorkerIsolate(this._mainPort);
 
   final SendPort _mainPort;
+  final color_ops.SelectiveColorPrepCache _selectiveColorPrepCache =
+      color_ops.SelectiveColorPrepCache();
   RgbaImageFrame? _originalFrame;
+  int _originalFrameRevision = 0;
 
   void handleMessage(Object? message) {
     if (message is! Map) return;
@@ -172,18 +176,23 @@ class _EditPipelineWorkerIsolate {
           _originalFrame = _frameFromMessage(
             message['frame'] as Map<String, dynamic>,
           );
+          _originalFrameRevision++;
+          _selectiveColorPrepCache.clear();
           _sendSuccess(id);
         case 'process':
           final originalFrame = _originalFrame;
           if (originalFrame == null) {
             throw StateError('No original frame loaded in edit pipeline worker');
           }
+          final edits = message['edits'] as List<Edit>;
           final result = applyEditsToRgbaSync(
             originalFrame: originalFrame,
-            edits: message['edits'] as List<Edit>,
+            edits: edits,
             colorEdits: message['colorEdits'] as List<ColorEdit>,
             colorGradingEdits:
                 message['colorGradingEdits'] as List<ColorGradingEdit>,
+            selectiveColorPrepCache: _selectiveColorPrepCache,
+            selectiveColorPrepCacheKey: _selectivePrepCacheKey(edits),
           );
           _sendSuccess(id, _frameToMessage(result));
         default:
@@ -205,5 +214,20 @@ class _EditPipelineWorkerIsolate {
       'ok': true,
       'result': result,
     });
+  }
+
+  String _selectivePrepCacheKey(List<Edit> edits) {
+    final editValues = <OperationType, double>{
+      for (final edit in edits) edit.type: edit.value,
+    };
+    final buffer = StringBuffer(_originalFrameRevision);
+    for (final type in OperationType.values) {
+      buffer
+        ..write('|')
+        ..write(type.index)
+        ..write(':')
+        ..write(editValues[type] ?? 0.0);
+    }
+    return buffer.toString();
   }
 }

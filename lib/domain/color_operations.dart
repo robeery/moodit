@@ -50,6 +50,45 @@ class RgbValues {
   double b = 0;
 }
 
+class SelectiveColorPrepCache {
+  Object? _hueSatKey;
+  _SelectiveHueSatPrep? _hueSatPrep;
+  int _hueSatBuildCount = 0;
+
+  int get debugHueSatBuildCount => _hueSatBuildCount;
+
+  void clear() {
+    _hueSatKey = null;
+    _hueSatPrep = null;
+  }
+
+  _SelectiveHueSatPrep _hueSatPrepFor({
+    required int width,
+    required int height,
+    required Uint8List data,
+    required Object? cacheKey,
+  }) {
+    final prep = _hueSatPrep;
+    if (cacheKey != null &&
+        prep != null &&
+        _hueSatKey == cacheKey &&
+        prep.width == width &&
+        prep.height == height) {
+      return prep;
+    }
+
+    final built = _buildHueSatPrep(width, height, data);
+    _hueSatBuildCount++;
+
+    if (cacheKey != null) {
+      _hueSatKey = cacheKey;
+      _hueSatPrep = built;
+    }
+
+    return built;
+  }
+}
+
 class _ColorShift {
   const _ColorShift({
     required this.range,
@@ -66,6 +105,24 @@ class _ColorShift {
   bool get affectsHueOrSaturation =>
       hue.abs() > 0.001 || saturation.abs() > 0.001;
   bool get affectsLuminance => luminance.abs() > 0.001;
+}
+
+class _SelectiveHueSatPrep {
+  const _SelectiveHueSatPrep({
+    required this.width,
+    required this.height,
+    required this.originalSat,
+    required this.originalLum,
+    required this.smoothHue,
+    required this.smoothSat,
+  });
+
+  final int width;
+  final int height;
+  final Float32List originalSat;
+  final Float32List originalLum;
+  final Float32List smoothHue;
+  final Float32List smoothSat;
 }
 
 List<double> rgbToHsl(double r, double g, double b) {
@@ -167,6 +224,54 @@ int _hueWeightIndex(double hue) {
 }
 
 Float32List _hueWeightTable(ColorRange range) => _hueWeightTables[range.index];
+
+_SelectiveHueSatPrep _buildHueSatPrep(int w, int h, Uint8List data) {
+  final n = w * h;
+  final yArr = Float32List(n);
+  final cbArr = Float32List(n);
+  final crArr = Float32List(n);
+  final originalSat = Float32List(n);
+  final originalLum = Float32List(n);
+  final hsl = HslValues();
+
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
+    rgbToHslValues(r, g, b, hsl);
+    final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
+    yArr[idx] = yVal;
+    cbArr[idx] = 0.564 * (b - yVal);
+    crArr[idx] = 0.713 * (r - yVal);
+    originalSat[idx] = hsl.saturation;
+    originalLum[idx] = hsl.luminance;
+  }
+
+  final smoothCb = _boxBlur(cbArr, w, h, 3);
+  final smoothCr = _boxBlur(crArr, w, h, 3);
+  final smoothHue = Float32List(n);
+  final smoothSat = Float32List(n);
+
+  for (int i = 0; i < n; i++) {
+    final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+    final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+    final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0).toDouble();
+    rgbToHslValues(sr, sg, sb, hsl);
+    smoothHue[i] = hsl.hue;
+    smoothSat[i] = hsl.saturation;
+  }
+
+  return _SelectiveHueSatPrep(
+    width: w,
+    height: h,
+    originalSat: originalSat,
+    originalLum: originalLum,
+    smoothHue: smoothHue,
+    smoothSat: smoothSat,
+  );
+}
 
 //RGB-ratio-based color detection for luminance only
 //ratios are stable across JPEG blocks since compression noise barely changes
@@ -278,7 +383,12 @@ Float32List _boxBlur(Float32List data, int w, int h, int radius) {
 }
 
 //applies all color edits in one go with pre-smoothed hue/sat and blurred luminance
-img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
+img.Image applyAllColorEdits(
+  img.Image image,
+  List<ColorEdit> edits, {
+  SelectiveColorPrepCache? prepCache,
+  Object? prepCacheKey,
+}) {
   final activeEdits = edits.where((e) => !e.isEmpty).toList();
   if (activeEdits.isEmpty) return image;
 
@@ -307,52 +417,29 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final hasHueSatEdits = hueSatShifts.isNotEmpty;
   final hasLuminanceEdits = luminanceShifts.isNotEmpty;
 
-  final originalSat = Float32List(n);
-  final originalLum = Float32List(n);
-  final hsl = HslValues();
+  late final Float32List originalSat;
+  late final Float32List originalLum;
 
   Float32List? originalHue;
   Float32List? smoothHue;
   Float32List? smoothSat;
 
   if (hasHueSatEdits) {
-    //pre-processing: smooth chroma noise via YCbCr
-    final yArr = Float32List(n);
-    final cbArr = Float32List(n);
-    final crArr = Float32List(n);
-
-    for (var idx = 0, pixelOffset = 0;
-        idx < n;
-        idx++, pixelOffset += _channelsPerPixel) {
-      final r = data[pixelOffset] / 255.0;
-      final g = data[pixelOffset + 1] / 255.0;
-      final b = data[pixelOffset + 2] / 255.0;
-      rgbToHslValues(r, g, b, hsl);
-      final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
-      yArr[idx] = yVal;
-      cbArr[idx] = 0.564 * (b - yVal);
-      crArr[idx] = 0.713 * (r - yVal);
-      originalSat[idx] = hsl.saturation;
-      originalLum[idx] = hsl.luminance;
-    }
-
-    //7x7 blur on chroma only, Y untouched
-    final smoothCb = _boxBlur(cbArr, w, h, 3);
-    final smoothCr = _boxBlur(crArr, w, h, 3);
-
-    //reconstruct smoothed RGB - HSL for smoothHue/smoothSat
-    smoothHue = Float32List(n);
-    smoothSat = Float32List(n);
-    for (int i = 0; i < n; i++) {
-      final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
-      final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
-      final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0).toDouble();
-      rgbToHslValues(sr, sg, sb, hsl);
-      smoothHue[i] = hsl.hue;
-      smoothSat[i] = hsl.saturation;
-    }
+    final prep = prepCache?._hueSatPrepFor(
+      width: w,
+      height: h,
+      data: data,
+      cacheKey: prepCacheKey,
+    ) ?? _buildHueSatPrep(w, h, data);
+    originalSat = prep.originalSat;
+    originalLum = prep.originalLum;
+    smoothHue = prep.smoothHue;
+    smoothSat = prep.smoothSat;
   } else {
+    originalSat = Float32List(n);
+    originalLum = Float32List(n);
     originalHue = Float32List(n);
+    final hsl = HslValues();
 
     for (var idx = 0, pixelOffset = 0;
         idx < n;

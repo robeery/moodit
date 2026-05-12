@@ -67,6 +67,8 @@ img.Image applyEditsToImageSync({
   required List<Edit> edits,
   required List<ColorEdit> colorEdits,
   required List<ColorGradingEdit> colorGradingEdits,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
 }) {
   image = _ensureEditableImage(image);
 
@@ -138,7 +140,12 @@ img.Image applyEditsToImageSync({
     );
   }
 
-  image = color_ops.applyAllColorEdits(image, colorEdits);
+  image = color_ops.applyAllColorEdits(
+    image,
+    colorEdits,
+    prepCache: selectiveColorPrepCache,
+    prepCacheKey: selectiveColorPrepCacheKey,
+  );
   image = grading_ops.applyColorGrading(image, colorGradingEdits);
   return image;
 }
@@ -148,12 +155,16 @@ RgbaImageFrame applyEditsToRgbaSync({
   required List<Edit> edits,
   required List<ColorEdit> colorEdits,
   required List<ColorGradingEdit> colorGradingEdits,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
 }) {
   final result = applyEditsToImageSync(
     image: imageFromRgbaFrame(originalFrame),
     edits: edits,
     colorEdits: colorEdits,
     colorGradingEdits: colorGradingEdits,
+    selectiveColorPrepCache: selectiveColorPrepCache,
+    selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
   );
   return frameFromImage(result);
 }
@@ -163,12 +174,16 @@ Uint8List applyEditsSync({
   required List<Edit> edits,
   required List<ColorEdit> colorEdits,
   required List<ColorGradingEdit> colorGradingEdits,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
 }) {
   final result = applyEditsToImageSync(
     image: _decodeEditableImage(originalBytes),
     edits: edits,
     colorEdits: colorEdits,
     colorGradingEdits: colorGradingEdits,
+    selectiveColorPrepCache: selectiveColorPrepCache,
+    selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
   );
   return Uint8List.fromList(img.encodeJpg(result));
 }

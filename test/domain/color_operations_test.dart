@@ -37,6 +37,64 @@ void main() {
       expect(_hueDistance(before.hue, after.hue), greaterThan(5.0));
       expect((after.luminance - before.luminance).abs(), lessThan(1.0));
     });
+
+    test('cached hue/sat prep matches uncached output across slider changes', () {
+      final cache = color_ops.SelectiveColorPrepCache();
+      final firstEdits = [
+        ColorEdit(range: ColorRange.blue, hue: 25, saturation: 20),
+      ];
+      final secondEdits = [
+        ColorEdit(range: ColorRange.blue, hue: -20, saturation: 35),
+      ];
+
+      final firstUncached = _fixtureImage();
+      final firstCached = _fixtureImage();
+      color_ops.applyAllColorEdits(firstUncached, firstEdits);
+      color_ops.applyAllColorEdits(
+        firstCached,
+        firstEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(_bytes(firstCached), orderedEquals(_bytes(firstUncached)));
+      expect(cache.debugHueSatBuildCount, 1);
+
+      final secondUncached = _fixtureImage();
+      final secondCached = _fixtureImage();
+      color_ops.applyAllColorEdits(secondUncached, secondEdits);
+      color_ops.applyAllColorEdits(
+        secondCached,
+        secondEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(_bytes(secondCached), orderedEquals(_bytes(secondUncached)));
+      expect(cache.debugHueSatBuildCount, 1);
+    });
+
+    test('cached hue/sat prep rebuilds for a different input key', () {
+      final cache = color_ops.SelectiveColorPrepCache();
+      final edits = [
+        ColorEdit(range: ColorRange.blue, hue: 25, saturation: 20),
+      ];
+
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        edits,
+        prepCache: cache,
+        prepCacheKey: 'first-basic-input',
+      );
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        edits,
+        prepCache: cache,
+        prepCacheKey: 'second-basic-input',
+      );
+
+      expect(cache.debugHueSatBuildCount, 2);
+    });
   });
 }
 
@@ -54,6 +112,23 @@ void main() {
 img.Image _singlePixelImage(int r, int g, int b) {
   final image = img.Image(width: 1, height: 1, numChannels: 4);
   image.setPixelRgba(0, 0, r, g, b, 255);
+  return image;
+}
+
+img.Image _fixtureImage({int width = 11, int height = 9}) {
+  final image = img.Image(width: width, height: height, numChannels: 4);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      image.setPixelRgba(
+        x,
+        y,
+        (28 + x * 17 + y * 9).clamp(0, 255),
+        (54 + x * 7 + y * 19).clamp(0, 255),
+        (90 + x * 23 + y * 5).clamp(0, 255),
+        255,
+      );
+    }
+  }
   return image;
 }
 

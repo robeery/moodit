@@ -2,9 +2,11 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 import 'package:licenta/domain/apply_edits.dart';
+import 'package:licenta/domain/color_operations.dart' as color_ops;
 import 'package:licenta/model/color_edit.dart';
 import 'package:licenta/model/color_grading_edit.dart';
 import 'package:licenta/model/edit.dart';
+import 'package:licenta/model/rgba_image_frame.dart';
 
 const int defaultWarmup = 2;
 const int defaultIterations = 7;
@@ -103,6 +105,39 @@ List<Scenario> buildSelectiveColorScenarios() {
     ),
     Scenario(
       'selective_all_ranges_heavy',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20, saturation: 25, luminance: 15),
+      ],
+    ),
+  ];
+}
+
+List<Scenario> buildCachedSelectiveColorScenarios() {
+  return [
+    Scenario(
+      'cached_selective_hue_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20),
+      ],
+    ),
+    Scenario(
+      'cached_selective_saturation_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, saturation: 25),
+      ],
+    ),
+    Scenario(
+      'cached_selective_hue_sat_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20, saturation: 25),
+      ],
+    ),
+    Scenario(
+      'cached_selective_all_ranges_heavy',
       colorEdits: [
         for (final range in ColorRange.values)
           ColorEdit(range: range, hue: 20, saturation: 25, luminance: 15),
@@ -210,6 +245,82 @@ Map<String, Map<String, Object>> runBenchmark({
   }
 
   return results;
+}
+
+Map<String, Map<String, Object>> runSelectiveColorPrepCacheBenchmark({
+  required Uint8List fixtureBytes,
+  required List<Scenario> scenarios,
+  int warmup = defaultWarmup,
+  int iterations = defaultIterations,
+}) {
+  final results = <String, Map<String, Object>>{};
+  final fixtureFrame = decodeRgbaImageFrame(fixtureBytes);
+  final sourceBytes = Uint8List.fromList(fixtureFrame.rgbaBytes);
+
+  for (final scenario in scenarios) {
+    final cache = color_ops.SelectiveColorPrepCache();
+    final cacheKey = 'fixture:${scenario.name}';
+
+    for (var i = 0; i < warmup; i++) {
+      _applySelectiveColorWithPrepCache(
+        sourceBytes: sourceBytes,
+        width: fixtureFrame.width,
+        height: fixtureFrame.height,
+        scenario: scenario,
+        cache: cache,
+        cacheKey: cacheKey,
+      );
+    }
+
+    final samples = <int>[];
+    for (var i = 0; i < iterations; i++) {
+      final sw = Stopwatch()..start();
+      _applySelectiveColorWithPrepCache(
+        sourceBytes: sourceBytes,
+        width: fixtureFrame.width,
+        height: fixtureFrame.height,
+        scenario: scenario,
+        cache: cache,
+        cacheKey: cacheKey,
+      );
+      sw.stop();
+      samples.add(sw.elapsedMicroseconds);
+    }
+
+    samples.sort();
+    final average = samples.reduce((a, b) => a + b) / samples.length / 1000.0;
+    results[scenario.name] = {
+      'average_ms': average,
+      'median_ms': samples[samples.length ~/ 2] / 1000.0,
+      'min_ms': samples.first / 1000.0,
+      'max_ms': samples.last / 1000.0,
+      'all_ms': [for (final s in samples) s / 1000.0],
+      'prep_build_count': cache.debugHueSatBuildCount,
+    };
+  }
+
+  return results;
+}
+
+void _applySelectiveColorWithPrepCache({
+  required Uint8List sourceBytes,
+  required int width,
+  required int height,
+  required Scenario scenario,
+  required color_ops.SelectiveColorPrepCache cache,
+  required Object cacheKey,
+}) {
+  final image = imageFromRgbaFrame(RgbaImageFrame(
+    rgbaBytes: Uint8List.fromList(sourceBytes),
+    width: width,
+    height: height,
+  ));
+  color_ops.applyAllColorEdits(
+    image,
+    scenario.colorEdits,
+    prepCache: cache,
+    prepCacheKey: cacheKey,
+  );
 }
 
 void printResults(String title, Map<String, Map<String, Object>> results) {

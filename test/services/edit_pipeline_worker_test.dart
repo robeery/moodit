@@ -66,5 +66,25 @@ void main() {
     expect(result.width, expected.width);
     expect(result.height, expected.height);
     expect(result.rgbaBytes, orderedEquals(expected.rgbaBytes));
+
+    final secondColorEdits = [
+      ColorEdit(range: ColorRange.red, hue: -20, saturation: 25, luminance: 5),
+      ColorEdit(range: ColorRange.blue, hue: 18, saturation: -10, luminance: -4),
+    ];
+    final secondExpected = applyEditsToRgbaSync(
+      originalFrame: frame,
+      edits: edits,
+      colorEdits: secondColorEdits,
+      colorGradingEdits: gradingEdits,
+    );
+    final secondResult = await worker.process(
+      edits: edits,
+      colorEdits: secondColorEdits,
+      colorGradingEdits: gradingEdits,
+    );
+
+    expect(secondResult.width, secondExpected.width);
+    expect(secondResult.height, secondExpected.height);
+    expect(secondResult.rgbaBytes, orderedEquals(secondExpected.rgbaBytes));
   });
 }
