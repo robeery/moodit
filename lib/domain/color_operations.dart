@@ -32,6 +32,12 @@ int _clampByte(num value) {
   return value.toInt();
 }
 
+double _clampUnit(double value) {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
 class HslValues {
   double hue = 0;
   double saturation = 0;
@@ -165,51 +171,52 @@ Float32List _hueWeightTable(ColorRange range) => _hueWeightTables[range.index];
 //RGB-ratio-based color detection for luminance only
 //ratios are stable across JPEG blocks since compression noise barely changes
 //the relative balance between channels, unlike HSL hue which can jump wildly
-double _rgbColorWeight(double r, double g, double b, ColorRange range) {
-  final sum = r + g + b + 0.001;
-  final maxC = max(r, max(g, b));
-  final minC = min(r, min(g, b));
-  final chroma = maxC - minC;
-  final chromaGate = (chroma / 0.08).clamp(0.0, 1.0);
-
+double _rgbColorWeightFromShared(
+  double r,
+  double g,
+  double b,
+  double sum,
+  double chromaGate,
+  ColorRange range,
+) {
   double w;
   switch (range) {
     case ColorRange.red:
       //r is clearly the dominant channel
-      w = ((r / sum - 0.4) / 0.15).clamp(0.0, 1.0) *
-          ((r - max(g, b)) / (r + 0.001)).clamp(0.0, 1.0);
+      w = _clampUnit((r / sum - 0.4) / 0.15) *
+          _clampUnit((r - max(g, b)) / (r + 0.001));
     case ColorRange.orange:
       //r highest with moderate green (g/r between 0.4 and 0.7)
       final gRatio = g / (r + 0.001);
-      w = ((r / sum - 0.4) / 0.15).clamp(0.0, 1.0) *
-          ((r - max(g, b)) / (r + 0.001)).clamp(0.0, 1.0) *
-          ((gRatio - 0.4) / 0.3).clamp(0.0, 1.0) *
-          ((0.7 - gRatio) / 0.3).clamp(0.0, 1.0) * 4.0;
+      w = _clampUnit((r / sum - 0.4) / 0.15) *
+          _clampUnit((r - max(g, b)) / (r + 0.001)) *
+          _clampUnit((gRatio - 0.4) / 0.3) *
+          _clampUnit((0.7 - gRatio) / 0.3) * 4.0;
     case ColorRange.yellow:
       //r and g both high, b low
-      w = ((min(r, g) / (max(r, g) + 0.001) - 0.7) / 0.2).clamp(0.0, 1.0) *
-          (((1 - b / sum) - 0.5) / 0.3).clamp(0.0, 1.0);
+      w = _clampUnit((min(r, g) / (max(r, g) + 0.001) - 0.7) / 0.2) *
+          _clampUnit(((1 - b / sum) - 0.5) / 0.3);
     case ColorRange.green:
       //g is clearly the dominant channel
-      w = ((g / sum - 0.4) / 0.15).clamp(0.0, 1.0) *
-          ((g - max(r, b)) / (g + 0.001)).clamp(0.0, 1.0);
+      w = _clampUnit((g / sum - 0.4) / 0.15) *
+          _clampUnit((g - max(r, b)) / (g + 0.001));
     case ColorRange.cyan:
       //g and b both high, r low
-      w = ((min(g, b) / (max(g, b) + 0.001) - 0.7) / 0.2).clamp(0.0, 1.0) *
-          (((1 - r / sum) - 0.5) / 0.3).clamp(0.0, 1.0);
+      w = _clampUnit((min(g, b) / (max(g, b) + 0.001) - 0.7) / 0.2) *
+          _clampUnit(((1 - r / sum) - 0.5) / 0.3);
     case ColorRange.blue:
       //b is clearly the dominant channel
-      w = ((b / sum - 0.4) / 0.15).clamp(0.0, 1.0) *
-          ((b - max(r, g)) / (b + 0.001)).clamp(0.0, 1.0);
+      w = _clampUnit((b / sum - 0.4) / 0.15) *
+          _clampUnit((b - max(r, g)) / (b + 0.001));
     case ColorRange.purple:
       //b and r both present, g low
-      w = ((min(r, b) / (max(r, b) + 0.001) - 0.5) / 0.3).clamp(0.0, 1.0) *
-          (((1 - g / sum) - 0.5) / 0.3).clamp(0.0, 1.0);
+      w = _clampUnit((min(r, b) / (max(r, b) + 0.001) - 0.5) / 0.3) *
+          _clampUnit(((1 - g / sum) - 0.5) / 0.3);
     case ColorRange.magenta:
       //r and b present with r dominant, g lowest
-      w = ((min(r, b) / (max(r, b) + 0.001) - 0.5) / 0.3).clamp(0.0, 1.0) *
-          (((1 - g / sum) - 0.5) / 0.3).clamp(0.0, 1.0) *
-          ((r - b) / (r + 0.001)).clamp(0.0, 1.0);
+      w = _clampUnit((min(r, b) / (max(r, b) + 0.001) - 0.5) / 0.3) *
+          _clampUnit(((1 - g / sum) - 0.5) / 0.3) *
+          _clampUnit((r - b) / (r + 0.001));
   }
 
   return w * chromaGate;
@@ -373,12 +380,23 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
       final g = data[pixelOffset + 1] / 255.0;
       final b = data[pixelOffset + 2] / 255.0;
       final l = originalLum[idx];
+      final sum = r + g + b + 0.001;
+      final maxC = max(r, max(g, b));
+      final minC = min(r, min(g, b));
+      final chromaGate = _clampUnit((maxC - minC) / 0.08);
 
       double totalLum = 0;
       double totalLumW = 0;
 
       for (final shift in luminanceShifts) {
-        final lumW = _rgbColorWeight(r, g, b, shift.range);
+        final lumW = _rgbColorWeightFromShared(
+          r,
+          g,
+          b,
+          sum,
+          chromaGate,
+          shift.range,
+        );
         if (lumW > 0.01) {
           totalLum += shift.luminance * lumW;
           totalLumW += lumW;
