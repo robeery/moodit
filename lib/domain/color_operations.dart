@@ -56,6 +56,8 @@ class SelectiveColorPrepCache {
   int _hueSatBuildCount = 0;
 
   int get debugHueSatBuildCount => _hueSatBuildCount;
+  int get debugHueSatMaskBuildCount =>
+      _hueSatPrep?.hueSatMaskBuildCount ?? 0;
 
   void clear() {
     _hueSatKey = null;
@@ -108,7 +110,7 @@ class _ColorShift {
 }
 
 class _SelectiveHueSatPrep {
-  const _SelectiveHueSatPrep({
+  _SelectiveHueSatPrep({
     required this.width,
     required this.height,
     required this.originalSat,
@@ -123,6 +125,26 @@ class _SelectiveHueSatPrep {
   final Float32List originalLum;
   final Float32List smoothHue;
   final Float32List smoothSat;
+  final List<Float32List?> _hueSatMasks =
+      List<Float32List?>.filled(ColorRange.values.length, null);
+  int hueSatMaskBuildCount = 0;
+
+  Float32List hueSatMaskFor(ColorRange range) {
+    final rangeIndex = range.index;
+    final existing = _hueSatMasks[rangeIndex];
+    if (existing != null) return existing;
+
+    final table = _hueWeightTable(range);
+    final mask = Float32List(width * height);
+    for (var i = 0; i < mask.length; i++) {
+      final satGate = _clampUnit(smoothSat[i] / 30.0);
+      mask[i] = table[_hueWeightIndex(smoothHue[i])] * satGate;
+    }
+
+    hueSatMaskBuildCount++;
+    _hueSatMasks[rangeIndex] = mask;
+    return mask;
+  }
 }
 
 List<double> rgbToHsl(double r, double g, double b) {
@@ -423,6 +445,7 @@ img.Image applyAllColorEdits(
   Float32List? originalHue;
   Float32List? smoothHue;
   Float32List? smoothSat;
+  List<Float32List>? hueSatMasks;
 
   if (hasHueSatEdits) {
     final prep = prepCache?._hueSatPrepFor(
@@ -435,6 +458,11 @@ img.Image applyAllColorEdits(
     originalLum = prep.originalLum;
     smoothHue = prep.smoothHue;
     smoothSat = prep.smoothSat;
+    if (prepCache != null) {
+      hueSatMasks = [
+        for (final shift in hueSatShifts) prep.hueSatMaskFor(shift.range),
+      ];
+    }
   } else {
     originalSat = Float32List(n);
     originalLum = Float32List(n);
@@ -517,6 +545,7 @@ img.Image applyAllColorEdits(
   if (hasHueSatEdits) {
     final hueValues = smoothHue!;
     final satValues = smoothSat!;
+    final masks = hueSatMasks;
 
     for (var idx = 0, pixelOffset = 0;
         idx < n;
@@ -524,22 +553,32 @@ img.Image applyAllColorEdits(
       final l = originalLum[idx];
 
       final sHue = hueValues[idx];
-      final sSat = satValues[idx];
-
-      final satGate = (sSat / 30.0).clamp(0.0, 1.0);
-      final hueWeightIndex = _hueWeightIndex(sHue);
 
       double totalHue = 0;
       double totalSat = 0;
       double maxW = 0;
 
-      for (var i = 0; i < hueSatShifts.length; i++) {
-        final wt = hueSatWeights[i][hueWeightIndex] * satGate;
-        if (wt > 0.01) {
-          final shift = hueSatShifts[i];
-          totalHue += shift.hue * wt;
-          totalSat += shift.saturation * wt;
-          if (wt > maxW) maxW = wt;
+      if (masks == null) {
+        final satGate = (satValues[idx] / 30.0).clamp(0.0, 1.0);
+        final hueWeightIndex = _hueWeightIndex(sHue);
+        for (var i = 0; i < hueSatShifts.length; i++) {
+          final wt = hueSatWeights[i][hueWeightIndex] * satGate;
+          if (wt > 0.01) {
+            final shift = hueSatShifts[i];
+            totalHue += shift.hue * wt;
+            totalSat += shift.saturation * wt;
+            if (wt > maxW) maxW = wt;
+          }
+        }
+      } else {
+        for (var i = 0; i < hueSatShifts.length; i++) {
+          final wt = masks[i][idx];
+          if (wt > 0.01) {
+            final shift = hueSatShifts[i];
+            totalHue += shift.hue * wt;
+            totalSat += shift.saturation * wt;
+            if (wt > maxW) maxW = wt;
+          }
         }
       }
 

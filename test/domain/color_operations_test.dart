@@ -59,6 +59,7 @@ void main() {
 
       expect(_bytes(firstCached), orderedEquals(_bytes(firstUncached)));
       expect(cache.debugHueSatBuildCount, 1);
+      expect(cache.debugHueSatMaskBuildCount, 1);
 
       final secondUncached = _fixtureImage();
       final secondCached = _fixtureImage();
@@ -72,6 +73,7 @@ void main() {
 
       expect(_bytes(secondCached), orderedEquals(_bytes(secondUncached)));
       expect(cache.debugHueSatBuildCount, 1);
+      expect(cache.debugHueSatMaskBuildCount, 1);
     });
 
     test('cached hue/sat prep rebuilds for a different input key', () {
@@ -94,6 +96,31 @@ void main() {
       );
 
       expect(cache.debugHueSatBuildCount, 2);
+      expect(cache.debugHueSatMaskBuildCount, 1);
+    });
+
+    test('cached hue/sat prep lazily builds one mask per touched range', () {
+      final cache = color_ops.SelectiveColorPrepCache();
+
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        [ColorEdit(range: ColorRange.blue, hue: 25)],
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(cache.debugHueSatBuildCount, 1);
+      expect(cache.debugHueSatMaskBuildCount, 1);
+
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        [ColorEdit(range: ColorRange.red, saturation: 20)],
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(cache.debugHueSatBuildCount, 1);
+      expect(cache.debugHueSatMaskBuildCount, 2);
     });
   });
 }

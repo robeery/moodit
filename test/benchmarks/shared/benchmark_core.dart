@@ -296,6 +296,7 @@ Map<String, Map<String, Object>> runSelectiveColorPrepCacheBenchmark({
       'max_ms': samples.last / 1000.0,
       'all_ms': [for (final s in samples) s / 1000.0],
       'prep_build_count': cache.debugHueSatBuildCount,
+      'mask_build_count': cache.debugHueSatMaskBuildCount,
     };
   }
 
