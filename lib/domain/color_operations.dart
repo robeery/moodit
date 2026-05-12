@@ -17,6 +17,12 @@ const Map<ColorRange, (double, double)> _colorRangeParams = {
 };
 
 const int _channelsPerPixel = 4;
+const int _hueWeightScale = 10;
+const int _hueWeightTableSize = 360 * _hueWeightScale;
+
+final List<Float32List> _hueWeightTables = [
+  for (final range in ColorRange.values) _buildHueWeightTable(range),
+];
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
@@ -139,6 +145,23 @@ double _hueWeight(double hue, ColorRange range, [double fade = _fadeWidth]) {
   return 0.5 * (1.0 + cos(t * pi));
 }
 
+Float32List _buildHueWeightTable(ColorRange range) {
+  final table = Float32List(_hueWeightTableSize);
+  for (var i = 0; i < table.length; i++) {
+    table[i] = _hueWeight(i / _hueWeightScale, range);
+  }
+  return table;
+}
+
+int _hueWeightIndex(double hue) {
+  var index = (hue * _hueWeightScale).round();
+  if (index >= _hueWeightTableSize) index -= _hueWeightTableSize;
+  if (index < 0) index += _hueWeightTableSize;
+  return index;
+}
+
+Float32List _hueWeightTable(ColorRange range) => _hueWeightTables[range.index];
+
 //RGB-ratio-based color detection for luminance only
 //ratios are stable across JPEG blocks since compression noise barely changes
 //the relative balance between channels, unlike HSL hue which can jump wildly
@@ -258,6 +281,7 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final data = _rgbaBytes(image);
 
   final hueSatShifts = <_ColorShift>[];
+  final hueSatWeights = <Float32List>[];
   final luminanceShifts = <_ColorShift>[];
   for (final edit in activeEdits) {
     final shift = _ColorShift(
@@ -266,7 +290,10 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
       saturation: edit.saturation / 100.0 * 100,
       luminance: edit.luminance / 100.0 * 30,
     );
-    if (shift.affectsHueOrSaturation) hueSatShifts.add(shift);
+    if (shift.affectsHueOrSaturation) {
+      hueSatShifts.add(shift);
+      hueSatWeights.add(_hueWeightTable(shift.range));
+    }
     if (shift.affectsLuminance) luminanceShifts.add(shift);
   }
 
@@ -395,14 +422,16 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
       final sSat = satValues[idx];
 
       final satGate = (sSat / 30.0).clamp(0.0, 1.0);
+      final hueWeightIndex = _hueWeightIndex(sHue);
 
       double totalHue = 0;
       double totalSat = 0;
       double maxW = 0;
 
-      for (final shift in hueSatShifts) {
-        final wt = _hueWeight(sHue, shift.range) * satGate;
+      for (var i = 0; i < hueSatShifts.length; i++) {
+        final wt = hueSatWeights[i][hueWeightIndex] * satGate;
         if (wt > 0.01) {
+          final shift = hueSatShifts[i];
           totalHue += shift.hue * wt;
           totalSat += shift.saturation * wt;
           if (wt > maxW) maxW = wt;
