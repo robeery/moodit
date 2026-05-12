@@ -137,6 +137,13 @@ List<Scenario> buildCachedSelectiveColorScenarios() {
       ],
     ),
     Scenario(
+      'cached_selective_luminance_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, luminance: 15),
+      ],
+    ),
+    Scenario(
       'cached_selective_all_ranges_heavy',
       colorEdits: [
         for (final range in ColorRange.values)
@@ -297,6 +304,8 @@ Map<String, Map<String, Object>> runSelectiveColorPrepCacheBenchmark({
       'all_ms': [for (final s in samples) s / 1000.0],
       'prep_build_count': cache.debugHueSatBuildCount,
       'mask_build_count': cache.debugHueSatMaskBuildCount,
+      'luminance_prep_build_count': cache.debugLuminanceBuildCount,
+      'luminance_mask_build_count': cache.debugLuminanceMaskBuildCount,
     };
   }
 

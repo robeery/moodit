@@ -122,6 +122,68 @@ void main() {
       expect(cache.debugHueSatBuildCount, 1);
       expect(cache.debugHueSatMaskBuildCount, 2);
     });
+
+    test('cached luminance prep matches uncached output across slider changes', () {
+      final cache = color_ops.SelectiveColorPrepCache();
+      final firstEdits = [
+        ColorEdit(range: ColorRange.blue, luminance: 30),
+      ];
+      final secondEdits = [
+        ColorEdit(range: ColorRange.blue, luminance: -25),
+      ];
+
+      final firstUncached = _fixtureImage();
+      final firstCached = _fixtureImage();
+      color_ops.applyAllColorEdits(firstUncached, firstEdits);
+      color_ops.applyAllColorEdits(
+        firstCached,
+        firstEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(_bytes(firstCached), orderedEquals(_bytes(firstUncached)));
+      expect(cache.debugLuminanceBuildCount, 1);
+      expect(cache.debugLuminanceMaskBuildCount, 1);
+
+      final secondUncached = _fixtureImage();
+      final secondCached = _fixtureImage();
+      color_ops.applyAllColorEdits(secondUncached, secondEdits);
+      color_ops.applyAllColorEdits(
+        secondCached,
+        secondEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(_bytes(secondCached), orderedEquals(_bytes(secondUncached)));
+      expect(cache.debugLuminanceBuildCount, 1);
+      expect(cache.debugLuminanceMaskBuildCount, 1);
+    });
+
+    test('cached luminance prep lazily builds one mask per touched range', () {
+      final cache = color_ops.SelectiveColorPrepCache();
+
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        [ColorEdit(range: ColorRange.blue, luminance: 25)],
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(cache.debugLuminanceBuildCount, 1);
+      expect(cache.debugLuminanceMaskBuildCount, 1);
+
+      color_ops.applyAllColorEdits(
+        _fixtureImage(),
+        [ColorEdit(range: ColorRange.red, luminance: 20)],
+        prepCache: cache,
+        prepCacheKey: 'same-basic-input',
+      );
+
+      expect(cache.debugLuminanceBuildCount, 1);
+      expect(cache.debugLuminanceMaskBuildCount, 2);
+    });
   });
 }
 

@@ -54,14 +54,22 @@ class SelectiveColorPrepCache {
   Object? _hueSatKey;
   _SelectiveHueSatPrep? _hueSatPrep;
   int _hueSatBuildCount = 0;
+  Object? _luminanceKey;
+  _SelectiveLuminancePrep? _luminancePrep;
+  int _luminanceBuildCount = 0;
 
   int get debugHueSatBuildCount => _hueSatBuildCount;
   int get debugHueSatMaskBuildCount =>
       _hueSatPrep?.hueSatMaskBuildCount ?? 0;
+  int get debugLuminanceBuildCount => _luminanceBuildCount;
+  int get debugLuminanceMaskBuildCount =>
+      _luminancePrep?.luminanceMaskBuildCount ?? 0;
 
   void clear() {
     _hueSatKey = null;
     _hueSatPrep = null;
+    _luminanceKey = null;
+    _luminancePrep = null;
   }
 
   _SelectiveHueSatPrep _hueSatPrepFor({
@@ -85,6 +93,32 @@ class SelectiveColorPrepCache {
     if (cacheKey != null) {
       _hueSatKey = cacheKey;
       _hueSatPrep = built;
+    }
+
+    return built;
+  }
+
+  _SelectiveLuminancePrep _luminancePrepFor({
+    required int width,
+    required int height,
+    required Uint8List data,
+    required Object? cacheKey,
+  }) {
+    final prep = _luminancePrep;
+    if (cacheKey != null &&
+        prep != null &&
+        _luminanceKey == cacheKey &&
+        prep.width == width &&
+        prep.height == height) {
+      return prep;
+    }
+
+    final built = _buildLuminancePrep(width, height, data);
+    _luminanceBuildCount++;
+
+    if (cacheKey != null) {
+      _luminanceKey = cacheKey;
+      _luminancePrep = built;
     }
 
     return built;
@@ -143,6 +177,56 @@ class _SelectiveHueSatPrep {
 
     hueSatMaskBuildCount++;
     _hueSatMasks[rangeIndex] = mask;
+    return mask;
+  }
+}
+
+class _SelectiveLuminancePrep {
+  _SelectiveLuminancePrep({
+    required this.width,
+    required this.height,
+    required this.originalHue,
+    required this.originalSat,
+    required this.originalLum,
+  });
+
+  final int width;
+  final int height;
+  final Float32List originalHue;
+  final Float32List originalSat;
+  final Float32List originalLum;
+  final List<Float64List?> _luminanceMasks =
+      List<Float64List?>.filled(ColorRange.values.length, null);
+  int luminanceMaskBuildCount = 0;
+
+  Float64List luminanceMaskFor(ColorRange range, Uint8List data) {
+    final rangeIndex = range.index;
+    final existing = _luminanceMasks[rangeIndex];
+    if (existing != null) return existing;
+
+    final mask = Float64List(width * height);
+    for (var idx = 0, pixelOffset = 0;
+        idx < mask.length;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final r = data[pixelOffset] / 255.0;
+      final g = data[pixelOffset + 1] / 255.0;
+      final b = data[pixelOffset + 2] / 255.0;
+      final sum = r + g + b + 0.001;
+      final maxC = max(r, max(g, b));
+      final minC = min(r, min(g, b));
+      final chromaGate = _clampUnit((maxC - minC) / 0.08);
+      mask[idx] = _rgbColorWeightFromShared(
+        r,
+        g,
+        b,
+        sum,
+        chromaGate,
+        range,
+      );
+    }
+
+    luminanceMaskBuildCount++;
+    _luminanceMasks[rangeIndex] = mask;
     return mask;
   }
 }
@@ -292,6 +376,34 @@ _SelectiveHueSatPrep _buildHueSatPrep(int w, int h, Uint8List data) {
     originalLum: originalLum,
     smoothHue: smoothHue,
     smoothSat: smoothSat,
+  );
+}
+
+_SelectiveLuminancePrep _buildLuminancePrep(int w, int h, Uint8List data) {
+  final n = w * h;
+  final originalHue = Float32List(n);
+  final originalSat = Float32List(n);
+  final originalLum = Float32List(n);
+  final hsl = HslValues();
+
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    final r = data[pixelOffset] / 255.0;
+    final g = data[pixelOffset + 1] / 255.0;
+    final b = data[pixelOffset + 2] / 255.0;
+    rgbToHslValues(r, g, b, hsl);
+    originalHue[idx] = hsl.hue;
+    originalSat[idx] = hsl.saturation;
+    originalLum[idx] = hsl.luminance;
+  }
+
+  return _SelectiveLuminancePrep(
+    width: w,
+    height: h,
+    originalHue: originalHue,
+    originalSat: originalSat,
+    originalLum: originalLum,
   );
 }
 
@@ -446,6 +558,21 @@ img.Image applyAllColorEdits(
   Float32List? smoothHue;
   Float32List? smoothSat;
   List<Float32List>? hueSatMasks;
+  List<Float64List>? luminanceMasks;
+  _SelectiveLuminancePrep? luminancePrep;
+
+  if (hasLuminanceEdits && prepCache != null) {
+    luminancePrep = prepCache._luminancePrepFor(
+      width: w,
+      height: h,
+      data: data,
+      cacheKey: prepCacheKey,
+    );
+    luminanceMasks = [
+      for (final shift in luminanceShifts)
+        luminancePrep.luminanceMaskFor(shift.range, data),
+    ];
+  }
 
   if (hasHueSatEdits) {
     final prep = prepCache?._hueSatPrepFor(
@@ -464,21 +591,27 @@ img.Image applyAllColorEdits(
       ];
     }
   } else {
-    originalSat = Float32List(n);
-    originalLum = Float32List(n);
-    originalHue = Float32List(n);
-    final hsl = HslValues();
+    if (luminancePrep != null) {
+      originalHue = luminancePrep.originalHue;
+      originalSat = luminancePrep.originalSat;
+      originalLum = luminancePrep.originalLum;
+    } else {
+      originalSat = Float32List(n);
+      originalLum = Float32List(n);
+      originalHue = Float32List(n);
+      final hsl = HslValues();
 
-    for (var idx = 0, pixelOffset = 0;
-        idx < n;
-        idx++, pixelOffset += _channelsPerPixel) {
-      final r = data[pixelOffset] / 255.0;
-      final g = data[pixelOffset + 1] / 255.0;
-      final b = data[pixelOffset + 2] / 255.0;
-      rgbToHslValues(r, g, b, hsl);
-      originalHue[idx] = hsl.hue;
-      originalSat[idx] = hsl.saturation;
-      originalLum[idx] = hsl.luminance;
+      for (var idx = 0, pixelOffset = 0;
+          idx < n;
+          idx++, pixelOffset += _channelsPerPixel) {
+        final r = data[pixelOffset] / 255.0;
+        final g = data[pixelOffset + 1] / 255.0;
+        final b = data[pixelOffset + 2] / 255.0;
+        rgbToHslValues(r, g, b, hsl);
+        originalHue[idx] = hsl.hue;
+        originalSat[idx] = hsl.saturation;
+        originalLum[idx] = hsl.luminance;
+      }
     }
   }
 
@@ -487,34 +620,46 @@ img.Image applyAllColorEdits(
 
   if (hasLuminanceEdits) {
     final lumDeltas = Float32List(n);
+    final lumMasks = luminanceMasks;
 
     for (var idx = 0, pixelOffset = 0;
         idx < n;
         idx++, pixelOffset += _channelsPerPixel) {
-      final r = data[pixelOffset] / 255.0;
-      final g = data[pixelOffset + 1] / 255.0;
-      final b = data[pixelOffset + 2] / 255.0;
       final l = originalLum[idx];
-      final sum = r + g + b + 0.001;
-      final maxC = max(r, max(g, b));
-      final minC = min(r, min(g, b));
-      final chromaGate = _clampUnit((maxC - minC) / 0.08);
 
       double totalLum = 0;
       double totalLumW = 0;
 
-      for (final shift in luminanceShifts) {
-        final lumW = _rgbColorWeightFromShared(
-          r,
-          g,
-          b,
-          sum,
-          chromaGate,
-          shift.range,
-        );
-        if (lumW > 0.01) {
-          totalLum += shift.luminance * lumW;
-          totalLumW += lumW;
+      if (lumMasks == null) {
+        final r = data[pixelOffset] / 255.0;
+        final g = data[pixelOffset + 1] / 255.0;
+        final b = data[pixelOffset + 2] / 255.0;
+        final sum = r + g + b + 0.001;
+        final maxC = max(r, max(g, b));
+        final minC = min(r, min(g, b));
+        final chromaGate = _clampUnit((maxC - minC) / 0.08);
+
+        for (final shift in luminanceShifts) {
+          final lumW = _rgbColorWeightFromShared(
+            r,
+            g,
+            b,
+            sum,
+            chromaGate,
+            shift.range,
+          );
+          if (lumW > 0.01) {
+            totalLum += shift.luminance * lumW;
+            totalLumW += lumW;
+          }
+        }
+      } else {
+        for (var i = 0; i < luminanceShifts.length; i++) {
+          final lumW = lumMasks[i][idx];
+          if (lumW > 0.01) {
+            totalLum += luminanceShifts[i].luminance * lumW;
+            totalLumW += lumW;
+          }
         }
       }
 
