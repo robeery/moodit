@@ -65,6 +65,52 @@ List<Scenario> buildScenarios() {
   ];
 }
 
+List<Scenario> buildSelectiveColorScenarios() {
+  return [
+    Scenario(
+      'selective_single_range',
+      colorEdits: [
+        ColorEdit(range: ColorRange.blue, hue: 20, saturation: 25, luminance: 15),
+      ],
+    ),
+    Scenario(
+      'selective_hue_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20),
+      ],
+    ),
+    Scenario(
+      'selective_saturation_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, saturation: 25),
+      ],
+    ),
+    Scenario(
+      'selective_luminance_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, luminance: 15),
+      ],
+    ),
+    Scenario(
+      'selective_hue_sat_only',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20, saturation: 25),
+      ],
+    ),
+    Scenario(
+      'selective_all_ranges_heavy',
+      colorEdits: [
+        for (final range in ColorRange.values)
+          ColorEdit(range: range, hue: 20, saturation: 25, luminance: 15),
+      ],
+    ),
+  ];
+}
+
 List<Scenario> buildIndividualOperationScenarios() {
   return [
     for (final type in OperationType.values)
