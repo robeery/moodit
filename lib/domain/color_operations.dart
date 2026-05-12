@@ -38,6 +38,24 @@ class RgbValues {
   double b = 0;
 }
 
+class _ColorShift {
+  const _ColorShift({
+    required this.range,
+    required this.hue,
+    required this.saturation,
+    required this.luminance,
+  });
+
+  final ColorRange range;
+  final double hue;
+  final double saturation;
+  final double luminance;
+
+  bool get affectsHueOrSaturation =>
+      hue.abs() > 0.001 || saturation.abs() > 0.001;
+  bool get affectsLuminance => luminance.abs() > 0.001;
+}
+
 List<double> rgbToHsl(double r, double g, double b) {
   final hsl = HslValues();
   rgbToHslValues(r, g, b, hsl);
@@ -239,132 +257,188 @@ img.Image applyAllColorEdits(img.Image image, List<ColorEdit> edits) {
   final n = w * h;
   final data = _rgbaBytes(image);
 
-  //precompute shift values
-  final shifts = activeEdits.map((e) => (
-    range: e.range,
-    hue: e.hue / 100.0 * 40,
-    sat: e.saturation / 100.0 * 100,
-    lum: e.luminance / 100.0 * 30,
-  )).toList();
+  final hueSatShifts = <_ColorShift>[];
+  final luminanceShifts = <_ColorShift>[];
+  for (final edit in activeEdits) {
+    final shift = _ColorShift(
+      range: edit.range,
+      hue: edit.hue / 100.0 * 40,
+      saturation: edit.saturation / 100.0 * 100,
+      luminance: edit.luminance / 100.0 * 30,
+    );
+    if (shift.affectsHueOrSaturation) hueSatShifts.add(shift);
+    if (shift.affectsLuminance) luminanceShifts.add(shift);
+  }
 
-  //pre-processing: smooth chroma noise via YCbCr
-  final yArr = Float32List(n);
-  final cbArr = Float32List(n);
-  final crArr = Float32List(n);
+  final hasHueSatEdits = hueSatShifts.isNotEmpty;
+  final hasLuminanceEdits = luminanceShifts.isNotEmpty;
+
   final originalSat = Float32List(n);
   final originalLum = Float32List(n);
   final hsl = HslValues();
 
-  for (var idx = 0, pixelOffset = 0;
-      idx < n;
-      idx++, pixelOffset += _channelsPerPixel) {
-    final r = data[pixelOffset] / 255.0;
-    final g = data[pixelOffset + 1] / 255.0;
-    final b = data[pixelOffset + 2] / 255.0;
-    rgbToHslValues(r, g, b, hsl);
-    final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
-    yArr[idx] = yVal;
-    cbArr[idx] = 0.564 * (b - yVal);
-    crArr[idx] = 0.713 * (r - yVal);
-    originalSat[idx] = hsl.saturation;
-    originalLum[idx] = hsl.luminance;
-  }
+  Float32List? originalHue;
+  Float32List? smoothHue;
+  Float32List? smoothSat;
 
-  //7x7 blur on chroma only, Y untouched
-  final smoothCb = _boxBlur(cbArr, w, h, 3);
-  final smoothCr = _boxBlur(crArr, w, h, 3);
+  if (hasHueSatEdits) {
+    //pre-processing: smooth chroma noise via YCbCr
+    final yArr = Float32List(n);
+    final cbArr = Float32List(n);
+    final crArr = Float32List(n);
 
-  //reconstruct smoothed RGB - HSL for smoothHue/smoothSat
-  final smoothHue = Float32List(n);
-  final smoothSat = Float32List(n);
-  for (int i = 0; i < n; i++) {
-    final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
-    final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
-    final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0).toDouble();
-    rgbToHslValues(sr, sg, sb, hsl);
-    smoothHue[i] = hsl.hue;
-    smoothSat[i] = hsl.saturation;
+    for (var idx = 0, pixelOffset = 0;
+        idx < n;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final r = data[pixelOffset] / 255.0;
+      final g = data[pixelOffset + 1] / 255.0;
+      final b = data[pixelOffset + 2] / 255.0;
+      rgbToHslValues(r, g, b, hsl);
+      final yVal = 0.299 * r + 0.587 * g + 0.114 * b;
+      yArr[idx] = yVal;
+      cbArr[idx] = 0.564 * (b - yVal);
+      crArr[idx] = 0.713 * (r - yVal);
+      originalSat[idx] = hsl.saturation;
+      originalLum[idx] = hsl.luminance;
+    }
+
+    //7x7 blur on chroma only, Y untouched
+    final smoothCb = _boxBlur(cbArr, w, h, 3);
+    final smoothCr = _boxBlur(crArr, w, h, 3);
+
+    //reconstruct smoothed RGB - HSL for smoothHue/smoothSat
+    smoothHue = Float32List(n);
+    smoothSat = Float32List(n);
+    for (int i = 0; i < n; i++) {
+      final sr = (yArr[i] + 1.403 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+      final sg = (yArr[i] - 0.344 * smoothCb[i] - 0.714 * smoothCr[i]).clamp(0.0, 1.0).toDouble();
+      final sb = (yArr[i] + 1.770 * smoothCb[i]).clamp(0.0, 1.0).toDouble();
+      rgbToHslValues(sr, sg, sb, hsl);
+      smoothHue[i] = hsl.hue;
+      smoothSat[i] = hsl.saturation;
+    }
+  } else {
+    originalHue = Float32List(n);
+
+    for (var idx = 0, pixelOffset = 0;
+        idx < n;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final r = data[pixelOffset] / 255.0;
+      final g = data[pixelOffset + 1] / 255.0;
+      final b = data[pixelOffset + 2] / 255.0;
+      rgbToHslValues(r, g, b, hsl);
+      originalHue[idx] = hsl.hue;
+      originalSat[idx] = hsl.saturation;
+      originalLum[idx] = hsl.luminance;
+    }
   }
 
   //pass 1: compute per-pixel luminance delta using RGB ratio detection
-  final lumDeltas = Float32List(n);
+  Float32List? blurredLum;
 
-  for (var idx = 0, pixelOffset = 0;
-      idx < n;
-      idx++, pixelOffset += _channelsPerPixel) {
-    final r = data[pixelOffset] / 255.0;
-    final g = data[pixelOffset + 1] / 255.0;
-    final b = data[pixelOffset + 2] / 255.0;
-    final l = originalLum[idx];
+  if (hasLuminanceEdits) {
+    final lumDeltas = Float32List(n);
 
-    double totalLum = 0;
-    double totalLumW = 0;
+    for (var idx = 0, pixelOffset = 0;
+        idx < n;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final r = data[pixelOffset] / 255.0;
+      final g = data[pixelOffset + 1] / 255.0;
+      final b = data[pixelOffset + 2] / 255.0;
+      final l = originalLum[idx];
 
-    for (final shift in shifts) {
-      final lumW = _rgbColorWeight(r, g, b, shift.range);
-      if (lumW > 0.01) {
-        totalLum += shift.lum * lumW;
-        totalLumW += lumW;
+      double totalLum = 0;
+      double totalLumW = 0;
+
+      for (final shift in luminanceShifts) {
+        final lumW = _rgbColorWeight(r, g, b, shift.range);
+        if (lumW > 0.01) {
+          totalLum += shift.luminance * lumW;
+          totalLumW += lumW;
+        }
       }
+
+      if (totalLumW > 1.0) totalLum /= totalLumW;
+
+      //soft power curve to compute the final delta
+      double newL;
+      if (totalLum >= 0) {
+        final t = l / 100.0;
+        final shifted = t + totalLum / 100.0 * (1 - t * t);
+        newL = shifted.clamp(0.0, 1.0) * 100.0;
+      } else {
+        final t = l / 100.0;
+        final shifted = t + totalLum / 100.0 * (t * (2 - t));
+        newL = shifted.clamp(0.0, 1.0) * 100.0;
+      }
+
+      lumDeltas[idx] = newL - l;
     }
 
-    if (totalLumW > 1.0) totalLum /= totalLumW;
-
-    //soft power curve to compute the final delta
-    double newL;
-    if (totalLum >= 0) {
-      final t = l / 100.0;
-      final shifted = t + totalLum / 100.0 * (1 - t * t);
-      newL = shifted.clamp(0.0, 1.0) * 100.0;
-    } else {
-      final t = l / 100.0;
-      final shifted = t + totalLum / 100.0 * (t * (2 - t));
-      newL = shifted.clamp(0.0, 1.0) * 100.0;
-    }
-
-    lumDeltas[idx] = newL - l;
+    //pass 2: 5x5 blur the luminance deltas
+    blurredLum = _boxBlur(lumDeltas, w, h, 2);
   }
 
-  //pass 2: 5x5 blur the luminance deltas
-  final blurredLum = _boxBlur(lumDeltas, w, h, 2);
   final rgbOut = RgbValues();
 
   //pass 3: apply hue/sat (using smoothed values) + blurred luminance
-  for (var idx = 0, pixelOffset = 0;
-      idx < n;
-      idx++, pixelOffset += _channelsPerPixel) {
-    final l = originalLum[idx];
+  if (hasHueSatEdits) {
+    final hueValues = smoothHue!;
+    final satValues = smoothSat!;
 
-    final sHue = smoothHue[idx];
-    final sSat = smoothSat[idx];
+    for (var idx = 0, pixelOffset = 0;
+        idx < n;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final l = originalLum[idx];
 
-    final satGate = (sSat / 30.0).clamp(0.0, 1.0);
+      final sHue = hueValues[idx];
+      final sSat = satValues[idx];
 
-    double totalHue = 0;
-    double totalSat = 0;
-    double maxW = 0;
+      final satGate = (sSat / 30.0).clamp(0.0, 1.0);
 
-    for (final shift in shifts) {
-      final wt = _hueWeight(sHue, shift.range) * satGate;
-      if (wt > 0.01) {
-        totalHue += shift.hue * wt;
-        totalSat += shift.sat * wt;
-        if (wt > maxW) maxW = wt;
+      double totalHue = 0;
+      double totalSat = 0;
+      double maxW = 0;
+
+      for (final shift in hueSatShifts) {
+        final wt = _hueWeight(sHue, shift.range) * satGate;
+        if (wt > 0.01) {
+          totalHue += shift.hue * wt;
+          totalSat += shift.saturation * wt;
+          if (wt > maxW) maxW = wt;
+        }
       }
+
+      final lumDelta = blurredLum == null ? 0.0 : blurredLum[idx];
+      if (maxW <= 0.01 && lumDelta.abs() <= 0.01) continue;
+
+      final newH = (sHue + totalHue) % 360;
+      final newS = (originalSat[idx] + totalSat).clamp(0.0, 100.0).toDouble();
+      final newL = (l + lumDelta).clamp(0.0, 100.0).toDouble();
+
+      hslToRgbValues(newH, newS, newL, rgbOut);
+
+      data[pixelOffset] = _clampByte(rgbOut.r);
+      data[pixelOffset + 1] = _clampByte(rgbOut.g);
+      data[pixelOffset + 2] = _clampByte(rgbOut.b);
     }
+  } else {
+    final hueValues = originalHue!;
+    final lumDeltas = blurredLum!;
 
-    final lumDelta = blurredLum[idx];
-    if (maxW <= 0.01 && lumDelta.abs() <= 0.01) continue;
+    for (var idx = 0, pixelOffset = 0;
+        idx < n;
+        idx++, pixelOffset += _channelsPerPixel) {
+      final lumDelta = lumDeltas[idx];
+      if (lumDelta.abs() <= 0.01) continue;
 
-    final newH = (sHue + totalHue) % 360;
-    final newS = (originalSat[idx] + totalSat).clamp(0.0, 100.0).toDouble();
-    final newL = (l + lumDelta).clamp(0.0, 100.0).toDouble();
+      final newL = (originalLum[idx] + lumDelta).clamp(0.0, 100.0).toDouble();
+      hslToRgbValues(hueValues[idx], originalSat[idx], newL, rgbOut);
 
-    hslToRgbValues(newH, newS, newL, rgbOut);
-
-    data[pixelOffset] = _clampByte(rgbOut.r);
-    data[pixelOffset + 1] = _clampByte(rgbOut.g);
-    data[pixelOffset + 2] = _clampByte(rgbOut.b);
+      data[pixelOffset] = _clampByte(rgbOut.r);
+      data[pixelOffset + 1] = _clampByte(rgbOut.g);
+      data[pixelOffset + 2] = _clampByte(rgbOut.b);
+    }
   }
 
   return image;
