@@ -13,6 +13,58 @@ final Float32List _zoneWeightLut = _buildZoneWeightLut();
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
+class ColorGradingPrepCache {
+  Object? _key;
+  _ColorGradingPrep? _prep;
+  int _buildCount = 0;
+
+  int get debugBuildCount => _buildCount;
+
+  void clear() {
+    _key = null;
+    _prep = null;
+  }
+
+  _ColorGradingPrep _prepFor({
+    required int width,
+    required int height,
+    required Uint8List data,
+    required Object? cacheKey,
+  }) {
+    final prep = _prep;
+    if (prep != null &&
+        prep.width == width &&
+        prep.height == height &&
+        _key == cacheKey) {
+      return prep;
+    }
+
+    final built = _buildColorGradingPrep(width, height, data);
+    _key = cacheKey;
+    _prep = built;
+    _buildCount++;
+    return built;
+  }
+}
+
+class _ColorGradingPrep {
+  const _ColorGradingPrep({
+    required this.width,
+    required this.height,
+    required this.hue,
+    required this.saturation,
+    required this.luminance,
+    required this.zoneWeightBase,
+  });
+
+  final int width;
+  final int height;
+  final Float64List hue;
+  final Float64List saturation;
+  final Float64List luminance;
+  final Uint16List zoneWeightBase;
+}
+
 int _clampByte(num value) {
   if (value <= 0) return 0;
   if (value >= 255) return 255;
@@ -121,16 +173,8 @@ double _lerpHue(double from, double to, double t) {
   return (from + diff * t) % 360;
 }
 
-img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
-  final activeEdits = edits.where((e) => !e.isEmpty).toList();
-  if (activeEdits.isEmpty) return image;
-
-  final imgW = image.width;
-  final imgH = image.height;
+_ColorGradingPrep _buildColorGradingPrep(int imgW, int imgH, Uint8List data) {
   final n = imgW * imgH;
-  final data = _rgbaBytes(image);
-
-  // Pre-processing: smooth chroma noise via YCbCr
   final cbArr = Float32List(n);
   final crArr = Float32List(n);
   final yArr = Float32List(n);
@@ -150,28 +194,72 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
   final smoothCb = _boxBlur(cbArr, imgW, imgH, 3);
   final smoothCr = _boxBlur(crArr, imgW, imgH, 3);
   final hsl = HslValues();
-  final rgbOut = RgbValues();
+  final hue = Float64List(n);
+  final saturation = Float64List(n);
+  final luminance = Float64List(n);
+  final zoneWeightBase = Uint16List(n);
 
-  for (var idx = 0, pixelOffset = 0;
-      idx < n;
-      idx++, pixelOffset += _channelsPerPixel) {
+  for (var idx = 0; idx < n; idx++) {
     // Reconstruct smoothed RGB from original Y + blurred chroma
     final yVal = yArr[idx];
     final sr = (yVal + 1.403 * smoothCr[idx]).clamp(0.0, 1.0).toDouble();
     final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0).toDouble();
     final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0).toDouble();
 
-    final zoneWeightBase = _luminanceBucket(yVal) * _zoneCount;
+    zoneWeightBase[idx] = _luminanceBucket(yVal) * _zoneCount;
 
     rgbToHslValues(sr, sg, sb, hsl);
-    double h = hsl.hue;
-    double s = hsl.saturation;
-    final l = hsl.luminance;
+    hue[idx] = hsl.hue;
+    saturation[idx] = hsl.saturation;
+    luminance[idx] = hsl.luminance;
+  }
 
-    double newL = l;
+  return _ColorGradingPrep(
+    width: imgW,
+    height: imgH,
+    hue: hue,
+    saturation: saturation,
+    luminance: luminance,
+    zoneWeightBase: zoneWeightBase,
+  );
+}
+
+img.Image applyColorGrading(
+  img.Image image,
+  List<ColorGradingEdit> edits, {
+  ColorGradingPrepCache? prepCache,
+  Object? prepCacheKey,
+}) {
+  final activeEdits = edits.where((e) => !e.isEmpty).toList();
+  if (activeEdits.isEmpty) return image;
+
+  final imgW = image.width;
+  final imgH = image.height;
+  final n = imgW * imgH;
+  final data = _rgbaBytes(image);
+  final prep = prepCache?._prepFor(
+    width: imgW,
+    height: imgH,
+    data: data,
+    cacheKey: prepCacheKey,
+  ) ?? _buildColorGradingPrep(imgW, imgH, data);
+  final hue = prep.hue;
+  final saturation = prep.saturation;
+  final luminance = prep.luminance;
+  final zoneWeightBase = prep.zoneWeightBase;
+  final rgbOut = RgbValues();
+
+  for (var idx = 0, pixelOffset = 0;
+      idx < n;
+      idx++, pixelOffset += _channelsPerPixel) {
+    double h = hue[idx];
+    double s = saturation[idx];
+    double newL = luminance[idx];
+
+    final weightBase = zoneWeightBase[idx];
 
     for (final edit in activeEdits) {
-      final w = _zoneWeightLut[zoneWeightBase + edit.zone.index];
+      final w = _zoneWeightLut[weightBase + edit.zone.index];
       final t = w * (edit.strength / 100.0);
 
       // Blend toward the target tint as a fixed color

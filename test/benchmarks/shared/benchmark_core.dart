@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 import 'package:licenta/domain/apply_edits.dart';
+import 'package:licenta/domain/color_grading_operations.dart' as grading_ops;
 import 'package:licenta/domain/color_operations.dart' as color_ops;
 import 'package:licenta/model/color_edit.dart';
 import 'package:licenta/model/color_grading_edit.dart';
@@ -387,6 +388,61 @@ Map<String, Map<String, Object>> runSelectiveColorPrepCacheBenchmark({
   return results;
 }
 
+Map<String, Map<String, Object>> runColorGradingPrepCacheBenchmark({
+  required Uint8List fixtureBytes,
+  required List<Scenario> scenarios,
+  int warmup = defaultWarmup,
+  int iterations = defaultIterations,
+}) {
+  final results = <String, Map<String, Object>>{};
+  final fixtureFrame = decodeRgbaImageFrame(fixtureBytes);
+  final sourceBytes = Uint8List.fromList(fixtureFrame.rgbaBytes);
+
+  for (final scenario in scenarios) {
+    final cache = grading_ops.ColorGradingPrepCache();
+    final cacheKey = 'fixture:${scenario.name}';
+
+    for (var i = 0; i < warmup; i++) {
+      _applyColorGradingWithPrepCache(
+        sourceBytes: sourceBytes,
+        width: fixtureFrame.width,
+        height: fixtureFrame.height,
+        scenario: scenario,
+        cache: cache,
+        cacheKey: cacheKey,
+      );
+    }
+
+    final samples = <int>[];
+    for (var i = 0; i < iterations; i++) {
+      final sw = Stopwatch()..start();
+      _applyColorGradingWithPrepCache(
+        sourceBytes: sourceBytes,
+        width: fixtureFrame.width,
+        height: fixtureFrame.height,
+        scenario: scenario,
+        cache: cache,
+        cacheKey: cacheKey,
+      );
+      sw.stop();
+      samples.add(sw.elapsedMicroseconds);
+    }
+
+    samples.sort();
+    final average = samples.reduce((a, b) => a + b) / samples.length / 1000.0;
+    results[scenario.name] = {
+      'average_ms': average,
+      'median_ms': samples[samples.length ~/ 2] / 1000.0,
+      'min_ms': samples.first / 1000.0,
+      'max_ms': samples.last / 1000.0,
+      'all_ms': [for (final s in samples) s / 1000.0],
+      'prep_build_count': cache.debugBuildCount,
+    };
+  }
+
+  return results;
+}
+
 void _applySelectiveColorWithPrepCache({
   required Uint8List sourceBytes,
   required int width,
@@ -403,6 +459,27 @@ void _applySelectiveColorWithPrepCache({
   color_ops.applyAllColorEdits(
     image,
     scenario.colorEdits,
+    prepCache: cache,
+    prepCacheKey: cacheKey,
+  );
+}
+
+void _applyColorGradingWithPrepCache({
+  required Uint8List sourceBytes,
+  required int width,
+  required int height,
+  required Scenario scenario,
+  required grading_ops.ColorGradingPrepCache cache,
+  required Object cacheKey,
+}) {
+  final image = imageFromRgbaFrame(RgbaImageFrame(
+    rgbaBytes: Uint8List.fromList(sourceBytes),
+    width: width,
+    height: height,
+  ));
+  grading_ops.applyColorGrading(
+    image,
+    scenario.gradingEdits,
     prepCache: cache,
     prepCacheKey: cacheKey,
   );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import '../domain/apply_edits.dart';
+import '../domain/color_grading_operations.dart' as grading_ops;
 import '../domain/color_operations.dart' as color_ops;
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
@@ -161,6 +162,8 @@ class _EditPipelineWorkerIsolate {
   final SendPort _mainPort;
   final color_ops.SelectiveColorPrepCache _selectiveColorPrepCache =
       color_ops.SelectiveColorPrepCache();
+  final grading_ops.ColorGradingPrepCache _colorGradingPrepCache =
+      grading_ops.ColorGradingPrepCache();
   RgbaImageFrame? _originalFrame;
   int _originalFrameRevision = 0;
 
@@ -178,6 +181,7 @@ class _EditPipelineWorkerIsolate {
           );
           _originalFrameRevision++;
           _selectiveColorPrepCache.clear();
+          _colorGradingPrepCache.clear();
           _sendSuccess(id);
         case 'process':
           final originalFrame = _originalFrame;
@@ -185,14 +189,21 @@ class _EditPipelineWorkerIsolate {
             throw StateError('No original frame loaded in edit pipeline worker');
           }
           final edits = message['edits'] as List<Edit>;
+          final colorEdits = message['colorEdits'] as List<ColorEdit>;
+          final colorGradingEdits =
+              message['colorGradingEdits'] as List<ColorGradingEdit>;
           final result = applyEditsToRgbaSync(
             originalFrame: originalFrame,
             edits: edits,
-            colorEdits: message['colorEdits'] as List<ColorEdit>,
-            colorGradingEdits:
-                message['colorGradingEdits'] as List<ColorGradingEdit>,
+            colorEdits: colorEdits,
+            colorGradingEdits: colorGradingEdits,
             selectiveColorPrepCache: _selectiveColorPrepCache,
             selectiveColorPrepCacheKey: _selectivePrepCacheKey(edits),
+            colorGradingPrepCache: _colorGradingPrepCache,
+            colorGradingPrepCacheKey: _colorGradingPrepCacheKey(
+              edits,
+              colorEdits,
+            ),
           );
           _sendSuccess(id, _frameToMessage(result));
         default:
@@ -217,10 +228,34 @@ class _EditPipelineWorkerIsolate {
   }
 
   String _selectivePrepCacheKey(List<Edit> edits) {
+    final buffer = StringBuffer(_originalFrameRevision);
+    _writeBasicEditValues(buffer, edits);
+    return buffer.toString();
+  }
+
+  String _colorGradingPrepCacheKey(List<Edit> edits, List<ColorEdit> colorEdits) {
+    final buffer = StringBuffer(_originalFrameRevision);
+    _writeBasicEditValues(buffer, edits);
+    buffer.write('|selective');
+    for (final edit in colorEdits) {
+      if (edit.isEmpty) continue;
+      buffer
+        ..write('|')
+        ..write(edit.range.index)
+        ..write(':')
+        ..write(edit.hue)
+        ..write(',')
+        ..write(edit.saturation)
+        ..write(',')
+        ..write(edit.luminance);
+    }
+    return buffer.toString();
+  }
+
+  void _writeBasicEditValues(StringBuffer buffer, List<Edit> edits) {
     final editValues = <OperationType, double>{
       for (final edit in edits) edit.type: edit.value,
     };
-    final buffer = StringBuffer(_originalFrameRevision);
     for (final type in OperationType.values) {
       buffer
         ..write('|')
@@ -228,6 +263,5 @@ class _EditPipelineWorkerIsolate {
         ..write(':')
         ..write(editValues[type] ?? 0.0);
     }
-    return buffer.toString();
   }
 }

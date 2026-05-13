@@ -69,6 +69,8 @@ img.Image applyEditsToImageSync({
   required List<ColorGradingEdit> colorGradingEdits,
   color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
   Object? selectiveColorPrepCacheKey,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
 }) {
   image = _ensureEditableImage(image);
 
@@ -146,7 +148,12 @@ img.Image applyEditsToImageSync({
     prepCache: selectiveColorPrepCache,
     prepCacheKey: selectiveColorPrepCacheKey,
   );
-  image = grading_ops.applyColorGrading(image, colorGradingEdits);
+  image = grading_ops.applyColorGrading(
+    image,
+    colorGradingEdits,
+    prepCache: colorGradingPrepCache,
+    prepCacheKey: colorGradingPrepCacheKey,
+  );
   return image;
 }
 
@@ -157,6 +164,8 @@ RgbaImageFrame applyEditsToRgbaSync({
   required List<ColorGradingEdit> colorGradingEdits,
   color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
   Object? selectiveColorPrepCacheKey,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
 }) {
   final result = applyEditsToImageSync(
     image: imageFromRgbaFrame(originalFrame),
@@ -165,6 +174,8 @@ RgbaImageFrame applyEditsToRgbaSync({
     colorGradingEdits: colorGradingEdits,
     selectiveColorPrepCache: selectiveColorPrepCache,
     selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
+    colorGradingPrepCache: colorGradingPrepCache,
+    colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
   return frameFromImage(result);
 }
@@ -176,6 +187,8 @@ Uint8List applyEditsSync({
   required List<ColorGradingEdit> colorGradingEdits,
   color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
   Object? selectiveColorPrepCacheKey,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
 }) {
   final result = applyEditsToImageSync(
     image: _decodeEditableImage(originalBytes),
@@ -184,6 +197,8 @@ Uint8List applyEditsSync({
     colorGradingEdits: colorGradingEdits,
     selectiveColorPrepCache: selectiveColorPrepCache,
     selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
+    colorGradingPrepCache: colorGradingPrepCache,
+    colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
   return Uint8List.fromList(img.encodeJpg(result));
 }

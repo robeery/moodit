@@ -74,6 +74,85 @@ void main() {
       expect(bytes[7], 255);
       expect(bytes[11], 255);
     });
+
+    test('cached prep matches uncached output across grading slider changes', () {
+      final cache = ColorGradingPrepCache();
+      final firstEdits = [
+        ColorGradingEdit(
+          zone: ColorGradingZone.global,
+          hue: 180,
+          strength: 35,
+          luminance: 10,
+        ),
+      ];
+      final secondEdits = [
+        ColorGradingEdit(
+          zone: ColorGradingZone.shadows,
+          hue: 220,
+          strength: 30,
+          luminance: -12,
+        ),
+        ColorGradingEdit(
+          zone: ColorGradingZone.highlights,
+          hue: 40,
+          strength: 25,
+          luminance: 15,
+        ),
+      ];
+
+      final firstUncached = _fixtureImage(width: 15, height: 13);
+      final firstCached = _fixtureImage(width: 15, height: 13);
+      applyColorGrading(firstUncached, firstEdits);
+      applyColorGrading(
+        firstCached,
+        firstEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-grading-input',
+      );
+
+      expect(_bytes(firstCached), orderedEquals(_bytes(firstUncached)));
+      expect(cache.debugBuildCount, 1);
+
+      final secondUncached = _fixtureImage(width: 15, height: 13);
+      final secondCached = _fixtureImage(width: 15, height: 13);
+      applyColorGrading(secondUncached, secondEdits);
+      applyColorGrading(
+        secondCached,
+        secondEdits,
+        prepCache: cache,
+        prepCacheKey: 'same-grading-input',
+      );
+
+      expect(_bytes(secondCached), orderedEquals(_bytes(secondUncached)));
+      expect(cache.debugBuildCount, 1);
+    });
+
+    test('cached prep rebuilds for a different input key', () {
+      final cache = ColorGradingPrepCache();
+      final edits = [
+        ColorGradingEdit(
+          zone: ColorGradingZone.global,
+          hue: 180,
+          strength: 35,
+          luminance: 10,
+        ),
+      ];
+
+      applyColorGrading(
+        _fixtureImage(),
+        edits,
+        prepCache: cache,
+        prepCacheKey: 'first-grading-input',
+      );
+      applyColorGrading(
+        _fixtureImage(),
+        edits,
+        prepCache: cache,
+        prepCacheKey: 'second-grading-input',
+      );
+
+      expect(cache.debugBuildCount, 2);
+    });
   });
 }
 
