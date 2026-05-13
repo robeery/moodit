@@ -6,6 +6,10 @@ import '../model/color_grading_edit.dart';
 import 'color_operations.dart' show HslValues, RgbValues, rgbToHslValues, hslToRgbValues;
 
 const int _channelsPerPixel = 4;
+const int _zoneWeightBucketCount = 256;
+
+final int _zoneCount = ColorGradingZone.values.length;
+final Float32List _zoneWeightLut = _buildZoneWeightLut();
 
 Uint8List _rgbaBytes(img.Image image) => image.toUint8List();
 
@@ -70,26 +74,43 @@ Float32List _boxBlur(Float32List data, int w, int h, int radius) {
 }
 
 //smooth ramps that partition 0-255 cleanly (shadows + midtones + highlights = 1.0)
-double _zoneWeight(double lum, ColorGradingZone zone) {
-  final n = lum / 255.0; // normalized 0..1
-  switch (zone) {
-    case ColorGradingZone.shadows:
-      if (n <= 0.25) return 1.0;
-      if (n >= 0.5) return 0.0;
-      final ps = ((n - 0.25) / 0.25).clamp(0.0, 1.0);
-      return 0.5 * (1 + cos(ps * pi));
-    case ColorGradingZone.highlights:
-      if (n <= 0.5) return 0.0;
-      if (n >= 0.75) return 1.0;
-      final ph = ((n - 0.5) / 0.25).clamp(0.0, 1.0);
-      return 0.5 * (1 - cos(ph * pi));
-    case ColorGradingZone.midtones:
-      final sw = _zoneWeight(lum, ColorGradingZone.shadows);
-      final hw = _zoneWeight(lum, ColorGradingZone.highlights);
-      return 1.0 - sw - hw;
-    case ColorGradingZone.global:
-      return 1.0;
+Float32List _buildZoneWeightLut() {
+  final lut = Float32List(_zoneWeightBucketCount * _zoneCount);
+
+  for (var lumByte = 0; lumByte < _zoneWeightBucketCount; lumByte++) {
+    final n = lumByte / 255.0;
+    final shadows = _shadowZoneWeight(n);
+    final highlights = _highlightZoneWeight(n);
+    final base = lumByte * _zoneCount;
+
+    lut[base + ColorGradingZone.shadows.index] = shadows;
+    lut[base + ColorGradingZone.midtones.index] = 1.0 - shadows - highlights;
+    lut[base + ColorGradingZone.highlights.index] = highlights;
+    lut[base + ColorGradingZone.global.index] = 1.0;
   }
+
+  return lut;
+}
+
+double _shadowZoneWeight(double normalizedLum) {
+  if (normalizedLum <= 0.25) return 1.0;
+  if (normalizedLum >= 0.5) return 0.0;
+  final phase = ((normalizedLum - 0.25) / 0.25).clamp(0.0, 1.0);
+  return 0.5 * (1 + cos(phase * pi));
+}
+
+double _highlightZoneWeight(double normalizedLum) {
+  if (normalizedLum <= 0.5) return 0.0;
+  if (normalizedLum >= 0.75) return 1.0;
+  final phase = ((normalizedLum - 0.5) / 0.25).clamp(0.0, 1.0);
+  return 0.5 * (1 - cos(phase * pi));
+}
+
+int _luminanceBucket(double yVal) {
+  final lumByte = (yVal * 255.0).round();
+  if (lumByte <= 0) return 0;
+  if (lumByte >= 255) return 255;
+  return lumByte;
 }
 
 
@@ -140,7 +161,7 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
     final sg = (yVal - 0.344 * smoothCb[idx] - 0.714 * smoothCr[idx]).clamp(0.0, 1.0).toDouble();
     final sb = (yVal + 1.770 * smoothCb[idx]).clamp(0.0, 1.0).toDouble();
 
-    final lum = yVal * 255.0;
+    final zoneWeightBase = _luminanceBucket(yVal) * _zoneCount;
 
     rgbToHslValues(sr, sg, sb, hsl);
     double h = hsl.hue;
@@ -150,7 +171,7 @@ img.Image applyColorGrading(img.Image image, List<ColorGradingEdit> edits) {
     double newL = l;
 
     for (final edit in activeEdits) {
-      final w = _zoneWeight(lum, edit.zone);
+      final w = _zoneWeightLut[zoneWeightBase + edit.zone.index];
       final t = w * (edit.strength / 100.0);
 
       // Blend toward the target tint as a fixed color
