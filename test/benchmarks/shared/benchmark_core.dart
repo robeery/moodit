@@ -153,6 +153,81 @@ List<Scenario> buildCachedSelectiveColorScenarios() {
   ];
 }
 
+List<Scenario> buildColorGradingScenarios() {
+  return [
+    Scenario(
+      'grading_global_only',
+      gradingEdits: [
+        ColorGradingEdit(
+          zone: ColorGradingZone.global,
+          hue: 180,
+          strength: 40,
+          luminance: 20,
+        ),
+      ],
+    ),
+    Scenario(
+      'grading_shadows_only',
+      gradingEdits: [
+        ColorGradingEdit(
+          zone: ColorGradingZone.shadows,
+          hue: 180,
+          strength: 40,
+          luminance: 20,
+        ),
+      ],
+    ),
+    Scenario(
+      'grading_midtones_only',
+      gradingEdits: [
+        ColorGradingEdit(
+          zone: ColorGradingZone.midtones,
+          hue: 180,
+          strength: 40,
+          luminance: 20,
+        ),
+      ],
+    ),
+    Scenario(
+      'grading_highlights_only',
+      gradingEdits: [
+        ColorGradingEdit(
+          zone: ColorGradingZone.highlights,
+          hue: 180,
+          strength: 40,
+          luminance: 20,
+        ),
+      ],
+    ),
+    Scenario(
+      'grading_luminance_only',
+      gradingEdits: [
+        for (final zone in ColorGradingZone.values)
+          ColorGradingEdit(zone: zone, luminance: 20),
+      ],
+    ),
+    Scenario(
+      'grading_hue_strength_only',
+      gradingEdits: [
+        for (final zone in ColorGradingZone.values)
+          ColorGradingEdit(zone: zone, hue: 180, strength: 40),
+      ],
+    ),
+    Scenario(
+      'grading_all_zones_heavy',
+      gradingEdits: [
+        for (final zone in ColorGradingZone.values)
+          ColorGradingEdit(
+            zone: zone,
+            hue: 180,
+            strength: 40,
+            luminance: 20,
+          ),
+      ],
+    ),
+  ];
+}
+
 List<Scenario> buildIndividualOperationScenarios() {
   return [
     for (final type in OperationType.values)

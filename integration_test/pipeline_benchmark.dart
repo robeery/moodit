@@ -4,8 +4,10 @@ import 'package:integration_test/integration_test.dart';
 import '../test/benchmarks/shared/benchmark_core.dart';
 //host, ~3 min
 //flutter test test/benchmarks/domain/pipeline_benchmark.dart
-//device, ~7 min
-//flutter test integration_test/pipeline_benchmark.dart -d RF8N90T3EGK   
+//device debug, ~7 min
+//flutter test integration_test/pipeline_benchmark.dart -d RF8N90T3EGK
+//device profile
+//flutter drive --driver=test_driver/integration_test.dart --target=integration_test/pipeline_benchmark.dart -d RF8N90T3EGK --profile
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
