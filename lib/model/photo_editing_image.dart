@@ -1,16 +1,19 @@
 import 'dart:typed_data';
+
 import 'color_edit.dart';
 import 'color_grading_edit.dart';
 import 'edit.dart';
 
 class PhotoEditingImage {
   final Uint8List originalBytes;
+  final String originalImagePath;
   final List<Edit> edits;
   final List<ColorEdit> colorEdits;
   final List<ColorGradingEdit> colorGradingEdits;
 
   PhotoEditingImage({
     required this.originalBytes,
+    required this.originalImagePath,
     List<Edit>? edits,
     List<ColorEdit>? colorEdits,
     List<ColorGradingEdit>? colorGradingEdits,

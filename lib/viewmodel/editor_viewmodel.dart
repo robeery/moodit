@@ -20,6 +20,7 @@ import '../services/ai_profiles_storage.dart';
 import '../services/edit_pipeline_worker.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
+import '../services/preview_image_decoder.dart';
 
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
@@ -35,6 +36,7 @@ class EditorViewModel extends ChangeNotifier {
   ui.Image? _processedPreviewImage;
   bool _isProcessing = false;
   int? _lastBenchmarkMs; // temporary benchmark
+  double? _exportProgress;
   bool _isWaitingForAi = false;
   bool _isOnline = true;
   bool _isAiReady = false;
@@ -49,6 +51,7 @@ class EditorViewModel extends ChangeNotifier {
   final AiProfilesApiKeyStorage _aiProfilesApiKeyStorage;
   final AiProfilesStorage _aiProfilesStorage;
   final EditPipelineWorker _editPipelineWorker;
+  final PreviewImageDecoder _previewImageDecoder;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
@@ -61,13 +64,16 @@ class EditorViewModel extends ChangeNotifier {
     AiProfilesStorage? aiProfilesStorage,
     AiProfilesApiKeyStorage? aiProfilesApiKeyStorage,
     EditPipelineWorker? editPipelineWorker,
+    PreviewImageDecoder? previewImageDecoder,
   })
       : _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
         _aiProfilesApiKeyStorage =
             aiProfilesApiKeyStorage ?? const AiProfilesApiKeyStorage(),
         _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage(),
-        _editPipelineWorker = editPipelineWorker ?? EditPipelineWorker() {
+        _editPipelineWorker = editPipelineWorker ?? EditPipelineWorker(),
+        _previewImageDecoder =
+            previewImageDecoder ?? const PreviewImageDecoder() {
     _initializeAiProvider();
     unawaited(_loadPersistedAiProfiles());
 
@@ -265,8 +271,10 @@ class EditorViewModel extends ChangeNotifier {
   ui.Image? get processedImage => _processedPreviewImage;
   ui.Image? get originalPreviewImage => _originalPreviewImage;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
+  String? get originalImagePath => _photoEditingImage?.originalImagePath;
   bool get isProcessing => _isProcessing;
   int? get lastBenchmarkMs => _lastBenchmarkMs; // temporary benchmark
+  double? get exportProgress => _exportProgress;
   bool get isWaitingForAi => _isWaitingForAi;
   bool get isOnline => _isOnline;
   bool get isAiReady => _isAiReady;
@@ -385,16 +393,22 @@ class EditorViewModel extends ChangeNotifier {
     previousPreviewImage?.dispose();
   }
 
-  Future<void> loadImage(Uint8List bytes) async {
+  Future<void> loadImageFromPath(String originalImagePath) async {
     _isProcessing = true;
     notifyListeners();
 
-    final originalFrame = decodeRgbaImageFrame(bytes);
+    final originalFrame = await _previewImageDecoder.decodeFromPath(
+      originalImagePath,
+      maxDimension: 1080,
+    );
     final originalPreviewImage = await _uiImageFromFrame(originalFrame);
     await _editPipelineWorker.loadOriginalFrame(originalFrame);
 
     _disposePreviewImages();
-    _photoEditingImage = PhotoEditingImage(originalBytes: bytes);
+    _photoEditingImage = PhotoEditingImage(
+      originalBytes: encodeJpgFromFrame(originalFrame),
+      originalImagePath: originalImagePath,
+    );
     _originalFrame = originalFrame;
     _originalPreviewImage = originalPreviewImage;
     _processedFrame = originalFrame;
@@ -436,6 +450,7 @@ class EditorViewModel extends ChangeNotifier {
     if (_photoEditingImage == null || _originalFrame == null) return;
     _photoEditingImage = PhotoEditingImage(
       originalBytes: _photoEditingImage!.originalBytes,
+      originalImagePath: _photoEditingImage!.originalImagePath,
     );
     _snapshotProcessedFrame = null;
     _pendingEdits = null;
@@ -728,9 +743,22 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> exportToGallery() async {
-    final frame = _processedFrame ?? _originalFrame;
-    if (frame == null) return;
-    await _exportService.saveToGallery(frame, _exportSettings);
+    final model = _photoEditingImage;
+    if (model == null) return;
+    _setExportProgress(0.0);
+    await _exportService.saveToGallery(
+      originalImagePath: model.originalImagePath,
+      edits: model.edits,
+      colorEdits: model.colorEdits,
+      colorGradingEdits: model.colorGradingEdits,
+      settings: _exportSettings,
+      onProgress: _setExportProgress,
+    );
+  }
+
+  void _setExportProgress(double value) {
+    _exportProgress = value.clamp(0.0, 1.0).toDouble();
+    notifyListeners();
   }
 
   String _buildCurrentStateJson() {

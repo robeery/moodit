@@ -55,13 +55,10 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 1080,
-      maxHeight: 1080,
     );
 
     if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
-      await _vm.loadImage(bytes);
+      await _vm.loadImageFromPath(pickedFile.path);
     }
   }
 
@@ -116,9 +113,17 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (!_vm.hasImage) return;
 
+    var exportDialogVisible = false;
     try {
-      await _vm.exportToGallery();
+      final exportFuture = _vm.exportToGallery();
+      _showExportingDialog();
+      exportDialogVisible = true;
+      await exportFuture;
       if (mounted) {
+        if (exportDialogVisible) {
+          Navigator.of(context, rootNavigator: true).pop();
+          exportDialogVisible = false;
+        }
         setState(() { _savedBannerVisible = true; _savedBannerOpaque = true; });
         Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) setState(() => _savedBannerOpaque = false);
@@ -129,6 +134,10 @@ class _EditorScreenState extends State<EditorScreen> {
       }
     } on GalException catch (e) {
       if (mounted) {
+        if (exportDialogVisible) {
+          Navigator.of(context, rootNavigator: true).pop();
+          exportDialogVisible = false;
+        }
         final message = switch (e.type) {
           GalExceptionType.accessDenied => 'Permission denied. Please enable gallery access in Settings.',
           GalExceptionType.notSupportedFormat => 'Unsupported image format.',
@@ -145,6 +154,10 @@ class _EditorScreenState extends State<EditorScreen> {
       }
     } catch (e) {
       if (mounted) {
+        if (exportDialogVisible) {
+          Navigator.of(context, rootNavigator: true).pop();
+          exportDialogVisible = false;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save: $e'),
@@ -153,9 +166,77 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted && exportDialogVisible) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
     }
   }
 
+  void _showExportingDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) {
+          final progress = _vm.exportProgress ?? 0.0;
+
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            content: SizedBox(
+              width: 240,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: progress),
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                builder: (context, animatedProgress, _) {
+                  final percent = (animatedProgress * 100).round().clamp(0, 100);
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: AppColors.highlight,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Expanded(
+                            child: Text(
+                              'EXPORTING...',
+                              style: TextStyle(color: AppColors.accent, fontSize: 12, letterSpacing: 2),
+                            ),
+                          ),
+                          Text(
+                            '$percent%',
+                            style: const TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 1),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      LinearProgressIndicator(
+                        value: animatedProgress,
+                        color: AppColors.highlight,
+                        backgroundColor: AppColors.bg,
+                        minHeight: 3,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
   Future<void> _openAiSettings() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -293,7 +374,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
-                          'SAVED TO GALLERY',
+                          'PHOTO EXPORTED',
                           style: TextStyle(color: AppColors.bg, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w600),
                         ),
                       ),
