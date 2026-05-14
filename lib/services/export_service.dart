@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:gal/gal.dart';
-import '../domain/apply_edits.dart';
+import '../domain/edit_pipeline/image_frame_codec.dart';
 import '../model/export_settings.dart';
 import '../model/rgba_image_frame.dart';
 

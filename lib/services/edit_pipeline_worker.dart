@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:isolate';
 
-import '../domain/apply_edits.dart';
 import '../domain/color_grading_operations.dart' as grading_ops;
 import '../domain/color_operations.dart' as color_ops;
+import '../domain/edit_pipeline/edit_pipeline.dart';
+import '../domain/edit_pipeline/edit_pipeline_cache_keys.dart';
+import '../domain/edit_pipeline/edit_pipeline_stage_cache.dart';
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
 import '../model/edit.dart';
@@ -194,10 +196,13 @@ class _EditPipelineWorkerIsolate {
           final colorEdits = message['colorEdits'] as List<ColorEdit>;
           final colorGradingEdits =
               message['colorGradingEdits'] as List<ColorGradingEdit>;
-          final basicStageKey = _basicStageCacheKey(edits);
-          final selectiveStageKey = _selectiveStageCacheKey(
-            basicStageKey,
-            colorEdits,
+          final basicStageKey = buildBasicStageCacheKey(
+            originalFrameRevision: _originalFrameRevision,
+            edits: edits,
+          );
+          final selectiveStageKey = buildSelectiveStageCacheKey(
+            basicStageCacheKey: basicStageKey,
+            colorEdits: colorEdits,
           );
           final result = applyEditsToRgbaWithStageCacheSync(
             originalFrame: originalFrame,
@@ -232,45 +237,5 @@ class _EditPipelineWorkerIsolate {
       'ok': true,
       'result': result,
     });
-  }
-
-  String _basicStageCacheKey(List<Edit> edits) {
-    final buffer = StringBuffer(_originalFrameRevision);
-    _writeBasicEditValues(buffer, edits);
-    return buffer.toString();
-  }
-
-  String _selectiveStageCacheKey(String basicStageKey, List<ColorEdit> colorEdits) {
-    final buffer = StringBuffer(basicStageKey);
-    buffer.write('|selective');
-    final editValues = <ColorRange, ColorEdit>{
-      for (final edit in colorEdits) edit.range: edit,
-    };
-    for (final range in ColorRange.values) {
-      final edit = editValues[range];
-      buffer
-        ..write('|')
-        ..write(range.index)
-        ..write(':')
-        ..write(edit?.hue ?? 0.0)
-        ..write(',')
-        ..write(edit?.saturation ?? 0.0)
-        ..write(',')
-        ..write(edit?.luminance ?? 0.0);
-    }
-    return buffer.toString();
-  }
-
-  void _writeBasicEditValues(StringBuffer buffer, List<Edit> edits) {
-    final editValues = <OperationType, double>{
-      for (final edit in edits) edit.type: edit.value,
-    };
-    for (final type in OperationType.values) {
-      buffer
-        ..write('|')
-        ..write(type.index)
-        ..write(':')
-        ..write(editValues[type] ?? 0.0);
-    }
   }
 }

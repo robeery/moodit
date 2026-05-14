@@ -10,7 +10,7 @@ import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
 import '../model/photo_editing_image.dart';
 import '../model/rgba_image_frame.dart';
-import '../domain/apply_edits.dart';
+import '../domain/edit_pipeline/image_frame_codec.dart';
 import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
 import '../model/export_settings.dart';
