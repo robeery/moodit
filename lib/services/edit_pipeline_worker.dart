@@ -164,6 +164,7 @@ class _EditPipelineWorkerIsolate {
       color_ops.SelectiveColorPrepCache();
   final grading_ops.ColorGradingPrepCache _colorGradingPrepCache =
       grading_ops.ColorGradingPrepCache();
+  final EditPipelineStageCache _stageCache = EditPipelineStageCache();
   RgbaImageFrame? _originalFrame;
   int _originalFrameRevision = 0;
 
@@ -180,6 +181,7 @@ class _EditPipelineWorkerIsolate {
             message['frame'] as Map<String, dynamic>,
           );
           _originalFrameRevision++;
+          _stageCache.clear();
           _selectiveColorPrepCache.clear();
           _colorGradingPrepCache.clear();
           _sendSuccess(id);
@@ -192,18 +194,23 @@ class _EditPipelineWorkerIsolate {
           final colorEdits = message['colorEdits'] as List<ColorEdit>;
           final colorGradingEdits =
               message['colorGradingEdits'] as List<ColorGradingEdit>;
-          final result = applyEditsToRgbaSync(
+          final basicStageKey = _basicStageCacheKey(edits);
+          final selectiveStageKey = _selectiveStageCacheKey(
+            basicStageKey,
+            colorEdits,
+          );
+          final result = applyEditsToRgbaWithStageCacheSync(
             originalFrame: originalFrame,
             edits: edits,
             colorEdits: colorEdits,
             colorGradingEdits: colorGradingEdits,
+            stageCache: _stageCache,
+            basicStageCacheKey: basicStageKey,
+            selectiveStageCacheKey: selectiveStageKey,
             selectiveColorPrepCache: _selectiveColorPrepCache,
-            selectiveColorPrepCacheKey: _selectivePrepCacheKey(edits),
+            selectiveColorPrepCacheKey: basicStageKey,
             colorGradingPrepCache: _colorGradingPrepCache,
-            colorGradingPrepCacheKey: _colorGradingPrepCacheKey(
-              edits,
-              colorEdits,
-            ),
+            colorGradingPrepCacheKey: selectiveStageKey,
           );
           _sendSuccess(id, _frameToMessage(result));
         default:
@@ -227,27 +234,29 @@ class _EditPipelineWorkerIsolate {
     });
   }
 
-  String _selectivePrepCacheKey(List<Edit> edits) {
+  String _basicStageCacheKey(List<Edit> edits) {
     final buffer = StringBuffer(_originalFrameRevision);
     _writeBasicEditValues(buffer, edits);
     return buffer.toString();
   }
 
-  String _colorGradingPrepCacheKey(List<Edit> edits, List<ColorEdit> colorEdits) {
-    final buffer = StringBuffer(_originalFrameRevision);
-    _writeBasicEditValues(buffer, edits);
+  String _selectiveStageCacheKey(String basicStageKey, List<ColorEdit> colorEdits) {
+    final buffer = StringBuffer(basicStageKey);
     buffer.write('|selective');
-    for (final edit in colorEdits) {
-      if (edit.isEmpty) continue;
+    final editValues = <ColorRange, ColorEdit>{
+      for (final edit in colorEdits) edit.range: edit,
+    };
+    for (final range in ColorRange.values) {
+      final edit = editValues[range];
       buffer
         ..write('|')
-        ..write(edit.range.index)
+        ..write(range.index)
         ..write(':')
-        ..write(edit.hue)
+        ..write(edit?.hue ?? 0.0)
         ..write(',')
-        ..write(edit.saturation)
+        ..write(edit?.saturation ?? 0.0)
         ..write(',')
-        ..write(edit.luminance);
+        ..write(edit?.luminance ?? 0.0);
     }
     return buffer.toString();
   }

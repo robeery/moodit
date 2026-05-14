@@ -59,5 +59,6 @@ selective_color_benchmark_results.json
 selective_color_cached_benchmark_results.json
 color_grading_benchmark_results.json
 color_grading_cached_benchmark_results.json
+stage_cache_benchmark_results.json
 test/fixtures/synthetic_*.jpg
 test/golden/failures/

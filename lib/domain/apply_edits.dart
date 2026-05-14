@@ -62,15 +62,64 @@ Uint8List encodePngFromFrame(RgbaImageFrame frame) {
   return Uint8List.fromList(img.encodePng(imageFromRgbaFrame(frame)));
 }
 
-img.Image applyEditsToImageSync({
+RgbaImageFrame _copyFrame(RgbaImageFrame frame) {
+  return RgbaImageFrame(
+    rgbaBytes: Uint8List.fromList(frame.rgbaBytes),
+    width: frame.width,
+    height: frame.height,
+  );
+}
+
+class EditPipelineStageCache {
+  Object? _afterBasicKey;
+  RgbaImageFrame? _afterBasicFrame;
+  Object? _afterSelectiveKey;
+  RgbaImageFrame? _afterSelectiveFrame;
+  int _afterBasicBuildCount = 0;
+  int _afterSelectiveBuildCount = 0;
+
+  int get debugAfterBasicBuildCount => _afterBasicBuildCount;
+  int get debugAfterSelectiveBuildCount => _afterSelectiveBuildCount;
+
+  void clear() {
+    _afterBasicKey = null;
+    _afterBasicFrame = null;
+    _afterSelectiveKey = null;
+    _afterSelectiveFrame = null;
+  }
+
+  RgbaImageFrame? _afterBasicFor(Object? key) {
+    final frame = _afterBasicFrame;
+    if (frame == null || _afterBasicKey != key) return null;
+    return _copyFrame(frame);
+  }
+
+  RgbaImageFrame? _afterSelectiveFor(Object? key) {
+    final frame = _afterSelectiveFrame;
+    if (frame == null || _afterSelectiveKey != key) return null;
+    return _copyFrame(frame);
+  }
+
+  void _storeAfterBasic(Object? key, RgbaImageFrame frame) {
+    if (_afterBasicKey != key) {
+      _afterSelectiveKey = null;
+      _afterSelectiveFrame = null;
+    }
+    _afterBasicKey = key;
+    _afterBasicFrame = frame;
+    _afterBasicBuildCount++;
+  }
+
+  void _storeAfterSelective(Object? key, RgbaImageFrame frame) {
+    _afterSelectiveKey = key;
+    _afterSelectiveFrame = frame;
+    _afterSelectiveBuildCount++;
+  }
+}
+
+img.Image applyBasicEditsToImageSync({
   required img.Image image,
   required List<Edit> edits,
-  required List<ColorEdit> colorEdits,
-  required List<ColorGradingEdit> colorGradingEdits,
-  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
-  Object? selectiveColorPrepCacheKey,
-  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
-  Object? colorGradingPrepCacheKey,
 }) {
   image = _ensureEditableImage(image);
 
@@ -142,17 +191,61 @@ img.Image applyEditsToImageSync({
     );
   }
 
-  image = color_ops.applyAllColorEdits(
+  return image;
+}
+
+img.Image applySelectiveColorToImageSync({
+  required img.Image image,
+  required List<ColorEdit> colorEdits,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
+}) {
+  image = _ensureEditableImage(image);
+  return color_ops.applyAllColorEdits(
     image,
     colorEdits,
     prepCache: selectiveColorPrepCache,
     prepCacheKey: selectiveColorPrepCacheKey,
   );
-  image = grading_ops.applyColorGrading(
+}
+
+img.Image applyColorGradingToImageSync({
+  required img.Image image,
+  required List<ColorGradingEdit> colorGradingEdits,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
+}) {
+  image = _ensureEditableImage(image);
+  return grading_ops.applyColorGrading(
     image,
     colorGradingEdits,
     prepCache: colorGradingPrepCache,
     prepCacheKey: colorGradingPrepCacheKey,
+  );
+}
+
+img.Image applyEditsToImageSync({
+  required img.Image image,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
+}) {
+  image = applyBasicEditsToImageSync(image: image, edits: edits);
+  image = applySelectiveColorToImageSync(
+    image: image,
+    colorEdits: colorEdits,
+    selectiveColorPrepCache: selectiveColorPrepCache,
+    selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
+  );
+  image = applyColorGradingToImageSync(
+    image: image,
+    colorGradingEdits: colorGradingEdits,
+    colorGradingPrepCache: colorGradingPrepCache,
+    colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
   return image;
 }
@@ -178,6 +271,62 @@ RgbaImageFrame applyEditsToRgbaSync({
     colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
   return frameFromImage(result);
+}
+
+RgbaImageFrame applyEditsToRgbaWithStageCacheSync({
+  required RgbaImageFrame originalFrame,
+  required List<Edit> edits,
+  required List<ColorEdit> colorEdits,
+  required List<ColorGradingEdit> colorGradingEdits,
+  required EditPipelineStageCache stageCache,
+  required Object? basicStageCacheKey,
+  required Object? selectiveStageCacheKey,
+  color_ops.SelectiveColorPrepCache? selectiveColorPrepCache,
+  Object? selectiveColorPrepCacheKey,
+  grading_ops.ColorGradingPrepCache? colorGradingPrepCache,
+  Object? colorGradingPrepCacheKey,
+}) {
+  final cachedAfterSelective = stageCache._afterSelectiveFor(
+    selectiveStageCacheKey,
+  );
+  if (cachedAfterSelective != null) {
+    final result = applyColorGradingToImageSync(
+      image: imageFromRgbaFrame(cachedAfterSelective),
+      colorGradingEdits: colorGradingEdits,
+      colorGradingPrepCache: colorGradingPrepCache,
+      colorGradingPrepCacheKey: colorGradingPrepCacheKey,
+    );
+    return frameFromImage(result);
+  }
+
+  final cachedAfterBasic = stageCache._afterBasicFor(basicStageCacheKey);
+  late img.Image image;
+
+  if (cachedAfterBasic != null) {
+    image = imageFromRgbaFrame(cachedAfterBasic);
+  } else {
+    image = applyBasicEditsToImageSync(
+      image: imageFromRgbaFrame(_copyFrame(originalFrame)),
+      edits: edits,
+    );
+    stageCache._storeAfterBasic(basicStageCacheKey, frameFromImage(image));
+  }
+
+  image = applySelectiveColorToImageSync(
+    image: image,
+    colorEdits: colorEdits,
+    selectiveColorPrepCache: selectiveColorPrepCache,
+    selectiveColorPrepCacheKey: selectiveColorPrepCacheKey,
+  );
+  stageCache._storeAfterSelective(selectiveStageCacheKey, frameFromImage(image));
+
+  image = applyColorGradingToImageSync(
+    image: image,
+    colorGradingEdits: colorGradingEdits,
+    colorGradingPrepCache: colorGradingPrepCache,
+    colorGradingPrepCacheKey: colorGradingPrepCacheKey,
+  );
+  return frameFromImage(image);
 }
 
 Uint8List applyEditsSync({

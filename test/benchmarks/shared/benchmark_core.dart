@@ -443,6 +443,153 @@ Map<String, Map<String, Object>> runColorGradingPrepCacheBenchmark({
   return results;
 }
 
+Map<String, Map<String, Object>> runStageCacheBenchmark({
+  required Uint8List fixtureBytes,
+  int warmup = defaultWarmup,
+  int iterations = defaultIterations,
+}) {
+  final results = <String, Map<String, Object>>{};
+  final fixtureFrame = decodeRgbaImageFrame(fixtureBytes);
+
+  void recordScenario(
+    String name, {
+    required void Function() setUp,
+    required void Function(int iteration) run,
+  }) {
+    setUp();
+    for (var i = 0; i < warmup; i++) {
+      run(-warmup + i);
+    }
+
+    final samples = <int>[];
+    for (var i = 0; i < iterations; i++) {
+      final sw = Stopwatch()..start();
+      run(i);
+      sw.stop();
+      samples.add(sw.elapsedMicroseconds);
+    }
+
+    samples.sort();
+    final average = samples.reduce((a, b) => a + b) / samples.length / 1000.0;
+    results[name] = {
+      'average_ms': average,
+      'median_ms': samples[samples.length ~/ 2] / 1000.0,
+      'min_ms': samples.first / 1000.0,
+      'max_ms': samples.last / 1000.0,
+      'all_ms': [for (final s in samples) s / 1000.0],
+    };
+  }
+
+  final stageCache = EditPipelineStageCache();
+  final selectivePrepCache = color_ops.SelectiveColorPrepCache();
+  final gradingPrepCache = grading_ops.ColorGradingPrepCache();
+  const stableBasicKey = 'fixture:basic:stable';
+  const stableSelectiveKey = '$stableBasicKey|selective:stable';
+  final stableBasicEdits = _stageCacheBasicEdits(0);
+  final stableSelectiveEdits = _stageCacheSelectiveEdits(0);
+
+  void resetCaches() {
+    stageCache.clear();
+    selectivePrepCache.clear();
+    gradingPrepCache.clear();
+  }
+
+  recordScenario(
+    'stage_cache_grading_update',
+    setUp: () {
+      resetCaches();
+      applyEditsToRgbaWithStageCacheSync(
+        originalFrame: fixtureFrame,
+        edits: stableBasicEdits,
+        colorEdits: stableSelectiveEdits,
+        colorGradingEdits: _stageCacheGradingEdits(0),
+        stageCache: stageCache,
+        basicStageCacheKey: stableBasicKey,
+        selectiveStageCacheKey: stableSelectiveKey,
+        selectiveColorPrepCache: selectivePrepCache,
+        selectiveColorPrepCacheKey: stableBasicKey,
+        colorGradingPrepCache: gradingPrepCache,
+        colorGradingPrepCacheKey: stableSelectiveKey,
+      );
+    },
+    run: (i) {
+      applyEditsToRgbaWithStageCacheSync(
+        originalFrame: fixtureFrame,
+        edits: stableBasicEdits,
+        colorEdits: stableSelectiveEdits,
+        colorGradingEdits: _stageCacheGradingEdits(i),
+        stageCache: stageCache,
+        basicStageCacheKey: stableBasicKey,
+        selectiveStageCacheKey: stableSelectiveKey,
+        selectiveColorPrepCache: selectivePrepCache,
+        selectiveColorPrepCacheKey: stableBasicKey,
+        colorGradingPrepCache: gradingPrepCache,
+        colorGradingPrepCacheKey: stableSelectiveKey,
+      );
+    },
+  );
+
+  recordScenario(
+    'stage_cache_selective_update',
+    setUp: () {
+      resetCaches();
+      applyEditsToRgbaWithStageCacheSync(
+        originalFrame: fixtureFrame,
+        edits: stableBasicEdits,
+        colorEdits: const [],
+        colorGradingEdits: const [],
+        stageCache: stageCache,
+        basicStageCacheKey: stableBasicKey,
+        selectiveStageCacheKey: '$stableBasicKey|selective:empty',
+        selectiveColorPrepCache: selectivePrepCache,
+        selectiveColorPrepCacheKey: stableBasicKey,
+        colorGradingPrepCache: gradingPrepCache,
+        colorGradingPrepCacheKey: '$stableBasicKey|selective:empty',
+      );
+    },
+    run: (i) {
+      final selectiveKey = '$stableBasicKey|selective:$i';
+      applyEditsToRgbaWithStageCacheSync(
+        originalFrame: fixtureFrame,
+        edits: stableBasicEdits,
+        colorEdits: _stageCacheSelectiveEdits(i),
+        colorGradingEdits: _stageCacheGradingEdits(0),
+        stageCache: stageCache,
+        basicStageCacheKey: stableBasicKey,
+        selectiveStageCacheKey: selectiveKey,
+        selectiveColorPrepCache: selectivePrepCache,
+        selectiveColorPrepCacheKey: stableBasicKey,
+        colorGradingPrepCache: gradingPrepCache,
+        colorGradingPrepCacheKey: selectiveKey,
+      );
+    },
+  );
+
+  recordScenario(
+    'stage_cache_basic_update',
+    setUp: resetCaches,
+    run: (i) {
+      final basicKey = 'fixture:basic:$i';
+      final selectiveKey = '$basicKey|selective:stable';
+      applyEditsToRgbaWithStageCacheSync(
+        originalFrame: fixtureFrame,
+        edits: _stageCacheBasicEdits(i),
+        colorEdits: stableSelectiveEdits,
+        colorGradingEdits: _stageCacheGradingEdits(0),
+        stageCache: stageCache,
+        basicStageCacheKey: basicKey,
+        selectiveStageCacheKey: selectiveKey,
+        selectiveColorPrepCache: selectivePrepCache,
+        selectiveColorPrepCacheKey: basicKey,
+        colorGradingPrepCache: gradingPrepCache,
+        colorGradingPrepCacheKey: selectiveKey,
+      );
+    },
+  );
+
+  return results;
+}
+
 void _applySelectiveColorWithPrepCache({
   required Uint8List sourceBytes,
   required int width,
@@ -462,6 +609,43 @@ void _applySelectiveColorWithPrepCache({
     prepCache: cache,
     prepCacheKey: cacheKey,
   );
+}
+
+List<Edit> _stageCacheBasicEdits(int variant) {
+  final delta = (variant % 5).toDouble();
+  return [
+    Edit(type: OperationType.exposure, value: 30 + delta),
+    Edit(type: OperationType.brightness, value: 20),
+    Edit(type: OperationType.contrast, value: 25),
+    Edit(type: OperationType.warmth, value: -15),
+    Edit(type: OperationType.tint, value: 10),
+  ];
+}
+
+List<ColorEdit> _stageCacheSelectiveEdits(int variant) {
+  final delta = (variant % 5).toDouble();
+  return [
+    for (final range in ColorRange.values)
+      ColorEdit(
+        range: range,
+        hue: 20 + delta,
+        saturation: 25,
+        luminance: 15,
+      ),
+  ];
+}
+
+List<ColorGradingEdit> _stageCacheGradingEdits(int variant) {
+  final delta = (variant % 5).toDouble();
+  return [
+    for (final zone in ColorGradingZone.values)
+      ColorGradingEdit(
+        zone: zone,
+        hue: 180 + delta,
+        strength: 40,
+        luminance: 20,
+      ),
+  ];
 }
 
 void _applyColorGradingWithPrepCache({
