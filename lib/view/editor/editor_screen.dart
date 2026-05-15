@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../settings/ai_settings_screen.dart';
 import 'widgets/empty_state.dart';
 import 'widgets/editor_drawer.dart';
+import 'widgets/history_action_bar.dart';
 import 'widgets/pending_edits_bar.dart';
 import 'widgets/image_viewer.dart';
 import 'widgets/tbd_dialog.dart';
@@ -28,6 +31,11 @@ class _EditorScreenState extends State<EditorScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _savedBannerVisible = false;
   bool _savedBannerOpaque = false;
+  bool _historyActionVisible = false;
+  String _historyActionMessage = '';
+  IconData _historyActionIcon = Icons.undo;
+  Timer? _historyActionHideTimer;
+  Timer? _historyActionClearTimer;
   int? _lastShownBenchmarkMs; // temporary benchmark
 
   @override
@@ -65,6 +73,8 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void dispose() {
     _vm.removeListener(_onVmChanged); // temporary benchmark
+    _historyActionHideTimer?.cancel();
+    _historyActionClearTimer?.cancel();
     _vm.dispose();
     super.dispose();
   }
@@ -309,6 +319,72 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  Widget _buildToolbarIconButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.35,
+        child: Container(
+          width: 28,
+          height: 25,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: AppColors.muted, width: 0.5),
+          ),
+          child: Icon(icon, color: AppColors.accent, size: 15),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleUndo() async {
+    final result = await _vm.undo();
+    if (!mounted || result == null) return;
+    _showHistoryActionBar(
+      message: 'Undone: ${result.label}',
+      icon: Icons.undo,
+    );
+  }
+
+  Future<void> _handleRedo() async {
+    final result = await _vm.redo();
+    if (!mounted || result == null) return;
+    _showHistoryActionBar(
+      message: 'Redone: ${result.label}',
+      icon: Icons.redo,
+    );
+  }
+
+  void _showHistoryActionBar({
+    required String message,
+    required IconData icon,
+  }) {
+    _historyActionHideTimer?.cancel();
+    _historyActionClearTimer?.cancel();
+
+    setState(() {
+      _historyActionMessage = message;
+      _historyActionIcon = icon;
+      _historyActionVisible = true;
+    });
+
+    _historyActionHideTimer = Timer(const Duration(milliseconds: 1300), () {
+      if (!mounted) return;
+      setState(() => _historyActionVisible = false);
+
+      _historyActionClearTimer = Timer(const Duration(milliseconds: 260), () {
+        if (!mounted || _historyActionVisible) return;
+        setState(() => _historyActionMessage = '');
+      });
+    });
+  }
+
   Widget _buildEditor() {
     final processedImage = _vm.processedImage;
     final originalPreviewImage = _vm.originalPreviewImage;
@@ -324,6 +400,18 @@ class _EditorScreenState extends State<EditorScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              _buildToolbarIconButton(
+                icon: Icons.undo,
+                enabled: _vm.canUndo && !_vm.isProcessing && !_vm.isWaitingForAi,
+                onTap: () => unawaited(_handleUndo()),
+              ),
+              const SizedBox(width: 8),
+              _buildToolbarIconButton(
+                icon: Icons.redo,
+                enabled: _vm.canRedo && !_vm.isProcessing && !_vm.isWaitingForAi,
+                onTap: () => unawaited(_handleRedo()),
+              ),
+              const SizedBox(width: 12),
               _buildToolbarButton('RESET', _showResetDialog),
               const SizedBox(width: 12),
               _buildToolbarButton('LOGS', _vm.printLogs),
@@ -358,6 +446,17 @@ class _EditorScreenState extends State<EditorScreen> {
                     onDiscard: _vm.discardPendingEdits,
                   ),
                 ),
+              if (_historyActionMessage.isNotEmpty && !_vm.hasPendingEdits)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: HistoryActionBar(
+                    visible: _historyActionVisible,
+                    icon: _historyActionIcon,
+                    message: _historyActionMessage,
+                  ),
+                ),
               if (_savedBannerVisible)
                 Positioned(
                   bottom: 12,
@@ -374,7 +473,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
-                          'PHOTO EXPORTED',
+                          'SAVED TO GALLERY',
                           style: TextStyle(color: AppColors.bg, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w600),
                         ),
                       ),

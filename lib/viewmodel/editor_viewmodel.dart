@@ -8,8 +8,12 @@ import '../model/ai_profile_settings.dart';
 import '../model/edit.dart';
 import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
+import '../model/editor_edit_source.dart';
+import '../model/editor_edit_state.dart';
+import '../model/editor_history_entry.dart';
 import '../model/photo_editing_image.dart';
 import '../model/rgba_image_frame.dart';
+import '../model/history_action_result.dart';
 import '../domain/edit_pipeline/image_frame_codec.dart';
 import '../domain/parse_edits_json.dart';
 import '../model/chat_message.dart';
@@ -18,6 +22,7 @@ import '../domain/ai_provider.dart';
 import '../services/ai_profiles_api_key_storage.dart';
 import '../services/ai_profiles_storage.dart';
 import '../services/edit_pipeline_worker.dart';
+import '../services/editor_history.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
 import '../services/preview_image_decoder.dart';
@@ -55,7 +60,10 @@ class EditorViewModel extends ChangeNotifier {
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   ParsedEdits? _pendingEdits;
+  EditorHistoryEntry? _pendingAiHistoryEntry;
   RgbaImageFrame? _snapshotProcessedFrame;
+  final EditorHistory _history = EditorHistory();
+  EditorEditState? _manualEditBeforeState;
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
   Map<String, String> _apiKeysByProfileId = {};
@@ -275,6 +283,8 @@ class EditorViewModel extends ChangeNotifier {
   bool get isProcessing => _isProcessing;
   int? get lastBenchmarkMs => _lastBenchmarkMs; // temporary benchmark
   double? get exportProgress => _exportProgress;
+  bool get canUndo => _pendingEdits == null && _history.canUndo;
+  bool get canRedo => _pendingEdits == null && _history.canRedo;
   bool get isWaitingForAi => _isWaitingForAi;
   bool get isOnline => _isOnline;
   bool get isAiReady => _isAiReady;
@@ -414,6 +424,10 @@ class EditorViewModel extends ChangeNotifier {
     _processedFrame = originalFrame;
     _processedPreviewImage = await _uiImageFromFrame(originalFrame);
     _snapshotProcessedFrame = null;
+    _pendingEdits = null;
+    _pendingAiHistoryEntry = null;
+    _manualEditBeforeState = null;
+    _history.clear();
     _isProcessing = false;
     notifyListeners();
   }
@@ -448,12 +462,24 @@ class EditorViewModel extends ChangeNotifier {
 
   void resetEdits() {
     if (_photoEditingImage == null || _originalFrame == null) return;
+    _acceptPendingEditsForHistory();
+    final before = _currentEditState();
+    final after = EditorEditState.empty();
+
+    _history.push(EditorHistoryEntry(
+      before: before,
+      after: after,
+      label: 'Reset edits',
+      source: EditorEditSource.reset,
+    ));
     _photoEditingImage = PhotoEditingImage(
       originalBytes: _photoEditingImage!.originalBytes,
       originalImagePath: _photoEditingImage!.originalImagePath,
     );
     _snapshotProcessedFrame = null;
     _pendingEdits = null;
+    _pendingAiHistoryEntry = null;
+    _manualEditBeforeState = null;
     unawaited(() async {
       await _setProcessedFrame(_originalFrame!);
       notifyListeners();
@@ -463,6 +489,15 @@ class EditorViewModel extends ChangeNotifier {
     _selectedColorRange = ColorRange.red;
     _selectedGradingZone = ColorGradingZone.shadows;
     notifyListeners();
+  }
+
+  EditorEditState _currentEditState() {
+    return EditorEditState.fromImage(_photoEditingImage!);
+  }
+
+  void beginManualEdit() {
+    if (_photoEditingImage == null) return;
+    _manualEditBeforeState = _currentEditState();
   }
 
   void setSelectedOperation(OperationType op) {
@@ -486,16 +521,19 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   void updateEditPreview(Edit edit) {
+    if (_photoEditingImage == null) return;
     _photoEditingImage!.addOrUpdateEdit(edit);
     notifyListeners();
   }
 
   void updateColorEditPreview(ColorEdit colorEdit) {
+    if (_photoEditingImage == null) return;
     _photoEditingImage!.addOrUpdateColorEdit(colorEdit);
     notifyListeners();
   }
 
   void updateColorGradingEditPreview(ColorGradingEdit edit) {
+    if (_photoEditingImage == null) return;
     _photoEditingImage!.addOrUpdateColorGradingEdit(edit);
     notifyListeners();
   }
@@ -516,6 +554,7 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<void> applyEdit(Edit edit) async {
     if (_photoEditingImage == null) return;
+    final before = _consumeManualEditBeforeState();
     _isProcessing = true;
     notifyListeners();
 
@@ -526,12 +565,20 @@ class EditorViewModel extends ChangeNotifier {
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     await _setProcessedFrame(result);
+    if (_pendingEdits == null) {
+      _pushHistoryEntry(
+        before: before,
+        label: _basicEditHistoryLabel(edit),
+        source: EditorEditSource.manual,
+      );
+    }
     _isProcessing = false;
     notifyListeners();
   }
 
   Future<void> applyColorEdit(ColorEdit colorEdit) async {
     if (_photoEditingImage == null) return;
+    final before = _consumeManualEditBeforeState();
     _isProcessing = true;
     notifyListeners();
 
@@ -542,12 +589,20 @@ class EditorViewModel extends ChangeNotifier {
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     await _setProcessedFrame(result);
+    if (_pendingEdits == null) {
+      _pushHistoryEntry(
+        before: before,
+        label: _colorEditHistoryLabel(before, colorEdit),
+        source: EditorEditSource.manual,
+      );
+    }
     _isProcessing = false;
     notifyListeners();
   }
 
   Future<void> applyColorGradingEdit(ColorGradingEdit edit) async {
     if (_photoEditingImage == null) return;
+    final before = _consumeManualEditBeforeState();
     _isProcessing = true;
     notifyListeners();
 
@@ -558,8 +613,90 @@ class EditorViewModel extends ChangeNotifier {
     _recordBenchmark(sw.elapsedMilliseconds); // temporary benchmark
 
     await _setProcessedFrame(result);
+    if (_pendingEdits == null) {
+      _pushHistoryEntry(
+        before: before,
+        label: _colorGradingEditHistoryLabel(before, edit),
+        source: EditorEditSource.manual,
+      );
+    }
     _isProcessing = false;
     notifyListeners();
+  }
+
+  EditorEditState _consumeManualEditBeforeState() {
+    final before = _manualEditBeforeState ?? _currentEditState();
+    _manualEditBeforeState = null;
+    return before;
+  }
+
+  void _pushHistoryEntry({
+    required EditorEditState before,
+    required String label,
+    required EditorEditSource source,
+  }) {
+    _history.push(EditorHistoryEntry(
+      before: before,
+      after: _currentEditState(),
+      label: label,
+      source: source,
+    ));
+  }
+
+  String _basicEditHistoryLabel(Edit edit) {
+    return '${_humanizeName(edit.type.name)} ${_signedValue(edit.value)}';
+  }
+
+  String _colorEditHistoryLabel(EditorEditState before, ColorEdit colorEdit) {
+    final previous = before.colorEdits
+            .where((edit) => edit.range == colorEdit.range)
+            .firstOrNull ??
+        ColorEdit(range: colorEdit.range);
+    final range = _humanizeName(colorEdit.range.name);
+
+    if (previous.hue != colorEdit.hue) {
+      return '$range hue ${_signedValue(colorEdit.hue)}';
+    }
+    if (previous.saturation != colorEdit.saturation) {
+      return '$range saturation ${_signedValue(colorEdit.saturation)}';
+    }
+    if (previous.luminance != colorEdit.luminance) {
+      return '$range luminance ${_signedValue(colorEdit.luminance)}';
+    }
+    return '$range color edit';
+  }
+
+  String _colorGradingEditHistoryLabel(
+    EditorEditState before,
+    ColorGradingEdit edit,
+  ) {
+    final previous = before.colorGradingEdits
+            .where((gradingEdit) => gradingEdit.zone == edit.zone)
+            .firstOrNull ??
+        ColorGradingEdit(zone: edit.zone);
+    final zone = _humanizeName(edit.zone.name);
+
+    if (previous.hue != edit.hue) {
+      return '$zone hue ${edit.hue.toStringAsFixed(0)}';
+    }
+    if (previous.strength != edit.strength) {
+      return '$zone saturation ${_signedValue(edit.strength)}';
+    }
+    if (previous.luminance != edit.luminance) {
+      return '$zone luminance ${_signedValue(edit.luminance)}';
+    }
+    return '$zone grading edit';
+  }
+
+  String _humanizeName(String name) {
+    if (name.isEmpty) return name;
+    return '${name[0].toUpperCase()}${name.substring(1)}';
+  }
+
+  String _signedValue(double value) {
+    final rounded = value.round();
+    if (rounded > 0) return '+$rounded';
+    return rounded.toString();
   }
 
   void _recordBenchmark(int ms) { // temporary benchmark
@@ -651,6 +788,7 @@ class EditorViewModel extends ChangeNotifier {
     );
 
     final model = _photoEditingImage!;
+    final beforeAiEdit = _currentEditState();
     model.saveSnapshot();
     _snapshotProcessedFrame = _processedFrame;
 
@@ -663,6 +801,13 @@ class EditorViewModel extends ChangeNotifier {
     for (final gradingEdit in parsed.colorGradingEdits) {
       model.addOrUpdateColorGradingEdit(gradingEdit);
     }
+    final afterAiEdit = _currentEditState();
+    _pendingAiHistoryEntry = EditorHistoryEntry(
+      before: beforeAiEdit,
+      after: afterAiEdit,
+      label: 'AI edit',
+      source: EditorEditSource.ai,
+    );
 
     _isProcessing = true;
     notifyListeners();
@@ -704,10 +849,26 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   void applyPendingEdits() {
+    _acceptPendingEditsForHistory();
+    notifyListeners();
+  }
+
+  bool _acceptPendingEditsForHistory() {
+    if (_pendingEdits == null) return false;
+    final entry = _pendingAiHistoryEntry;
+    if (entry != null) {
+      _history.push(EditorHistoryEntry(
+        before: entry.before,
+        after: _currentEditState(),
+        label: entry.label,
+        source: entry.source,
+      ));
+    }
     _pendingEdits = null;
+    _pendingAiHistoryEntry = null;
     _photoEditingImage?.clearSnapshot();
     _snapshotProcessedFrame = null;
-    notifyListeners();
+    return true;
   }
 
   Future<void> discardPendingEdits() async {
@@ -719,6 +880,7 @@ class EditorViewModel extends ChangeNotifier {
   Future<void> _revertPendingEdits() async {
     _photoEditingImage!.revertSnapshot();
     _pendingEdits = null;
+    _pendingAiHistoryEntry = null;
 
     if (_snapshotProcessedFrame != null) {
       await _setProcessedFrame(_snapshotProcessedFrame!);
@@ -728,6 +890,43 @@ class EditorViewModel extends ChangeNotifier {
     }
 
     _snapshotProcessedFrame = null;
+  }
+
+  Future<HistoryActionResult?> undo() async {
+    if (_photoEditingImage == null) return null;
+    if (_pendingEdits != null) {
+      return null;
+    }
+
+    final entry = _history.undo();
+    if (entry == null) return null;
+    await _restoreEditState(entry.before);
+    return HistoryActionResult(label: entry.label);
+  }
+
+  Future<HistoryActionResult?> redo() async {
+    if (_photoEditingImage == null || _pendingEdits != null) return null;
+
+    final entry = _history.redo();
+    if (entry == null) return null;
+    await _restoreEditState(entry.after);
+    return HistoryActionResult(label: entry.label);
+  }
+
+  Future<void> _restoreEditState(EditorEditState state) async {
+    final model = _photoEditingImage;
+    if (model == null) return;
+
+    _manualEditBeforeState = null;
+    state.applyTo(model);
+    _isProcessing = true;
+    notifyListeners();
+
+    final resultFrame = await _processAllEdits();
+    await _setProcessedFrame(resultFrame);
+
+    _isProcessing = false;
+    notifyListeners();
   }
 
   void clearChat() {

@@ -80,6 +80,7 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
               min: vm.selectedOperation.minValue,
               max: vm.selectedOperation.maxValue,
               value: currentValue,
+              onChangeStart: (_) => vm.beginManualEdit(),
               onChanged: (value) {
                 vm.updateEditPreview(
                   Edit(type: vm.selectedOperation, value: value),
