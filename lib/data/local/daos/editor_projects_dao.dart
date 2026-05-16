@@ -26,6 +26,32 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     return into(editorProjectRecords).insertOnConflictUpdate(project);
   }
 
+  Future<int> updateCurrentState({
+    required String id,
+    required String currentStateJson,
+    required DateTime updatedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      currentStateJson: Value(currentStateJson),
+      updatedAt: Value(updatedAt),
+    ));
+  }
+
+  Future<int> markOpened({
+    required String id,
+    required DateTime openedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      lastOpenedAt: Value(openedAt),
+    ));
+  }
+
   Future<int> deleteProject(String id) {
     final query = delete(editorProjectRecords)
       ..where((table) => table.id.equals(id));
