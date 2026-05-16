@@ -7,6 +7,21 @@ import '../model/rgba_image_frame.dart';
 class PreviewImageDecoder {
   const PreviewImageDecoder();
 
+  Future<PreviewImageInfo> readImageInfo(String imagePath) async {
+    final buffer = await ui.ImmutableBuffer.fromFilePath(imagePath);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
+
+    try {
+      return PreviewImageInfo(
+        width: descriptor.width,
+        height: descriptor.height,
+      );
+    } finally {
+      descriptor.dispose();
+      buffer.dispose();
+    }
+  }
+
   Future<RgbaImageFrame> decodeFromPath(
     String imagePath, {
     int maxDimension = 1080,
@@ -73,6 +88,16 @@ class PreviewImageDecoder {
       height: math.max(1, (height * scale).round()),
     );
   }
+}
+
+class PreviewImageInfo {
+  const PreviewImageInfo({
+    required this.width,
+    required this.height,
+  });
+
+  final int width;
+  final int height;
 }
 
 class _PreviewImageSize {

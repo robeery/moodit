@@ -6,6 +6,7 @@ class EditorProjectRecords extends Table {
 
   TextColumn get id => text()();
   TextColumn get name => text()();
+  TextColumn get status => text().withDefault(const Constant('draft'))();
   TextColumn get originalImagePath => text()();
   TextColumn get previewImagePath => text().nullable()();
   TextColumn get currentStateJson => text()();

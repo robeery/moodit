@@ -5,8 +5,12 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     with _$EditorProjectsDaoMixin {
   EditorProjectsDao(super.db);
 
-  Future<List<EditorProjectRecord>> loadRecentProjects({int limit = 20}) {
+  Future<List<EditorProjectRecord>> loadRecentProjects({
+    required String status,
+    int limit = 20,
+  }) {
     final query = select(editorProjectRecords)
+      ..where((table) => table.status.equals(status))
       ..orderBy([
         (table) => OrderingTerm.desc(table.updatedAt),
       ])
@@ -49,6 +53,24 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
 
     return query.write(EditorProjectRecordsCompanion(
       lastOpenedAt: Value(openedAt),
+    ));
+  }
+
+  Future<int> promoteDraftToSaved({
+    required String id,
+    required String name,
+    required String savedStatus,
+    required String currentStateJson,
+    required DateTime updatedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      name: Value(name),
+      status: Value(savedStatus),
+      currentStateJson: Value(currentStateJson),
+      updatedAt: Value(updatedAt),
     ));
   }
 

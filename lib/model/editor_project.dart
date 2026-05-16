@@ -1,5 +1,21 @@
 import 'editor_edit_state.dart';
 
+enum EditorProjectStatus {
+  draft('draft'),
+  saved('saved');
+
+  const EditorProjectStatus(this.storageValue);
+
+  final String storageValue;
+
+  static EditorProjectStatus fromStorageValue(String value) {
+    for (final status in EditorProjectStatus.values) {
+      if (status.storageValue == value) return status;
+    }
+    return EditorProjectStatus.draft;
+  }
+}
+
 class EditorProject {
   const EditorProject({
     required this.id,
@@ -12,12 +28,14 @@ class EditorProject {
     required this.previewHeight,
     required this.createdAt,
     required this.updatedAt,
+    this.status = EditorProjectStatus.draft,
     this.previewImagePath,
     this.lastOpenedAt,
   });
 
   final String id;
   final String name;
+  final EditorProjectStatus status;
   final String originalImagePath;
   final String? previewImagePath;
   final EditorEditState currentState;
@@ -32,6 +50,7 @@ class EditorProject {
   EditorProject copyWith({
     String? id,
     String? name,
+    EditorProjectStatus? status,
     String? originalImagePath,
     Object? previewImagePath = _sentinel,
     EditorEditState? currentState,
@@ -46,6 +65,7 @@ class EditorProject {
     return EditorProject(
       id: id ?? this.id,
       name: name ?? this.name,
+      status: status ?? this.status,
       originalImagePath: originalImagePath ?? this.originalImagePath,
       previewImagePath: identical(previewImagePath, _sentinel)
           ? this.previewImagePath

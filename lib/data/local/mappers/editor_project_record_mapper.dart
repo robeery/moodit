@@ -9,6 +9,7 @@ extension EditorProjectRecordMapper on EditorProjectRecord {
     return EditorProject(
       id: id,
       name: name,
+      status: EditorProjectStatus.fromStorageValue(status),
       originalImagePath: originalImagePath,
       previewImagePath: previewImagePath,
       currentState: EditorEditState.fromJsonString(currentStateJson),
@@ -28,6 +29,7 @@ extension EditorProjectMapper on EditorProject {
     return EditorProjectRecordsCompanion.insert(
       id: id,
       name: name,
+      status: Value(status.storageValue),
       originalImagePath: originalImagePath,
       previewImagePath: Value(previewImagePath),
       currentStateJson: currentState.toJsonString(),

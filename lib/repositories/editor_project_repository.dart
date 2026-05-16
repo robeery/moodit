@@ -4,10 +4,17 @@ import '../model/editor_version.dart';
 
 abstract class EditorProjectRepository {
   Future<List<EditorProject>> loadRecentProjects({int limit = 20});
+  Future<List<EditorProject>> loadRecoverableDrafts({int limit = 20});
   Future<EditorProject?> loadProject(String id);
   Future<void> saveProject(EditorProject project);
   Future<void> saveCurrentState({
     required String projectId,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  });
+  Future<void> promoteDraftToSaved({
+    required String projectId,
+    required String name,
     required EditorEditState state,
     required DateTime updatedAt,
   });

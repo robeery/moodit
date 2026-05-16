@@ -27,6 +27,16 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('draft'),
+  );
   static const VerificationMeta _originalImagePathMeta = const VerificationMeta(
     'originalImagePath',
   );
@@ -142,6 +152,7 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
   List<GeneratedColumn> get $columns => [
     id,
     name,
+    status,
     originalImagePath,
     previewImagePath,
     currentStateJson,
@@ -177,6 +188,12 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
     }
     if (data.containsKey('original_image_path')) {
       context.handle(
@@ -295,6 +312,10 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
       originalImagePath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}original_image_path'],
@@ -348,6 +369,7 @@ class EditorProjectRecord extends DataClass
     implements Insertable<EditorProjectRecord> {
   final String id;
   final String name;
+  final String status;
   final String originalImagePath;
   final String? previewImagePath;
   final String currentStateJson;
@@ -361,6 +383,7 @@ class EditorProjectRecord extends DataClass
   const EditorProjectRecord({
     required this.id,
     required this.name,
+    required this.status,
     required this.originalImagePath,
     this.previewImagePath,
     required this.currentStateJson,
@@ -377,6 +400,7 @@ class EditorProjectRecord extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
+    map['status'] = Variable<String>(status);
     map['original_image_path'] = Variable<String>(originalImagePath);
     if (!nullToAbsent || previewImagePath != null) {
       map['preview_image_path'] = Variable<String>(previewImagePath);
@@ -398,6 +422,7 @@ class EditorProjectRecord extends DataClass
     return EditorProjectRecordsCompanion(
       id: Value(id),
       name: Value(name),
+      status: Value(status),
       originalImagePath: Value(originalImagePath),
       previewImagePath: previewImagePath == null && nullToAbsent
           ? const Value.absent()
@@ -423,6 +448,7 @@ class EditorProjectRecord extends DataClass
     return EditorProjectRecord(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      status: serializer.fromJson<String>(json['status']),
       originalImagePath: serializer.fromJson<String>(json['originalImagePath']),
       previewImagePath: serializer.fromJson<String?>(json['previewImagePath']),
       currentStateJson: serializer.fromJson<String>(json['currentStateJson']),
@@ -441,6 +467,7 @@ class EditorProjectRecord extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
+      'status': serializer.toJson<String>(status),
       'originalImagePath': serializer.toJson<String>(originalImagePath),
       'previewImagePath': serializer.toJson<String?>(previewImagePath),
       'currentStateJson': serializer.toJson<String>(currentStateJson),
@@ -457,6 +484,7 @@ class EditorProjectRecord extends DataClass
   EditorProjectRecord copyWith({
     String? id,
     String? name,
+    String? status,
     String? originalImagePath,
     Value<String?> previewImagePath = const Value.absent(),
     String? currentStateJson,
@@ -470,6 +498,7 @@ class EditorProjectRecord extends DataClass
   }) => EditorProjectRecord(
     id: id ?? this.id,
     name: name ?? this.name,
+    status: status ?? this.status,
     originalImagePath: originalImagePath ?? this.originalImagePath,
     previewImagePath: previewImagePath.present
         ? previewImagePath.value
@@ -487,6 +516,7 @@ class EditorProjectRecord extends DataClass
     return EditorProjectRecord(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      status: data.status.present ? data.status.value : this.status,
       originalImagePath: data.originalImagePath.present
           ? data.originalImagePath.value
           : this.originalImagePath,
@@ -521,6 +551,7 @@ class EditorProjectRecord extends DataClass
     return (StringBuffer('EditorProjectRecord(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('status: $status, ')
           ..write('originalImagePath: $originalImagePath, ')
           ..write('previewImagePath: $previewImagePath, ')
           ..write('currentStateJson: $currentStateJson, ')
@@ -539,6 +570,7 @@ class EditorProjectRecord extends DataClass
   int get hashCode => Object.hash(
     id,
     name,
+    status,
     originalImagePath,
     previewImagePath,
     currentStateJson,
@@ -556,6 +588,7 @@ class EditorProjectRecord extends DataClass
       (other is EditorProjectRecord &&
           other.id == this.id &&
           other.name == this.name &&
+          other.status == this.status &&
           other.originalImagePath == this.originalImagePath &&
           other.previewImagePath == this.previewImagePath &&
           other.currentStateJson == this.currentStateJson &&
@@ -572,6 +605,7 @@ class EditorProjectRecordsCompanion
     extends UpdateCompanion<EditorProjectRecord> {
   final Value<String> id;
   final Value<String> name;
+  final Value<String> status;
   final Value<String> originalImagePath;
   final Value<String?> previewImagePath;
   final Value<String> currentStateJson;
@@ -586,6 +620,7 @@ class EditorProjectRecordsCompanion
   const EditorProjectRecordsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.status = const Value.absent(),
     this.originalImagePath = const Value.absent(),
     this.previewImagePath = const Value.absent(),
     this.currentStateJson = const Value.absent(),
@@ -601,6 +636,7 @@ class EditorProjectRecordsCompanion
   EditorProjectRecordsCompanion.insert({
     required String id,
     required String name,
+    this.status = const Value.absent(),
     required String originalImagePath,
     this.previewImagePath = const Value.absent(),
     required String currentStateJson,
@@ -625,6 +661,7 @@ class EditorProjectRecordsCompanion
   static Insertable<EditorProjectRecord> custom({
     Expression<String>? id,
     Expression<String>? name,
+    Expression<String>? status,
     Expression<String>? originalImagePath,
     Expression<String>? previewImagePath,
     Expression<String>? currentStateJson,
@@ -640,6 +677,7 @@ class EditorProjectRecordsCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (status != null) 'status': status,
       if (originalImagePath != null) 'original_image_path': originalImagePath,
       if (previewImagePath != null) 'preview_image_path': previewImagePath,
       if (currentStateJson != null) 'current_state_json': currentStateJson,
@@ -657,6 +695,7 @@ class EditorProjectRecordsCompanion
   EditorProjectRecordsCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
+    Value<String>? status,
     Value<String>? originalImagePath,
     Value<String?>? previewImagePath,
     Value<String>? currentStateJson,
@@ -672,6 +711,7 @@ class EditorProjectRecordsCompanion
     return EditorProjectRecordsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      status: status ?? this.status,
       originalImagePath: originalImagePath ?? this.originalImagePath,
       previewImagePath: previewImagePath ?? this.previewImagePath,
       currentStateJson: currentStateJson ?? this.currentStateJson,
@@ -694,6 +734,9 @@ class EditorProjectRecordsCompanion
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
     }
     if (originalImagePath.present) {
       map['original_image_path'] = Variable<String>(originalImagePath.value);
@@ -736,6 +779,7 @@ class EditorProjectRecordsCompanion
     return (StringBuffer('EditorProjectRecordsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('status: $status, ')
           ..write('originalImagePath: $originalImagePath, ')
           ..write('previewImagePath: $previewImagePath, ')
           ..write('currentStateJson: $currentStateJson, ')
@@ -1264,6 +1308,7 @@ typedef $$EditorProjectRecordsTableCreateCompanionBuilder =
     EditorProjectRecordsCompanion Function({
       required String id,
       required String name,
+      Value<String> status,
       required String originalImagePath,
       Value<String?> previewImagePath,
       required String currentStateJson,
@@ -1280,6 +1325,7 @@ typedef $$EditorProjectRecordsTableUpdateCompanionBuilder =
     EditorProjectRecordsCompanion Function({
       Value<String> id,
       Value<String> name,
+      Value<String> status,
       Value<String> originalImagePath,
       Value<String?> previewImagePath,
       Value<String> currentStateJson,
@@ -1351,6 +1397,11 @@ class $$EditorProjectRecordsTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1449,6 +1500,11 @@ class $$EditorProjectRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get originalImagePath => $composableBuilder(
     column: $table.originalImagePath,
     builder: (column) => ColumnOrderings(column),
@@ -1514,6 +1570,9 @@ class $$EditorProjectRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
 
   GeneratedColumn<String> get originalImagePath => $composableBuilder(
     column: $table.originalImagePath,
@@ -1626,6 +1685,7 @@ class $$EditorProjectRecordsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String> status = const Value.absent(),
                 Value<String> originalImagePath = const Value.absent(),
                 Value<String?> previewImagePath = const Value.absent(),
                 Value<String> currentStateJson = const Value.absent(),
@@ -1640,6 +1700,7 @@ class $$EditorProjectRecordsTableTableManager
               }) => EditorProjectRecordsCompanion(
                 id: id,
                 name: name,
+                status: status,
                 originalImagePath: originalImagePath,
                 previewImagePath: previewImagePath,
                 currentStateJson: currentStateJson,
@@ -1656,6 +1717,7 @@ class $$EditorProjectRecordsTableTableManager
               ({
                 required String id,
                 required String name,
+                Value<String> status = const Value.absent(),
                 required String originalImagePath,
                 Value<String?> previewImagePath = const Value.absent(),
                 required String currentStateJson,
@@ -1670,6 +1732,7 @@ class $$EditorProjectRecordsTableTableManager
               }) => EditorProjectRecordsCompanion.insert(
                 id: id,
                 name: name,
+                status: status,
                 originalImagePath: originalImagePath,
                 previewImagePath: previewImagePath,
                 currentStateJson: currentStateJson,

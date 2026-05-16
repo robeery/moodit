@@ -66,7 +66,7 @@ class _EditorScreenState extends State<EditorScreen> {
     );
 
     if (pickedFile != null) {
-      await _vm.loadImageFromPath(pickedFile.path);
+      await _vm.importImageAsProject(pickedFile.path);
     }
   }
 

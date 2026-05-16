@@ -18,6 +18,7 @@ void main() {
     final project = EditorProject(
       id: 'project-1',
       name: 'Portrait',
+      status: EditorProjectStatus.saved,
       originalImagePath: '/projects/project-1/original.jpg',
       previewImagePath: '/projects/project-1/preview.jpg',
       currentState: state,
@@ -34,6 +35,7 @@ void main() {
 
     expect(companion.id.value, project.id);
     expect(companion.name.value, project.name);
+    expect(companion.status.value, EditorProjectStatus.saved.storageValue);
     expect(companion.originalImagePath.value, project.originalImagePath);
     expect(companion.previewImagePath.value, project.previewImagePath);
     expect(companion.currentStateJson.value, state.toJsonString());
@@ -54,6 +56,7 @@ void main() {
     final record = EditorProjectRecord(
       id: 'project-1',
       name: 'Portrait',
+      status: EditorProjectStatus.saved.storageValue,
       originalImagePath: '/projects/project-1/original.jpg',
       previewImagePath: '/projects/project-1/preview.jpg',
       currentStateJson: state.toJsonString(),
@@ -70,6 +73,7 @@ void main() {
 
     expect(project.id, record.id);
     expect(project.name, record.name);
+    expect(project.status, EditorProjectStatus.saved);
     expect(project.originalImagePath, record.originalImagePath);
     expect(project.previewImagePath, record.previewImagePath);
     expect(project.currentState.contentEquals(state), isTrue);
@@ -80,6 +84,29 @@ void main() {
     expect(project.createdAt, createdAt);
     expect(project.updatedAt, updatedAt);
     expect(project.lastOpenedAt, openedAt);
+  });
+
+  test('unknown project status maps to draft', () {
+    final createdAt = DateTime.utc(2026, 5, 16, 9);
+    final record = EditorProjectRecord(
+      id: 'project-1',
+      name: 'Portrait',
+      status: 'old-or-invalid',
+      originalImagePath: '/projects/project-1/original.jpg',
+      previewImagePath: null,
+      currentStateJson: EditorEditState.empty().toJsonString(),
+      originalWidth: 4000,
+      originalHeight: 3000,
+      previewWidth: 1080,
+      previewHeight: 810,
+      createdAt: createdAt,
+      updatedAt: createdAt,
+      lastOpenedAt: null,
+    );
+
+    final project = record.toModel();
+
+    expect(project.status, EditorProjectStatus.draft);
   });
 
   test('version model maps to Drift companion', () {

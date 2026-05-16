@@ -10,6 +10,7 @@ import '../model/color_grading_edit.dart';
 import '../model/editor_edit_source.dart';
 import '../model/editor_edit_state.dart';
 import '../model/editor_history_entry.dart';
+import '../model/editor_project.dart';
 import '../model/photo_editing_image.dart';
 import '../model/rgba_image_frame.dart';
 import '../model/history_action_result.dart';
@@ -25,6 +26,9 @@ import '../services/editor_history.dart';
 import '../services/export_service.dart';
 import '../services/gemini_provider.dart';
 import '../services/preview_image_decoder.dart';
+import '../services/project_file_store.dart';
+import '../repositories/editor_project_repository.dart';
+import '../repositories/editor_project_repository_factory.dart';
 
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
@@ -56,8 +60,13 @@ class EditorViewModel extends ChangeNotifier {
   final AiProfilesStorage _aiProfilesStorage;
   final EditPipelineWorker _editPipelineWorker;
   final PreviewImageDecoder _previewImageDecoder;
+  EditorProjectRepository? _projectRepository;
+  late final ProjectFileStore _projectFileStore;
+  final DateTime Function() _now;
+  Future<void> Function()? _disposeOwnedProjectRepository;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
+  EditorProject? _currentProject;
   ParsedEdits? _pendingEdits;
   EditorHistoryEntry? _pendingAiHistoryEntry;
   RgbaImageFrame? _snapshotProcessedFrame;
@@ -72,6 +81,9 @@ class EditorViewModel extends ChangeNotifier {
     AiProfilesApiKeyStorage? aiProfilesApiKeyStorage,
     EditPipelineWorker? editPipelineWorker,
     PreviewImageDecoder? previewImageDecoder,
+    EditorProjectRepository? projectRepository,
+    ProjectFileStore? projectFileStore,
+    DateTime Function()? now,
   })
       : _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
@@ -80,7 +92,11 @@ class EditorViewModel extends ChangeNotifier {
         _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage(),
         _editPipelineWorker = editPipelineWorker ?? EditPipelineWorker(),
         _previewImageDecoder =
-            previewImageDecoder ?? const PreviewImageDecoder() {
+            previewImageDecoder ?? const PreviewImageDecoder(),
+        _now = now ?? DateTime.now {
+    _projectRepository = projectRepository;
+    _projectFileStore = projectFileStore ?? ProjectFileStore();
+
     _initializeAiProvider();
     unawaited(_loadPersistedAiProfiles());
 
@@ -275,6 +291,7 @@ class EditorViewModel extends ChangeNotifier {
   bool get hasPreviewImages =>
       _processedPreviewImage != null && _originalPreviewImage != null;
   PhotoEditingImage? getModel() => _photoEditingImage;
+  EditorProject? get currentProject => _currentProject;
   ui.Image? get processedImage => _processedPreviewImage;
   ui.Image? get originalPreviewImage => _originalPreviewImage;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
@@ -292,6 +309,7 @@ class EditorViewModel extends ChangeNotifier {
   void dispose() {
     _disposePreviewImages();
     _editPipelineWorker.dispose();
+    unawaited(_disposeOwnedProjectRepository?.call());
     _connectivitySub.cancel();
     super.dispose();
   }
@@ -402,33 +420,195 @@ class EditorViewModel extends ChangeNotifier {
     previousPreviewImage?.dispose();
   }
 
-  Future<void> loadImageFromPath(String originalImagePath) async {
+  Future<void> importImageAsProject(String sourceImagePath) async {
+    final projectId = _createProjectId();
+    _currentProject = null;
     _isProcessing = true;
     notifyListeners();
 
-    final originalFrame = await _previewImageDecoder.decodeFromPath(
-      originalImagePath,
-      maxDimension: 1080,
-    );
-    final originalPreviewImage = await _uiImageFromFrame(originalFrame);
-    await _editPipelineWorker.loadOriginalFrame(originalFrame);
+    try {
+      final storedOriginal = await _projectFileStore.copyOriginalImage(
+        sourcePath: sourceImagePath,
+        projectId: projectId,
+      );
+      final imageInfo = await _previewImageDecoder.readImageInfo(
+        storedOriginal.path,
+      );
 
-    _disposePreviewImages();
-    _photoEditingImage = PhotoEditingImage(
-      originalBytes: encodeJpgFromFrame(originalFrame),
-      originalImagePath: originalImagePath,
-    );
-    _originalFrame = originalFrame;
-    _originalPreviewImage = originalPreviewImage;
-    _processedFrame = originalFrame;
-    _processedPreviewImage = await _uiImageFromFrame(originalFrame);
-    _snapshotProcessedFrame = null;
-    _pendingEdits = null;
-    _pendingAiHistoryEntry = null;
-    _manualEditBeforeState = null;
-    _history.clear();
-    _isProcessing = false;
+      await _loadImageFromPath(
+        storedOriginal.path,
+        manageProcessingState: false,
+      );
+
+      final previewFrame = _originalFrame!;
+      final createdAt = _now();
+      final project = EditorProject(
+        id: projectId,
+        name: _projectNameFromPath(sourceImagePath),
+        status: EditorProjectStatus.draft,
+        originalImagePath: storedOriginal.path,
+        currentState: EditorEditState.empty(),
+        originalWidth: imageInfo.width,
+        originalHeight: imageInfo.height,
+        previewWidth: previewFrame.width,
+        previewHeight: previewFrame.height,
+        createdAt: createdAt,
+        updatedAt: createdAt,
+        lastOpenedAt: createdAt,
+      );
+
+      _currentProject = project;
+      await _saveProjectBestEffort(project);
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadImageFromPath(String originalImagePath) async {
+    _currentProject = null;
+    await _loadImageFromPath(originalImagePath);
+  }
+
+  Future<bool> loadProject(String projectId) async {
+    _currentProject = null;
+    _isProcessing = true;
     notifyListeners();
+
+    try {
+      final project = await _projectRepositoryInstance.loadProject(projectId);
+      if (project == null) return false;
+
+      await _loadImageFromPath(
+        project.originalImagePath,
+        manageProcessingState: false,
+      );
+
+      project.currentState.applyTo(_photoEditingImage!);
+      final resultFrame = await _processAllEdits();
+      await _setProcessedFrame(resultFrame);
+
+      final openedAt = _now();
+      _currentProject = project.copyWith(lastOpenedAt: openedAt);
+      await _markProjectOpenedBestEffort(project.id, openedAt);
+      return true;
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> saveCurrentDraftAsProject(String name) async {
+    final project = _currentProject;
+    final trimmedName = name.trim();
+    if (project == null || _photoEditingImage == null || trimmedName.isEmpty) {
+      return false;
+    }
+
+    final state = _currentEditState();
+    final updatedAt = _now();
+    await _projectRepositoryInstance.promoteDraftToSaved(
+      projectId: project.id,
+      name: trimmedName,
+      state: state,
+      updatedAt: updatedAt,
+    );
+
+    _currentProject = project.copyWith(
+      name: trimmedName,
+      status: EditorProjectStatus.saved,
+      currentState: state,
+      updatedAt: updatedAt,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> _loadImageFromPath(
+    String originalImagePath, {
+    bool manageProcessingState = true,
+  }) async {
+    if (manageProcessingState) {
+      _isProcessing = true;
+      notifyListeners();
+    }
+
+    try {
+      final originalFrame = await _previewImageDecoder.decodeFromPath(
+        originalImagePath,
+        maxDimension: 1080,
+      );
+      final originalPreviewImage = await _uiImageFromFrame(originalFrame);
+      await _editPipelineWorker.loadOriginalFrame(originalFrame);
+
+      _disposePreviewImages();
+      _photoEditingImage = PhotoEditingImage(
+        originalBytes: encodeJpgFromFrame(originalFrame),
+        originalImagePath: originalImagePath,
+      );
+      _originalFrame = originalFrame;
+      _originalPreviewImage = originalPreviewImage;
+      _processedFrame = originalFrame;
+      _processedPreviewImage = await _uiImageFromFrame(originalFrame);
+      _snapshotProcessedFrame = null;
+      _pendingEdits = null;
+      _pendingAiHistoryEntry = null;
+      _manualEditBeforeState = null;
+      _history.clear();
+    } finally {
+      if (manageProcessingState) {
+        _isProcessing = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> _saveProjectBestEffort(EditorProject project) async {
+    try {
+      await _projectRepositoryInstance.saveProject(project);
+    } catch (_) {
+      // The editor can still use the imported image in memory.
+    }
+  }
+
+  Future<void> _markProjectOpenedBestEffort(
+    String projectId,
+    DateTime openedAt,
+  ) async {
+    try {
+      await _projectRepositoryInstance.markProjectOpened(
+        projectId: projectId,
+        openedAt: openedAt,
+      );
+    } catch (_) {
+      // Opening the project should not fail because recents metadata failed.
+    }
+  }
+
+  EditorProjectRepository get _projectRepositoryInstance {
+    final existing = _projectRepository;
+    if (existing != null) return existing;
+
+    final handle = createDefaultEditorProjectRepository();
+    _disposeOwnedProjectRepository = handle.dispose;
+    _projectRepository = handle.repository;
+    return handle.repository;
+  }
+
+  String _createProjectId() {
+    return 'project_${_now().microsecondsSinceEpoch}';
+  }
+
+  String _projectNameFromPath(String path) {
+    final slashIndex = path.lastIndexOf('/');
+    final backslashIndex = path.lastIndexOf(r'\');
+    final separatorIndex =
+        slashIndex > backslashIndex ? slashIndex : backslashIndex;
+    final fileName = path.substring(separatorIndex + 1);
+    final dotIndex = fileName.lastIndexOf('.');
+    final baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+    final trimmed = baseName.trim();
+    return trimmed.isEmpty ? 'Untitled' : trimmed;
   }
 
   void printLogs() {
@@ -479,6 +659,7 @@ class EditorViewModel extends ChangeNotifier {
     _pendingEdits = null;
     _pendingAiHistoryEntry = null;
     _manualEditBeforeState = null;
+    unawaited(_persistCurrentProjectStateBestEffort());
     unawaited(() async {
       await _setProcessedFrame(_originalFrame!);
       notifyListeners();
@@ -570,6 +751,7 @@ class EditorViewModel extends ChangeNotifier {
         label: _basicEditHistoryLabel(edit),
         source: EditorEditSource.manual,
       );
+      await _persistCurrentProjectStateBestEffort();
     }
     _isProcessing = false;
     notifyListeners();
@@ -594,6 +776,7 @@ class EditorViewModel extends ChangeNotifier {
         label: _colorEditHistoryLabel(before, colorEdit),
         source: EditorEditSource.manual,
       );
+      await _persistCurrentProjectStateBestEffort();
     }
     _isProcessing = false;
     notifyListeners();
@@ -618,6 +801,7 @@ class EditorViewModel extends ChangeNotifier {
         label: _colorGradingEditHistoryLabel(before, edit),
         source: EditorEditSource.manual,
       );
+      await _persistCurrentProjectStateBestEffort();
     }
     _isProcessing = false;
     notifyListeners();
@@ -640,6 +824,28 @@ class EditorViewModel extends ChangeNotifier {
       label: label,
       source: source,
     ));
+  }
+
+  Future<void> _persistCurrentProjectStateBestEffort() async {
+    final project = _currentProject;
+    if (project == null || _photoEditingImage == null) return;
+
+    final state = _currentEditState();
+    final updatedAt = _now();
+    _currentProject = project.copyWith(
+      currentState: state,
+      updatedAt: updatedAt,
+    );
+
+    try {
+      await _projectRepositoryInstance.saveCurrentState(
+        projectId: project.id,
+        state: state,
+        updatedAt: updatedAt,
+      );
+    } catch (_) {
+      // Runtime editing should keep working even if persistence fails.
+    }
   }
 
   String _basicEditHistoryLabel(Edit edit) {
@@ -849,6 +1055,7 @@ class EditorViewModel extends ChangeNotifier {
 
   void applyPendingEdits() {
     _acceptPendingEditsForHistory();
+    unawaited(_persistCurrentProjectStateBestEffort());
     notifyListeners();
   }
 
@@ -923,6 +1130,7 @@ class EditorViewModel extends ChangeNotifier {
 
     final resultFrame = await _processAllEdits();
     await _setProcessedFrame(resultFrame);
+    await _persistCurrentProjectStateBestEffort();
 
     _isProcessing = false;
     notifyListeners();

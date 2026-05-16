@@ -14,6 +14,16 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   @override
   Future<List<EditorProject>> loadRecentProjects({int limit = 20}) async {
     final records = await _database.editorProjectsDao.loadRecentProjects(
+      status: EditorProjectStatus.saved.storageValue,
+      limit: limit,
+    );
+    return records.map((record) => record.toModel()).toList();
+  }
+
+  @override
+  Future<List<EditorProject>> loadRecoverableDrafts({int limit = 20}) async {
+    final records = await _database.editorProjectsDao.loadRecentProjects(
+      status: EditorProjectStatus.draft.storageValue,
       limit: limit,
     );
     return records.map((record) => record.toModel()).toList();
@@ -40,6 +50,22 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }) async {
     await _database.editorProjectsDao.updateCurrentState(
       id: projectId,
+      currentStateJson: state.toJsonString(),
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Future<void> promoteDraftToSaved({
+    required String projectId,
+    required String name,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  }) async {
+    await _database.editorProjectsDao.promoteDraftToSaved(
+      id: projectId,
+      name: name,
+      savedStatus: EditorProjectStatus.saved.storageValue,
       currentStateJson: state.toJsonString(),
       updatedAt: updatedAt,
     );
