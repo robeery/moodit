@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -961,17 +960,6 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   String _buildCurrentStateJson() {
-    final model = _photoEditingImage!;
-    return jsonEncode({
-      'edits': model.edits.where((e) => e.value != 0).map((e) => e.toJson()).toList(),
-      'colorEdits': model.colorEdits
-          .where((e) => !e.isEmpty)
-          .map((e) => e.toJson())
-          .toList(),
-      'colorGradingEdits': model.colorGradingEdits
-          .where((e) => !e.isEmpty)
-          .map((e) => e.toJson())
-          .toList(),
-    });
+    return _currentEditState().toJsonString(includeInactive: false);
   }
 }

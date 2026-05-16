@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'color_edit.dart';
 import 'color_grading_edit.dart';
 import 'edit.dart';
@@ -26,6 +28,27 @@ class EditorEditState {
     );
   }
 
+  factory EditorEditState.fromJson(Map<String, dynamic> json) {
+    return EditorEditState(
+      edits: _decodeList(json['edits'], Edit.fromJson),
+      colorEdits: _decodeList(json['colorEdits'], ColorEdit.fromJson),
+      colorGradingEdits: _decodeList(
+        json['colorGradingEdits'],
+        ColorGradingEdit.fromJson,
+      ),
+    );
+  }
+
+  factory EditorEditState.fromJsonString(String source) {
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) return EditorEditState.empty();
+      return EditorEditState.fromJson(Map<String, dynamic>.from(decoded));
+    } catch (_) {
+      return EditorEditState.empty();
+    }
+  }
+
   final List<Edit> edits;
   final List<ColorEdit> colorEdits;
   final List<ColorGradingEdit> colorGradingEdits;
@@ -46,6 +69,48 @@ class EditorEditState {
     image.colorGradingEdits
       ..clear()
       ..addAll(colorGradingEdits);
+  }
+
+  Map<String, dynamic> toJson({bool includeInactive = true}) {
+    return {
+      'edits': (includeInactive
+              ? edits
+              : edits.where((edit) => edit.value != 0))
+          .map((edit) => edit.toJson())
+          .toList(),
+      'colorEdits': (includeInactive
+              ? colorEdits
+              : colorEdits.where((edit) => !edit.isEmpty))
+          .map((edit) => edit.toJson())
+          .toList(),
+      'colorGradingEdits': (includeInactive
+              ? colorGradingEdits
+              : colorGradingEdits.where((edit) => !edit.isEmpty))
+          .map((edit) => edit.toJson())
+          .toList(),
+    };
+  }
+
+  String toJsonString({bool includeInactive = true}) {
+    return jsonEncode(toJson(includeInactive: includeInactive));
+  }
+
+  static List<T> _decodeList<T>(
+    Object? value,
+    T Function(Map<String, dynamic>) decode,
+  ) {
+    if (value is! List) return [];
+
+    final result = <T>[];
+    for (final item in value) {
+      if (item is! Map) continue;
+      try {
+        result.add(decode(Map<String, dynamic>.from(item)));
+      } catch (_) {
+        // Ignore malformed persisted entries and keep the rest of the state.
+      }
+    }
+    return result;
   }
 
   static bool _editListsEqual(List<Edit> a, List<Edit> b) {
