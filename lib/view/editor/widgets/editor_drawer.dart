@@ -5,7 +5,6 @@ import '../../../theme/app_theme.dart';
 import 'export_settings_dialog.dart';
 
 class EditorDrawer extends StatelessWidget {
-  final VoidCallback onPickImage;
   final VoidCallback onOpenAiSettings;
   final void Function(ExportOption) onExport;
   final ExportSettings exportSettings;
@@ -13,7 +12,6 @@ class EditorDrawer extends StatelessWidget {
 
   const EditorDrawer({
     super.key,
-    required this.onPickImage,
     required this.onOpenAiSettings,
     required this.onExport,
     required this.exportSettings,
@@ -41,17 +39,6 @@ class EditorDrawer extends StatelessWidget {
               ),
             ),
             const Divider(color: AppColors.muted, height: 1),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: AppColors.accent, size: 20),
-              title: const Text(
-                'OPEN NEW PICTURE',
-                style: TextStyle(color: AppColors.accent, fontSize: 11, letterSpacing: 2),
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                onPickImage();
-              },
-            ),
             ListTile(
               leading: const Icon(Icons.tune, color: AppColors.accent, size: 20),
               title: const Text(

@@ -1,7 +1,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'view/editor/editor_screen.dart';
+import 'viewmodel/home_viewmodel.dart';
+import 'view/home/home_screen.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: '.env');
@@ -9,7 +10,12 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+    this.homeViewModel,
+  });
+
+  final HomeViewModel? homeViewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +25,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const EditorScreen(),
+      home: HomeScreen(viewModel: homeViewModel),
     );
   }
 }

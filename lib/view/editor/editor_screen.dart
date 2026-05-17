@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../model/editor_version.dart';
 import '../../model/export_option.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
 import '../settings/ai_settings_screen.dart';
-import 'widgets/empty_state.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/history_action_bar.dart';
 import 'widgets/pending_edits_bar.dart';
@@ -22,15 +20,23 @@ import 'panels/chat_panel.dart';
 import 'widgets/mode_tab_bar.dart';
 
 class EditorScreen extends StatefulWidget {
-  const EditorScreen({super.key});
+  const EditorScreen({
+    super.key,
+    this.importImagePath,
+    this.projectId,
+  }) : assert(importImagePath == null || projectId == null);
+
+  final String? importImagePath;
+  final int? projectId;
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
 class _EditorScreenState extends State<EditorScreen> {
+  static const Duration _initialLoadDelay = Duration(milliseconds: 320);
+
   final EditorViewModel _vm = EditorViewModel();
-  final ImagePicker _picker = ImagePicker();
   bool _savedBannerVisible = false;
   bool _savedBannerOpaque = false;
   bool _historyActionVisible = false;
@@ -44,6 +50,25 @@ class _EditorScreenState extends State<EditorScreen> {
   void initState() {
     super.initState();
     _vm.addListener(_onVmChanged); // temporary benchmark
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startInitialLoad());
+    });
+  }
+
+  Future<void> _startInitialLoad() async {
+    await Future<void>.delayed(_initialLoadDelay);
+    if (!mounted) return;
+
+    final importImagePath = widget.importImagePath;
+    if (importImagePath != null) {
+      await _importInitialImage(importImagePath);
+      return;
+    }
+
+    final projectId = widget.projectId;
+    if (projectId != null) {
+      await _loadInitialProject(projectId);
+    }
   }
 
   void _onVmChanged() { // temporary benchmark
@@ -62,14 +87,36 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-    );
-
-    if (pickedFile != null) {
-      await _vm.importImageAsProject(pickedFile.path);
+  Future<void> _importInitialImage(String imagePath) async {
+    try {
+      await _vm.importImageAsProject(imagePath);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Could not import photo.'),
+          backgroundColor: Colors.red.shade900,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
+  }
+
+  Future<void> _loadInitialProject(int projectId) async {
+    try {
+      final loaded = await _vm.loadProject(projectId);
+      if (loaded || !mounted) return;
+    } catch (_) {
+      if (!mounted) return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Could not open project.'),
+        backgroundColor: Colors.red.shade900,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -89,7 +136,6 @@ class _EditorScreenState extends State<EditorScreen> {
         return Scaffold(
           backgroundColor: AppColors.bg,
           endDrawer: EditorDrawer(
-            onPickImage: _pickImage,
             onOpenAiSettings: _openAiSettings,
             onExport: _handleExport,
             exportSettings: _vm.exportSettings,
@@ -98,6 +144,7 @@ class _EditorScreenState extends State<EditorScreen> {
           appBar: AppBar(
             backgroundColor: AppColors.bg,
             elevation: 0,
+            iconTheme: const IconThemeData(color: AppColors.highlight),
             title: const Text('EDIT', style: AppTextStyles.screenTitle),
             centerTitle: true,
             actions: [
@@ -109,11 +156,33 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
-          body: !_vm.hasImage
-              ? EmptyState(onPickImage: _pickImage)
-              : _buildEditor(),
+          body: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: _vm.hasImage
+                ? KeyedSubtree(
+                    key: const ValueKey('editor'),
+                    child: _buildEditor(),
+                  )
+                : KeyedSubtree(
+                    key: const ValueKey('editor-loading'),
+                    child: _buildLoadingState(),
+                  ),
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColors.muted,
+        ),
+      ),
     );
   }
 
