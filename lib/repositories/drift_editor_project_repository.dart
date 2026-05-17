@@ -30,21 +30,22 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
-  Future<EditorProject?> loadProject(String id) async {
+  Future<EditorProject?> loadProject(int id) async {
     final record = await _database.editorProjectsDao.findById(id);
     return record?.toModel();
   }
 
   @override
-  Future<void> saveProject(EditorProject project) {
-    return _database.editorProjectsDao.upsertProject(
+  Future<EditorProject> saveProject(EditorProject project) async {
+    final id = await _database.editorProjectsDao.upsertProject(
       project.toRecordCompanion(),
     );
+    return project.copyWith(id: project.id > 0 ? project.id : id);
   }
 
   @override
   Future<void> saveCurrentState({
-    required String projectId,
+    required int projectId,
     required EditorEditState state,
     required DateTime updatedAt,
   }) async {
@@ -56,8 +57,23 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
+  Future<void> setActiveVersion({
+    required int projectId,
+    required String? versionId,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  }) async {
+    await _database.editorProjectsDao.updateActiveVersion(
+      id: projectId,
+      activeVersionId: versionId,
+      currentStateJson: state.toJsonString(),
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
   Future<void> promoteDraftToSaved({
-    required String projectId,
+    required int projectId,
     required String name,
     required EditorEditState state,
     required DateTime updatedAt,
@@ -73,7 +89,7 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
 
   @override
   Future<void> markProjectOpened({
-    required String projectId,
+    required int projectId,
     required DateTime openedAt,
   }) async {
     await _database.editorProjectsDao.markOpened(
@@ -83,12 +99,12 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
-  Future<void> deleteProject(String id) async {
+  Future<void> deleteProject(int id) async {
     await _database.editorProjectsDao.deleteProject(id);
   }
 
   @override
-  Future<List<EditorVersion>> loadVersions(String projectId) async {
+  Future<List<EditorVersion>> loadVersions(int projectId) async {
     final records = await _database.editorVersionsDao.loadForProject(projectId);
     return records.map((record) => record.toModel()).toList();
   }

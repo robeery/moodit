@@ -4,9 +4,10 @@ class EditorProjectRecords extends Table {
   @override
   String get tableName => 'editor_projects';
 
-  TextColumn get id => text()();
+  IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   TextColumn get status => text().withDefault(const Constant('draft'))();
+  TextColumn get activeVersionId => text().nullable()();
   TextColumn get originalImagePath => text()();
   TextColumn get previewImagePath => text().nullable()();
   TextColumn get currentStateJson => text()();
@@ -18,6 +19,4 @@ class EditorProjectRecords extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();
 
-  @override
-  Set<Column<Object>> get primaryKey => {id};
 }

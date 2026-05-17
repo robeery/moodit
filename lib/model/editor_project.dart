@@ -18,7 +18,7 @@ enum EditorProjectStatus {
 
 class EditorProject {
   const EditorProject({
-    required this.id,
+    this.id = 0,
     required this.name,
     required this.originalImagePath,
     required this.currentState,
@@ -29,13 +29,15 @@ class EditorProject {
     required this.createdAt,
     required this.updatedAt,
     this.status = EditorProjectStatus.draft,
+    this.activeVersionId,
     this.previewImagePath,
     this.lastOpenedAt,
   });
 
-  final String id;
+  final int id;
   final String name;
   final EditorProjectStatus status;
+  final String? activeVersionId;
   final String originalImagePath;
   final String? previewImagePath;
   final EditorEditState currentState;
@@ -48,9 +50,10 @@ class EditorProject {
   final DateTime? lastOpenedAt;
 
   EditorProject copyWith({
-    String? id,
+    int? id,
     String? name,
     EditorProjectStatus? status,
+    Object? activeVersionId = _sentinel,
     String? originalImagePath,
     Object? previewImagePath = _sentinel,
     EditorEditState? currentState,
@@ -66,6 +69,9 @@ class EditorProject {
       id: id ?? this.id,
       name: name ?? this.name,
       status: status ?? this.status,
+      activeVersionId: identical(activeVersionId, _sentinel)
+          ? this.activeVersionId
+          : activeVersionId as String?,
       originalImagePath: originalImagePath ?? this.originalImagePath,
       previewImagePath: identical(previewImagePath, _sentinel)
           ? this.previewImagePath

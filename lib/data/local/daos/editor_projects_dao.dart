@@ -19,19 +19,19 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     return query.get();
   }
 
-  Future<EditorProjectRecord?> findById(String id) {
+  Future<EditorProjectRecord?> findById(int id) {
     final query = select(editorProjectRecords)
       ..where((table) => table.id.equals(id));
 
     return query.getSingleOrNull();
   }
 
-  Future<void> upsertProject(EditorProjectRecordsCompanion project) {
+  Future<int> upsertProject(EditorProjectRecordsCompanion project) {
     return into(editorProjectRecords).insertOnConflictUpdate(project);
   }
 
   Future<int> updateCurrentState({
-    required String id,
+    required int id,
     required String currentStateJson,
     required DateTime updatedAt,
   }) {
@@ -44,8 +44,24 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     ));
   }
 
+  Future<int> updateActiveVersion({
+    required int id,
+    required String? activeVersionId,
+    required String currentStateJson,
+    required DateTime updatedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      activeVersionId: Value(activeVersionId),
+      currentStateJson: Value(currentStateJson),
+      updatedAt: Value(updatedAt),
+    ));
+  }
+
   Future<int> markOpened({
-    required String id,
+    required int id,
     required DateTime openedAt,
   }) {
     final query = update(editorProjectRecords)
@@ -57,7 +73,7 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<int> promoteDraftToSaved({
-    required String id,
+    required int id,
     required String name,
     required String savedStatus,
     required String currentStateJson,
@@ -74,7 +90,7 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     ));
   }
 
-  Future<int> deleteProject(String id) {
+  Future<int> deleteProject(int id) {
     final query = delete(editorProjectRecords)
       ..where((table) => table.id.equals(id));
 

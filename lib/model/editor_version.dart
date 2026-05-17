@@ -1,4 +1,5 @@
 import 'editor_edit_state.dart';
+import 'editor_history_snapshot.dart';
 
 class EditorVersion {
   const EditorVersion({
@@ -8,22 +9,31 @@ class EditorVersion {
     required this.state,
     required this.sortOrder,
     required this.createdAt,
+    this.history = const EditorHistorySnapshot(
+      undoEntries: [],
+      redoEntries: [],
+    ),
+    this.parentVersionId,
     this.thumbnailPath,
   });
 
   final String id;
-  final String projectId;
+  final int projectId;
   final String name;
+  final String? parentVersionId;
   final EditorEditState state;
+  final EditorHistorySnapshot history;
   final String? thumbnailPath;
   final int sortOrder;
   final DateTime createdAt;
 
   EditorVersion copyWith({
     String? id,
-    String? projectId,
+    int? projectId,
     String? name,
+    Object? parentVersionId = _sentinel,
     EditorEditState? state,
+    EditorHistorySnapshot? history,
     Object? thumbnailPath = _sentinel,
     int? sortOrder,
     DateTime? createdAt,
@@ -32,7 +42,11 @@ class EditorVersion {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       name: name ?? this.name,
+      parentVersionId: identical(parentVersionId, _sentinel)
+          ? this.parentVersionId
+          : parentVersionId as String?,
       state: state ?? this.state,
+      history: history ?? this.history,
       thumbnailPath: identical(thumbnailPath, _sentinel)
           ? this.thumbnailPath
           : thumbnailPath as String?,

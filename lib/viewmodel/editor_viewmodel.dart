@@ -11,6 +11,7 @@ import '../model/editor_edit_source.dart';
 import '../model/editor_edit_state.dart';
 import '../model/editor_history_entry.dart';
 import '../model/editor_project.dart';
+import '../model/editor_version.dart';
 import '../model/photo_editing_image.dart';
 import '../model/rgba_image_frame.dart';
 import '../model/history_action_result.dart';
@@ -33,6 +34,9 @@ import '../repositories/editor_project_repository_factory.dart';
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
 class EditorViewModel extends ChangeNotifier {
+  static const String _projectHistoryKey = '__project__';
+  static const int versionNameMaxLength = 32;
+
   final Map<String, AiProvider Function(String? apiKey)> _providerFactories = {
     AiProfileSettings.geminiProviderId: (apiKey) => GeminiProvider(apiKey: apiKey),
   };
@@ -67,10 +71,13 @@ class EditorViewModel extends ChangeNotifier {
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   EditorProject? _currentProject;
+  List<EditorVersion> _versions = [];
+  String? _activeVersionId;
   ParsedEdits? _pendingEdits;
   EditorHistoryEntry? _pendingAiHistoryEntry;
   RgbaImageFrame? _snapshotProcessedFrame;
-  final EditorHistory _history = EditorHistory();
+  final Map<String, EditorHistory> _versionHistories = {};
+  EditorHistory _history = EditorHistory();
   EditorEditState? _manualEditBeforeState;
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
@@ -292,6 +299,22 @@ class EditorViewModel extends ChangeNotifier {
       _processedPreviewImage != null && _originalPreviewImage != null;
   PhotoEditingImage? getModel() => _photoEditingImage;
   EditorProject? get currentProject => _currentProject;
+  List<EditorVersion> get versions => List.unmodifiable(_versions);
+  EditorVersion? get activeVersion => _activeVersion();
+  bool get canUseVersions =>
+      _currentProject != null &&
+      _currentProject!.id > 0 &&
+      _pendingEdits == null &&
+      !_isProcessing &&
+      !_isWaitingForAi;
+  String get defaultVersionName => 'Version ${_nextVersionSortOrder()}';
+  String get defaultProjectName {
+    final project = _currentProject;
+    if (project == null) return 'Project';
+    if (project.status == EditorProjectStatus.saved) return project.name;
+    if (project.id > 0) return 'Project ${project.id}';
+    return 'Project';
+  }
   ui.Image? get processedImage => _processedPreviewImage;
   ui.Image? get originalPreviewImage => _originalPreviewImage;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
@@ -421,15 +444,18 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> importImageAsProject(String sourceImagePath) async {
-    final projectId = _createProjectId();
+    final importFolderId = _createTemporaryProjectFolderId();
     _currentProject = null;
+    _versions = [];
+    _activeVersionId = null;
+    _resetVersionHistories();
     _isProcessing = true;
     notifyListeners();
 
     try {
       final storedOriginal = await _projectFileStore.copyOriginalImage(
         sourcePath: sourceImagePath,
-        projectId: projectId,
+        projectId: importFolderId,
       );
       final imageInfo = await _previewImageDecoder.readImageInfo(
         storedOriginal.path,
@@ -443,7 +469,6 @@ class EditorViewModel extends ChangeNotifier {
       final previewFrame = _originalFrame!;
       final createdAt = _now();
       final project = EditorProject(
-        id: projectId,
         name: _projectNameFromPath(sourceImagePath),
         status: EditorProjectStatus.draft,
         originalImagePath: storedOriginal.path,
@@ -457,8 +482,28 @@ class EditorViewModel extends ChangeNotifier {
         lastOpenedAt: createdAt,
       );
 
-      _currentProject = project;
-      await _saveProjectBestEffort(project);
+      var savedProject = await _saveProjectBestEffort(project);
+      if (savedProject.id > 0) {
+        await _projectFileStore.deleteProjectFiles(savedProject.id.toString());
+        final finalOriginal = await _projectFileStore.moveOriginalImage(
+          sourcePath: storedOriginal.path,
+          projectId: savedProject.id.toString(),
+        );
+        unawaited(_projectFileStore.deleteProjectFiles(importFolderId));
+        savedProject = savedProject.copyWith(
+          originalImagePath: finalOriginal.path,
+        );
+        _photoEditingImage = PhotoEditingImage(
+          originalBytes: _photoEditingImage!.originalBytes,
+          originalImagePath: finalOriginal.path,
+        );
+        savedProject = await _saveProjectBestEffort(savedProject);
+      }
+
+      _currentProject = savedProject;
+      if (savedProject.id > 0) {
+        await _createInitialVersionBestEffort(savedProject);
+      }
     } finally {
       _isProcessing = false;
       notifyListeners();
@@ -467,11 +512,17 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<void> loadImageFromPath(String originalImagePath) async {
     _currentProject = null;
+    _versions = [];
+    _activeVersionId = null;
+    _resetVersionHistories();
     await _loadImageFromPath(originalImagePath);
   }
 
-  Future<bool> loadProject(String projectId) async {
+  Future<bool> loadProject(int projectId) async {
     _currentProject = null;
+    _versions = [];
+    _activeVersionId = null;
+    _resetVersionHistories();
     _isProcessing = true;
     notifyListeners();
 
@@ -484,12 +535,48 @@ class EditorViewModel extends ChangeNotifier {
         manageProcessingState: false,
       );
 
-      project.currentState.applyTo(_photoEditingImage!);
+      var versions = await _projectRepositoryInstance.loadVersions(project.id);
+      var activeVersion = _resolveActiveVersion(
+        project.activeVersionId,
+        versions,
+      );
+      if (activeVersion == null && versions.isEmpty) {
+        activeVersion = _createVersion(
+          project: project,
+          sortOrder: 1,
+          name: 'Version 1',
+          parentVersionId: null,
+          state: project.currentState,
+          history: EditorHistory(),
+        );
+        versions = [activeVersion];
+        await _saveVersionBestEffort(activeVersion);
+      }
+
+      final restoredState = activeVersion?.state ?? project.currentState;
+      restoredState.applyTo(_photoEditingImage!);
       final resultFrame = await _processAllEdits();
       await _setProcessedFrame(resultFrame);
 
       final openedAt = _now();
-      _currentProject = project.copyWith(lastOpenedAt: openedAt);
+      _versions = versions;
+      _currentProject = project.copyWith(
+        activeVersionId: activeVersion?.id,
+        currentState: restoredState,
+        lastOpenedAt: openedAt,
+      );
+      if (activeVersion != null) {
+        _activateVersionHistory(
+          activeVersion.id,
+          history: EditorHistory.fromSnapshot(activeVersion.history),
+        );
+        await _setActiveVersionBestEffort(
+          projectId: project.id,
+          versionId: activeVersion.id,
+          state: restoredState,
+          updatedAt: openedAt,
+        );
+      }
       await _markProjectOpenedBestEffort(project.id, openedAt);
       return true;
     } finally {
@@ -501,7 +588,10 @@ class EditorViewModel extends ChangeNotifier {
   Future<bool> saveCurrentDraftAsProject(String name) async {
     final project = _currentProject;
     final trimmedName = name.trim();
-    if (project == null || _photoEditingImage == null || trimmedName.isEmpty) {
+    if (project == null ||
+        project.id <= 0 ||
+        _photoEditingImage == null ||
+        trimmedName.isEmpty) {
       return false;
     }
 
@@ -522,6 +612,162 @@ class EditorViewModel extends ChangeNotifier {
     );
     notifyListeners();
     return true;
+  }
+
+  Future<EditorVersion?> saveCurrentVersion({String? name}) async {
+    final project = _currentProject;
+    if (project == null ||
+        project.id <= 0 ||
+        _photoEditingImage == null ||
+        _pendingEdits != null ||
+        _isProcessing ||
+        _isWaitingForAi) {
+      return null;
+    }
+
+    await _persistCurrentProjectStateBestEffort();
+
+    final sortOrder = _nextVersionSortOrder();
+    final version = _createVersion(
+      project: project,
+      sortOrder: sortOrder,
+      name: _normalizeVersionName(name, sortOrder),
+      parentVersionId: _activeVersionId,
+      state: _currentEditState(),
+      history: EditorHistory.copyOf(_history),
+    );
+
+    await _projectRepositoryInstance.saveVersion(version);
+    _versions = [..._versions, version];
+    _activateVersionHistory(
+      version.id,
+      history: EditorHistory.copyOf(_history),
+    );
+    final updatedAt = _now();
+    _currentProject = (_currentProject ?? project).copyWith(
+      activeVersionId: version.id,
+      currentState: version.state,
+      updatedAt: updatedAt,
+    );
+    await _setActiveVersionBestEffort(
+      projectId: project.id,
+      versionId: version.id,
+      state: version.state,
+      updatedAt: updatedAt,
+    );
+    notifyListeners();
+    return version;
+  }
+
+  Future<EditorVersion?> renameVersion(String versionId, String name) async {
+    if (_pendingEdits != null || _isProcessing || _isWaitingForAi) {
+      return null;
+    }
+
+    final trimmedName = _trimVersionName(name);
+    if (trimmedName.isEmpty) return null;
+
+    await _persistCurrentProjectStateBestEffort();
+
+    final version = _versions.where((item) => item.id == versionId).firstOrNull;
+    if (version == null) return null;
+
+    final updatedVersion = version.copyWith(name: trimmedName);
+    try {
+      await _projectRepositoryInstance.saveVersion(updatedVersion);
+    } catch (_) {
+      return null;
+    }
+
+    _replaceVersion(updatedVersion);
+    notifyListeners();
+    return updatedVersion;
+  }
+
+  Future<bool> deleteVersion(String versionId) async {
+    if (_photoEditingImage == null ||
+        _pendingEdits != null ||
+        _isProcessing ||
+        _isWaitingForAi ||
+        _versions.length <= 1) {
+      return false;
+    }
+
+    final deleteIndex = _versions.indexWhere((version) => version.id == versionId);
+    if (deleteIndex == -1) return false;
+
+    final isActive = versionId == _activeVersionId;
+    final fallbackVersion = isActive ? _fallbackVersionAfterDelete(deleteIndex) : null;
+    if (isActive) {
+      if (fallbackVersion == null) return false;
+      final switched = await switchToVersion(fallbackVersion.id);
+      if (switched == null) return false;
+    }
+
+    try {
+      await _projectRepositoryInstance.deleteVersion(versionId);
+    } catch (_) {
+      return false;
+    }
+
+    _versions = [
+      for (final version in _versions)
+        if (version.id != versionId) version,
+    ];
+    _versionHistories.remove(_historyKeyForVersion(versionId));
+    notifyListeners();
+    return true;
+  }
+
+  Future<HistoryActionResult?> switchToVersion(String versionId) async {
+    if (_photoEditingImage == null ||
+        _pendingEdits != null ||
+        _isProcessing ||
+        _isWaitingForAi) {
+      return null;
+    }
+    if (versionId == _activeVersionId) {
+      final active = _activeVersion();
+      return active == null ? null : HistoryActionResult(label: active.name);
+    }
+
+    await _persistCurrentProjectStateBestEffort();
+
+    final version = _versions.where((item) => item.id == versionId).firstOrNull;
+    if (version == null) return null;
+
+    version.state.applyTo(_photoEditingImage!);
+    _activateVersionHistory(
+      version.id,
+      history: _versionHistories[version.id] ??
+          EditorHistory.fromSnapshot(version.history),
+    );
+
+    _isProcessing = true;
+    notifyListeners();
+
+    final resultFrame = await _processAllEdits();
+    await _setProcessedFrame(resultFrame);
+
+    final project = _currentProject;
+    final updatedAt = _now();
+    if (project != null && project.id > 0) {
+      _currentProject = project.copyWith(
+        activeVersionId: version.id,
+        currentState: version.state,
+        updatedAt: updatedAt,
+      );
+      await _setActiveVersionBestEffort(
+        projectId: project.id,
+        versionId: version.id,
+        state: version.state,
+        updatedAt: updatedAt,
+      );
+    }
+
+    _isProcessing = false;
+    notifyListeners();
+    return HistoryActionResult(label: version.name);
   }
 
   Future<void> _loadImageFromPath(
@@ -563,16 +809,17 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveProjectBestEffort(EditorProject project) async {
+  Future<EditorProject> _saveProjectBestEffort(EditorProject project) async {
     try {
-      await _projectRepositoryInstance.saveProject(project);
+      return await _projectRepositoryInstance.saveProject(project);
     } catch (_) {
       // The editor can still use the imported image in memory.
+      return project;
     }
   }
 
   Future<void> _markProjectOpenedBestEffort(
-    String projectId,
+    int projectId,
     DateTime openedAt,
   ) async {
     try {
@@ -595,8 +842,165 @@ class EditorViewModel extends ChangeNotifier {
     return handle.repository;
   }
 
-  String _createProjectId() {
-    return 'project_${_now().microsecondsSinceEpoch}';
+  String _createTemporaryProjectFolderId() {
+    return 'import_${_now().microsecondsSinceEpoch}';
+  }
+
+  String _createVersionId(int projectId, int sortOrder) {
+    return 'version_${projectId}_${sortOrder}_${_now().microsecondsSinceEpoch}';
+  }
+
+  int _nextVersionSortOrder() {
+    var maxSortOrder = 0;
+    for (final version in _versions) {
+      if (version.sortOrder > maxSortOrder) {
+        maxSortOrder = version.sortOrder;
+      }
+    }
+    return maxSortOrder + 1;
+  }
+
+  EditorVersion _createVersion({
+    required EditorProject project,
+    required int sortOrder,
+    required String name,
+    required String? parentVersionId,
+    required EditorEditState state,
+    required EditorHistory history,
+  }) {
+    return EditorVersion(
+      id: _createVersionId(project.id, sortOrder),
+      projectId: project.id,
+      name: name,
+      parentVersionId: parentVersionId,
+      state: state,
+      history: history.toSnapshot(),
+      sortOrder: sortOrder,
+      createdAt: _now(),
+    );
+  }
+
+  String _normalizeVersionName(String? name, int sortOrder) {
+    final trimmed = _trimVersionName(name);
+    if (trimmed.isEmpty) return 'Version $sortOrder';
+    return trimmed;
+  }
+
+  String _trimVersionName(String? name) {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.length <= versionNameMaxLength) return trimmed;
+    return trimmed.substring(0, versionNameMaxLength);
+  }
+
+  Future<void> _createInitialVersionBestEffort(EditorProject project) async {
+    final version = _createVersion(
+      project: project,
+      sortOrder: 1,
+      name: 'Version 1',
+      parentVersionId: null,
+      state: _currentEditState(),
+      history: _history,
+    );
+    await _saveVersionBestEffort(version);
+    _versions = [version];
+    _activateVersionHistory(
+      version.id,
+      history: EditorHistory.fromSnapshot(version.history),
+    );
+    final updatedAt = _now();
+    _currentProject = project.copyWith(
+      activeVersionId: version.id,
+      currentState: version.state,
+      updatedAt: updatedAt,
+    );
+    await _setActiveVersionBestEffort(
+      projectId: project.id,
+      versionId: version.id,
+      state: version.state,
+      updatedAt: updatedAt,
+    );
+  }
+
+  Future<void> _saveVersionBestEffort(EditorVersion version) async {
+    try {
+      await _projectRepositoryInstance.saveVersion(version);
+    } catch (_) {
+      // Version persistence should not block the editor from using the image.
+    }
+  }
+
+  Future<void> _setActiveVersionBestEffort({
+    required int projectId,
+    required String? versionId,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  }) async {
+    try {
+      await _projectRepositoryInstance.setActiveVersion(
+        projectId: projectId,
+        versionId: versionId,
+        state: state,
+        updatedAt: updatedAt,
+      );
+    } catch (_) {
+      // The in-memory editor state remains valid if metadata persistence fails.
+    }
+  }
+
+  EditorVersion? _resolveActiveVersion(
+    String? activeVersionId,
+    List<EditorVersion> versions,
+  ) {
+    if (versions.isEmpty) return null;
+    if (activeVersionId != null) {
+      final active = versions
+          .where((version) => version.id == activeVersionId)
+          .firstOrNull;
+      if (active != null) return active;
+    }
+    return versions.first;
+  }
+
+  String _historyKeyForVersion(String? versionId) {
+    return versionId ?? _projectHistoryKey;
+  }
+
+  void _resetVersionHistories() {
+    _history = EditorHistory();
+    _versionHistories
+      ..clear()
+      ..[_projectHistoryKey] = _history;
+  }
+
+  void _activateVersionHistory(String? versionId, {EditorHistory? history}) {
+    _versionHistories[_historyKeyForVersion(_activeVersionId)] = _history;
+    final key = _historyKeyForVersion(versionId);
+    if (history != null) {
+      _versionHistories[key] = history;
+    } else if (!_versionHistories.containsKey(key)) {
+      _versionHistories[key] = EditorHistory();
+    }
+    _activeVersionId = versionId;
+    _history = _versionHistories[key]!;
+  }
+
+  EditorVersion? _activeVersion() {
+    final versionId = _activeVersionId;
+    if (versionId == null) return null;
+    return _versions.where((version) => version.id == versionId).firstOrNull;
+  }
+
+  EditorVersion? _fallbackVersionAfterDelete(int deleteIndex) {
+    if (_versions.length <= 1) return null;
+    if (deleteIndex > 0) return _versions[deleteIndex - 1];
+    return _versions[1];
+  }
+
+  void _replaceVersion(EditorVersion updatedVersion) {
+    _versions = [
+      for (final version in _versions)
+        if (version.id == updatedVersion.id) updatedVersion else version,
+    ];
   }
 
   String _projectNameFromPath(String path) {
@@ -828,21 +1232,40 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<void> _persistCurrentProjectStateBestEffort() async {
     final project = _currentProject;
-    if (project == null || _photoEditingImage == null) return;
+    if (project == null || project.id <= 0 || _photoEditingImage == null) {
+      return;
+    }
 
     final state = _currentEditState();
     final updatedAt = _now();
     _currentProject = project.copyWith(
+      activeVersionId: _activeVersionId,
       currentState: state,
       updatedAt: updatedAt,
     );
 
     try {
-      await _projectRepositoryInstance.saveCurrentState(
-        projectId: project.id,
-        state: state,
-        updatedAt: updatedAt,
-      );
+      final activeVersion = _activeVersion();
+      if (activeVersion != null) {
+        final updatedVersion = activeVersion.copyWith(
+          state: state,
+          history: _history.toSnapshot(),
+        );
+        _replaceVersion(updatedVersion);
+        await _projectRepositoryInstance.saveVersion(updatedVersion);
+        await _projectRepositoryInstance.setActiveVersion(
+          projectId: project.id,
+          versionId: updatedVersion.id,
+          state: state,
+          updatedAt: updatedAt,
+        );
+      } else {
+        await _projectRepositoryInstance.saveCurrentState(
+          projectId: project.id,
+          state: state,
+          updatedAt: updatedAt,
+        );
+      }
     } catch (_) {
       // Runtime editing should keep working even if persistence fails.
     }

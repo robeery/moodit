@@ -92,7 +92,8 @@ void main() {
 
     final project = vm.currentProject;
     expect(project, isNotNull);
-    expect(project!.name, 'source');
+    expect(project!.id, 1);
+    expect(project.name, 'source');
     expect(project.status, EditorProjectStatus.draft);
     expect(project.originalImagePath, isNot(sourceFile.path));
     expect(project.originalImagePath, vm.originalImagePath);
@@ -104,6 +105,10 @@ void main() {
     expect(repository.savedProjects.single.originalImagePath,
         project.originalImagePath);
     expect(repository.savedProjects.single.status, EditorProjectStatus.draft);
+    expect(vm.versions, hasLength(1));
+    expect(vm.activeVersion?.name, 'Version 1');
+    expect(vm.currentProject?.activeVersionId, vm.activeVersion?.id);
+    expect(repository.savedVersions.single.name, 'Version 1');
     expect(
       repository.savedProjects.single.currentState
           .contentEquals(EditorEditState.empty()),
@@ -114,10 +119,11 @@ void main() {
     vm.updateEditPreview(Edit(type: OperationType.brightness, value: 30));
     await vm.applyEdit(Edit(type: OperationType.brightness, value: 30));
 
-    expect(repository.savedStates.single.projectId, project.id);
-    expect(repository.savedStates.single.state.edits.single.type,
+    expect(repository.savedVersions.single.projectId, project.id);
+    expect(repository.savedVersions.single.state.edits.single.type,
         OperationType.brightness);
-    expect(repository.savedStates.single.state.edits.single.value, 30);
+    expect(repository.savedVersions.single.state.edits.single.value, 30);
+    expect(repository.savedProjects.single.currentState.edits.single.value, 30);
 
     final saved = await vm.saveCurrentDraftAsProject('Portrait edit');
 
@@ -148,7 +154,7 @@ void main() {
     final openedAt = DateTime.utc(2026, 5, 16, 12);
     final repository = _FakeEditorProjectRepository();
     repository.savedProjects.add(EditorProject(
-      id: 'project_1',
+      id: 1,
       name: 'Loaded project',
       status: EditorProjectStatus.saved,
       originalImagePath: sourceFile.path,
@@ -173,15 +179,134 @@ void main() {
     );
     addTearDown(vm.dispose);
 
-    final loaded = await vm.loadProject('project_1');
+    final loaded = await vm.loadProject(1);
 
     expect(loaded, isTrue);
-    expect(vm.currentProject?.id, 'project_1');
+    expect(vm.currentProject?.id, 1);
     expect(vm.currentProject?.lastOpenedAt, openedAt);
     expect(vm.originalImagePath, sourceFile.path);
     expect(vm.getEditValue(OperationType.brightness), 30);
-    expect(repository.openedProjects.single.projectId, 'project_1');
+    expect(repository.openedProjects.single.projectId, 1);
     expect(repository.openedProjects.single.openedAt, openedAt);
+  });
+
+  test('versions clone and preserve independent undo and redo stacks', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final repository = _FakeEditorProjectRepository();
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+      now: () => DateTime.utc(2026, 5, 16, 12),
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    final version1 = vm.activeVersion;
+
+    expect(version1, isNotNull);
+    expect(version1!.name, 'Version 1');
+
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.brightness, value: 30));
+    await vm.applyEdit(Edit(type: OperationType.brightness, value: 30));
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.contrast, value: 10));
+    await vm.applyEdit(Edit(type: OperationType.contrast, value: 10));
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.exposure, value: 5));
+    await vm.applyEdit(Edit(type: OperationType.exposure, value: 5));
+
+    final v1Undo = await vm.undo();
+
+    expect(v1Undo?.label, 'Exposure +5');
+    expect(vm.getEditValue(OperationType.brightness), 30);
+    expect(vm.getEditValue(OperationType.contrast), 10);
+    expect(vm.getEditValue(OperationType.exposure), 0);
+    expect(vm.canRedo, isTrue);
+
+    final version2 = await vm.saveCurrentVersion(name: 'Client option');
+
+    expect(version2, isNotNull);
+    expect(version2!.projectId, 1);
+    expect(version2.name, 'Client option');
+    expect(version2.parentVersionId, version1.id);
+    expect(vm.activeVersion?.id, version2.id);
+    expect(vm.canRedo, isTrue);
+
+    final renamedVersion2 = await vm.renameVersion(
+      version2.id,
+      'Client option with a name longer than thirty two characters',
+    );
+
+    expect(renamedVersion2, isNotNull);
+    expect(renamedVersion2!.name.length, EditorViewModel.versionNameMaxLength);
+    expect(vm.activeVersion?.name, renamedVersion2.name);
+
+    final v2Redo = await vm.redo();
+
+    expect(v2Redo?.label, 'Exposure +5');
+    expect(vm.getEditValue(OperationType.exposure), 5);
+
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.saturation, value: 20));
+    await vm.applyEdit(Edit(type: OperationType.saturation, value: 20));
+
+    final switchToVersion1 = await vm.switchToVersion(version1.id);
+
+    expect(switchToVersion1?.label, 'Version 1');
+    expect(vm.getEditValue(OperationType.brightness), 30);
+    expect(vm.getEditValue(OperationType.contrast), 10);
+    expect(vm.getEditValue(OperationType.exposure), 0);
+    expect(vm.getEditValue(OperationType.saturation), 0);
+    expect(vm.canRedo, isTrue);
+
+    final v1Redo = await vm.redo();
+
+    expect(v1Redo?.label, 'Exposure +5');
+    expect(vm.getEditValue(OperationType.exposure), 5);
+    expect(vm.getEditValue(OperationType.saturation), 0);
+
+    final switchToVersion2 = await vm.switchToVersion(version2.id);
+
+    expect(switchToVersion2?.label, renamedVersion2.name);
+    expect(vm.getEditValue(OperationType.exposure), 5);
+    expect(vm.getEditValue(OperationType.saturation), 20);
+
+    final v2Undo = await vm.undo();
+
+    expect(v2Undo?.label, 'Saturation +20');
+    expect(vm.getEditValue(OperationType.exposure), 5);
+    expect(vm.getEditValue(OperationType.saturation), 0);
+
+    final deletedVersion2 = await vm.deleteVersion(version2.id);
+
+    expect(deletedVersion2, isTrue);
+    expect(vm.versions, hasLength(1));
+    expect(vm.activeVersion?.id, version1.id);
+    expect(repository.savedVersions.any((version) => version.id == version2.id),
+        isFalse);
+
+    final deletedLastVersion = await vm.deleteVersion(version1.id);
+
+    expect(deletedLastVersion, isFalse);
+    expect(vm.versions, hasLength(1));
   });
 }
 
@@ -230,7 +355,7 @@ class _SavedState {
     required this.updatedAt,
   });
 
-  final String projectId;
+  final int projectId;
   final EditorEditState state;
   final DateTime updatedAt;
 }
@@ -241,7 +366,7 @@ class _OpenedProject {
     required this.openedAt,
   });
 
-  final String projectId;
+  final int projectId;
   final DateTime openedAt;
 }
 
@@ -253,7 +378,7 @@ class _PromotedProject {
     required this.updatedAt,
   });
 
-  final String projectId;
+  final int projectId;
   final String name;
   final EditorEditState state;
   final DateTime updatedAt;
@@ -264,15 +389,18 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   final List<_SavedState> savedStates = [];
   final List<_OpenedProject> openedProjects = [];
   final List<_PromotedProject> promotedProjects = [];
+  final List<EditorVersion> savedVersions = [];
 
   @override
-  Future<void> deleteProject(String id) async {}
+  Future<void> deleteProject(int id) async {}
 
   @override
-  Future<void> deleteVersion(String id) async {}
+  Future<void> deleteVersion(String id) async {
+    savedVersions.removeWhere((version) => version.id == id);
+  }
 
   @override
-  Future<EditorProject?> loadProject(String id) async {
+  Future<EditorProject?> loadProject(int id) async {
     return savedProjects.where((project) => project.id == id).firstOrNull;
   }
 
@@ -293,14 +421,20 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
-  Future<EditorVersion?> loadVersion(String id) async => null;
+  Future<EditorVersion?> loadVersion(String id) async {
+    return savedVersions.where((version) => version.id == id).firstOrNull;
+  }
 
   @override
-  Future<List<EditorVersion>> loadVersions(String projectId) async => [];
+  Future<List<EditorVersion>> loadVersions(int projectId) async {
+    return savedVersions
+        .where((version) => version.projectId == projectId)
+        .toList();
+  }
 
   @override
   Future<void> markProjectOpened({
-    required String projectId,
+    required int projectId,
     required DateTime openedAt,
   }) async {
     openedProjects.add(_OpenedProject(
@@ -311,7 +445,7 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
 
   @override
   Future<void> promoteDraftToSaved({
-    required String projectId,
+    required int projectId,
     required String name,
     required EditorEditState state,
     required DateTime updatedAt,
@@ -334,7 +468,7 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
 
   @override
   Future<void> saveCurrentState({
-    required String projectId,
+    required int projectId,
     required EditorEditState state,
     required DateTime updatedAt,
   }) async {
@@ -346,10 +480,44 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
-  Future<void> saveProject(EditorProject project) async {
-    savedProjects.add(project);
+  Future<void> setActiveVersion({
+    required int projectId,
+    required String? versionId,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  }) async {
+    final index = savedProjects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    savedProjects[index] = savedProjects[index].copyWith(
+      activeVersionId: versionId,
+      currentState: state,
+      updatedAt: updatedAt,
+    );
   }
 
   @override
-  Future<void> saveVersion(EditorVersion version) async {}
+  Future<EditorProject> saveProject(EditorProject project) async {
+    final savedProject = project.id > 0
+        ? project
+        : project.copyWith(id: savedProjects.length + 1);
+    final index =
+        savedProjects.indexWhere((existing) => existing.id == savedProject.id);
+    if (index == -1) {
+      savedProjects.add(savedProject);
+    } else {
+      savedProjects[index] = savedProject;
+    }
+    return savedProject;
+  }
+
+  @override
+  Future<void> saveVersion(EditorVersion version) async {
+    final index =
+        savedVersions.indexWhere((existing) => existing.id == version.id);
+    if (index == -1) {
+      savedVersions.add(version);
+    } else {
+      savedVersions[index] = version;
+    }
+  }
 }

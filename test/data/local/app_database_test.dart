@@ -10,13 +10,18 @@ void main() {
     addTearDown(database.close);
 
     final tableNames = database.allTables.map((table) => table.actualTableName);
-    final projectColumnNames =
-        database.editorProjectRecords.$columns.map((column) => column.$name);
+	    final projectColumnNames =
+	        database.editorProjectRecords.$columns.map((column) => column.$name);
+	    final versionColumnNames =
+	        database.editorVersionRecords.$columns.map((column) => column.$name);
 
-    expect(database.schemaVersion, 2);
-    expect(tableNames, containsAll(['editor_projects', 'editor_versions']));
-    expect(projectColumnNames, contains('status'));
-    expect(database.editorProjectsDao, isA<EditorProjectsDao>());
+	    expect(database.schemaVersion, 4);
+	    expect(tableNames, containsAll(['editor_projects', 'editor_versions']));
+	    expect(projectColumnNames, contains('status'));
+	    expect(projectColumnNames, contains('active_version_id'));
+	    expect(versionColumnNames, contains('parent_version_id'));
+	    expect(versionColumnNames, contains('history_json'));
+	    expect(database.editorProjectsDao, isA<EditorProjectsDao>());
     expect(database.editorVersionsDao, isA<EditorVersionsDao>());
   });
 }

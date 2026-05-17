@@ -69,4 +69,64 @@ void main() {
     expect(history.canRedo, isFalse);
     expect(history.undo()?.label, 'Contrast +10');
   });
+
+  test('copy preserves undo and redo stacks independently', () {
+    final history = EditorHistory();
+    final empty = EditorEditState.empty();
+    final brightness = EditorEditState(
+      edits: [Edit(type: OperationType.brightness, value: 30)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    );
+    final contrast = EditorEditState(
+      edits: [Edit(type: OperationType.contrast, value: 10)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    );
+
+    history.push(EditorHistoryEntry(
+      before: empty,
+      after: brightness,
+      label: 'Brightness +30',
+      source: EditorEditSource.manual,
+    ));
+    history.push(EditorHistoryEntry(
+      before: brightness,
+      after: contrast,
+      label: 'Contrast +10',
+      source: EditorEditSource.manual,
+    ));
+    history.undo();
+
+    final copy = EditorHistory.copyOf(history);
+
+    expect(copy.canUndo, isTrue);
+    expect(copy.canRedo, isTrue);
+    expect(copy.undo()?.label, 'Brightness +30');
+    expect(history.redo()?.label, 'Contrast +10');
+  });
+
+  test('snapshot round trips undo and redo stacks', () {
+    final history = EditorHistory();
+    final empty = EditorEditState.empty();
+    final brightness = EditorEditState(
+      edits: [Edit(type: OperationType.brightness, value: 30)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    );
+
+    history.push(EditorHistoryEntry(
+      before: empty,
+      after: brightness,
+      label: 'Brightness +30',
+      source: EditorEditSource.manual,
+    ));
+    history.undo();
+
+    final restored = EditorHistory.fromSnapshot(history.toSnapshot());
+
+    expect(restored.canUndo, isFalse);
+    expect(restored.canRedo, isTrue);
+    expect(restored.redo()?.label, 'Brightness +30');
+  });
 }

@@ -61,6 +61,34 @@ void main() {
     );
   });
 
+  test('moves original image into final project folder', () async {
+    final tempDir = await Directory.systemTemp.createTemp('moodit_files_test_');
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+    final source = File('${tempDir.path}/source.jpg');
+    final bytes = Uint8List.fromList([9, 8, 7, 6]);
+    await source.writeAsBytes(bytes);
+    final store = ProjectFileStore(
+      documentsDirectoryProvider: () async => tempDir,
+    );
+
+    final original = await store.moveOriginalImage(
+      sourcePath: source.path,
+      projectId: '1',
+    );
+
+    expect(original.path, endsWith('${Platform.pathSeparator}original.jpg'));
+    expect(
+      original.path,
+      contains('${Platform.pathSeparator}1${Platform.pathSeparator}'),
+    );
+    expect(await File(original.path).readAsBytes(), bytes);
+    expect(await source.exists(), isFalse);
+  });
+
   test('deletes project folder recursively', () async {
     final tempDir = await Directory.systemTemp.createTemp('moodit_files_test_');
     addTearDown(() async {

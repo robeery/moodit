@@ -6,6 +6,9 @@ import 'package:licenta/model/color_edit.dart';
 import 'package:licenta/model/color_grading_edit.dart';
 import 'package:licenta/model/edit.dart';
 import 'package:licenta/model/editor_edit_state.dart';
+import 'package:licenta/model/editor_edit_source.dart';
+import 'package:licenta/model/editor_history_entry.dart';
+import 'package:licenta/model/editor_history_snapshot.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
 
@@ -16,10 +19,11 @@ void main() {
     final openedAt = DateTime.utc(2026, 5, 16, 11);
     final state = _editState();
     final project = EditorProject(
-      id: 'project-1',
-      name: 'Portrait',
-      status: EditorProjectStatus.saved,
-      originalImagePath: '/projects/project-1/original.jpg',
+	      id: 1,
+	      name: 'Portrait',
+	      status: EditorProjectStatus.saved,
+	      activeVersionId: 'version-1',
+	      originalImagePath: '/projects/project-1/original.jpg',
       previewImagePath: '/projects/project-1/preview.jpg',
       currentState: state,
       originalWidth: 4000,
@@ -34,9 +38,10 @@ void main() {
     final companion = project.toRecordCompanion();
 
     expect(companion.id.value, project.id);
-    expect(companion.name.value, project.name);
-    expect(companion.status.value, EditorProjectStatus.saved.storageValue);
-    expect(companion.originalImagePath.value, project.originalImagePath);
+	    expect(companion.name.value, project.name);
+	    expect(companion.status.value, EditorProjectStatus.saved.storageValue);
+	    expect(companion.activeVersionId.value, 'version-1');
+	    expect(companion.originalImagePath.value, project.originalImagePath);
     expect(companion.previewImagePath.value, project.previewImagePath);
     expect(companion.currentStateJson.value, state.toJsonString());
     expect(companion.originalWidth.value, 4000);
@@ -54,10 +59,11 @@ void main() {
     final openedAt = DateTime.utc(2026, 5, 16, 11);
     final state = _editState();
     final record = EditorProjectRecord(
-      id: 'project-1',
-      name: 'Portrait',
-      status: EditorProjectStatus.saved.storageValue,
-      originalImagePath: '/projects/project-1/original.jpg',
+	      id: 1,
+	      name: 'Portrait',
+	      status: EditorProjectStatus.saved.storageValue,
+	      activeVersionId: 'version-1',
+	      originalImagePath: '/projects/project-1/original.jpg',
       previewImagePath: '/projects/project-1/preview.jpg',
       currentStateJson: state.toJsonString(),
       originalWidth: 4000,
@@ -72,9 +78,10 @@ void main() {
     final project = record.toModel();
 
     expect(project.id, record.id);
-    expect(project.name, record.name);
-    expect(project.status, EditorProjectStatus.saved);
-    expect(project.originalImagePath, record.originalImagePath);
+	    expect(project.name, record.name);
+	    expect(project.status, EditorProjectStatus.saved);
+	    expect(project.activeVersionId, 'version-1');
+	    expect(project.originalImagePath, record.originalImagePath);
     expect(project.previewImagePath, record.previewImagePath);
     expect(project.currentState.contentEquals(state), isTrue);
     expect(project.originalWidth, record.originalWidth);
@@ -89,10 +96,11 @@ void main() {
   test('unknown project status maps to draft', () {
     final createdAt = DateTime.utc(2026, 5, 16, 9);
     final record = EditorProjectRecord(
-      id: 'project-1',
-      name: 'Portrait',
-      status: 'old-or-invalid',
-      originalImagePath: '/projects/project-1/original.jpg',
+	      id: 1,
+	      name: 'Portrait',
+	      status: 'old-or-invalid',
+	      activeVersionId: null,
+	      originalImagePath: '/projects/project-1/original.jpg',
       previewImagePath: null,
       currentStateJson: EditorEditState.empty().toJsonString(),
       originalWidth: 4000,
@@ -109,15 +117,18 @@ void main() {
     expect(project.status, EditorProjectStatus.draft);
   });
 
-  test('version model maps to Drift companion', () {
-    final createdAt = DateTime.utc(2026, 5, 16, 12);
-    final state = _editState();
-    final version = EditorVersion(
-      id: 'version-1',
-      projectId: 'project-1',
-      name: 'Version 1',
-      state: state,
-      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
+	  test('version model maps to Drift companion', () {
+	    final createdAt = DateTime.utc(2026, 5, 16, 12);
+	    final state = _editState();
+	    final history = _historySnapshot(state);
+	    final version = EditorVersion(
+	      id: 'version-1',
+	      projectId: 1,
+	      name: 'Version 1',
+	      parentVersionId: 'version-0',
+	      state: state,
+	      history: history,
+	      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
       sortOrder: 1,
       createdAt: createdAt,
     );
@@ -125,23 +136,28 @@ void main() {
     final companion = version.toRecordCompanion();
 
     expect(companion.id.value, version.id);
-    expect(companion.projectId.value, version.projectId);
-    expect(companion.name.value, version.name);
-    expect(companion.stateJson.value, state.toJsonString());
-    expect(companion.thumbnailPath.value, version.thumbnailPath);
+	    expect(companion.projectId.value, version.projectId);
+	    expect(companion.name.value, version.name);
+	    expect(companion.parentVersionId.value, 'version-0');
+	    expect(companion.stateJson.value, state.toJsonString());
+	    expect(companion.historyJson.value, history.toJsonString());
+	    expect(companion.thumbnailPath.value, version.thumbnailPath);
     expect(companion.sortOrder.value, version.sortOrder);
     expect(companion.createdAt.value, createdAt);
   });
 
-  test('version Drift record maps to app model', () {
-    final createdAt = DateTime.utc(2026, 5, 16, 12);
-    final state = _editState();
-    final record = EditorVersionRecord(
-      id: 'version-1',
-      projectId: 'project-1',
-      name: 'Version 1',
-      stateJson: state.toJsonString(),
-      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
+	  test('version Drift record maps to app model', () {
+	    final createdAt = DateTime.utc(2026, 5, 16, 12);
+	    final state = _editState();
+	    final history = _historySnapshot(state);
+	    final record = EditorVersionRecord(
+	      id: 'version-1',
+	      projectId: 1,
+	      name: 'Version 1',
+	      parentVersionId: 'version-0',
+	      stateJson: state.toJsonString(),
+	      historyJson: history.toJsonString(),
+	      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
       sortOrder: 1,
       createdAt: createdAt,
     );
@@ -149,13 +165,29 @@ void main() {
     final version = record.toModel();
 
     expect(version.id, record.id);
-    expect(version.projectId, record.projectId);
-    expect(version.name, record.name);
-    expect(version.state.contentEquals(state), isTrue);
-    expect(version.thumbnailPath, record.thumbnailPath);
+	    expect(version.projectId, record.projectId);
+	    expect(version.name, record.name);
+	    expect(version.parentVersionId, 'version-0');
+	    expect(version.state.contentEquals(state), isTrue);
+	    expect(version.history.undoEntries.single.label, 'Brightness +20');
+	    expect(version.thumbnailPath, record.thumbnailPath);
     expect(version.sortOrder, record.sortOrder);
     expect(version.createdAt, createdAt);
   });
+}
+
+EditorHistorySnapshot _historySnapshot(EditorEditState after) {
+  return EditorHistorySnapshot(
+    undoEntries: [
+      EditorHistoryEntry(
+        before: EditorEditState.empty(),
+        after: after,
+        label: 'Brightness +20',
+        source: EditorEditSource.manual,
+      ),
+    ],
+    redoEntries: const [],
+  );
 }
 
 EditorEditState _editState() {

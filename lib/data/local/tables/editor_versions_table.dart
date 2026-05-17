@@ -5,13 +5,17 @@ class EditorVersionRecords extends Table {
   String get tableName => 'editor_versions';
 
   TextColumn get id => text()();
-  TextColumn get projectId => text().references(
+  IntColumn get projectId => integer().references(
         EditorProjectRecords,
         #id,
         onDelete: KeyAction.cascade,
       )();
   TextColumn get name => text()();
+  TextColumn get parentVersionId => text().nullable()();
   TextColumn get stateJson => text()();
+  TextColumn get historyJson => text().withDefault(
+        const Constant(EditorHistorySnapshot.emptyJson),
+      )();
   TextColumn get thumbnailPath => text().nullable()();
   IntColumn get sortOrder => integer()();
   DateTimeColumn get createdAt => dateTime()();

@@ -5,7 +5,7 @@ class EditorVersionsDao extends DatabaseAccessor<AppDatabase>
     with _$EditorVersionsDaoMixin {
   EditorVersionsDao(super.db);
 
-  Future<List<EditorVersionRecord>> loadForProject(String projectId) {
+  Future<List<EditorVersionRecord>> loadForProject(int projectId) {
     final query = select(editorVersionRecords)
       ..where((table) => table.projectId.equals(projectId))
       ..orderBy([
@@ -34,7 +34,7 @@ class EditorVersionsDao extends DatabaseAccessor<AppDatabase>
     return query.go();
   }
 
-  Future<int> deleteVersionsForProject(String projectId) {
+  Future<int> deleteVersionsForProject(int projectId) {
     final query = delete(editorVersionRecords)
       ..where((table) => table.projectId.equals(projectId));
 

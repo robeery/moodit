@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../model/editor_version.dart';
 import '../../model/export_option.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
@@ -122,6 +124,16 @@ class _EditorScreenState extends State<EditorScreen> {
     }
 
     if (!_vm.hasImage) return;
+
+    if (option == ExportOption.project) {
+      await _showSaveProjectDialog();
+      return;
+    }
+
+    if (option != ExportOption.gallery) {
+      showTbdDialog(context);
+      return;
+    }
 
     var exportDialogVisible = false;
     try {
@@ -247,6 +259,370 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
+
+  Future<void> _showSaveProjectDialog() async {
+    final controller = TextEditingController(text: _vm.defaultProjectName);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('SAVE AS PROJECT', style: AppTextStyles.screenTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+          cursorColor: AppColors.highlight,
+          decoration: const InputDecoration(
+            labelText: 'PROJECT NAME',
+            labelStyle: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.muted),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.highlight),
+            ),
+          ),
+          onSubmitted: (value) => Navigator.of(ctx).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text(
+              'SAVE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (name == null) return;
+
+    final saved = await _vm.saveCurrentDraftAsProject(name);
+    if (!mounted || !saved) return;
+    _showHistoryActionBar(
+      message: 'Project saved: ${_vm.currentProject?.name ?? name.trim()}',
+      icon: Icons.folder_outlined,
+    );
+  }
+
+  void _showVersionsSheet() {
+    final scrollController = ScrollController();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+      ),
+      builder: (sheetContext) => ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) {
+          final versions = _vm.versions;
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'VERSIONS',
+                          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add, color: AppColors.accent, size: 20),
+                        tooltip: 'Save version',
+                        onPressed: _vm.canUseVersions
+                            ? () {
+                                Navigator.of(sheetContext).pop();
+                                unawaited(_handleSaveVersion());
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                  const Divider(color: AppColors.muted, height: 1),
+                  if (versions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 18),
+                      child: Text(
+                        'NO VERSIONS SAVED',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: Scrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        child: ListView.builder(
+                          controller: scrollController,
+                          shrinkWrap: true,
+                          itemCount: versions.length,
+                          itemBuilder: (context, index) {
+                            final version = versions[index];
+                            final isActive = version.id == _vm.activeVersion?.id;
+                            final canDelete = versions.length > 1;
+                            return InkWell(
+                              onTap: () {
+                                Navigator.of(sheetContext).pop();
+                                unawaited(_handleSwitchVersion(version.id));
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 28,
+                                      child: Icon(
+                                        isActive ? Icons.radio_button_checked : Icons.history,
+                                        color: isActive ? AppColors.highlight : AppColors.accent,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            version.name.toUpperCase(),
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: isActive ? AppColors.highlight : AppColors.accent,
+                                              fontSize: 11,
+                                              letterSpacing: 2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            isActive
+                                                ? 'ACTIVE - ${_formatVersionTimestamp(version.createdAt)}'
+                                                : _formatVersionTimestamp(version.createdAt),
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, size: 17),
+                                          color: AppColors.accent,
+                                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                                          padding: EdgeInsets.zero,
+                                          tooltip: 'Rename version',
+                                          onPressed: () {
+                                            Navigator.of(sheetContext).pop();
+                                            unawaited(_handleRenameVersion(version));
+                                          },
+                                        ),
+                                        if (canDelete)
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline, size: 18),
+                                            color: AppColors.accent,
+                                            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                                            padding: EdgeInsets.zero,
+                                            tooltip: 'Delete version',
+                                            onPressed: () {
+                                              Navigator.of(sheetContext).pop();
+                                              unawaited(_handleDeleteVersion(version));
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ).whenComplete(scrollController.dispose);
+  }
+
+  Future<void> _handleSaveVersion() async {
+    final name = await _showVersionNameDialog(
+      initialName: _vm.defaultVersionName,
+      title: 'SAVE VERSION',
+    );
+    if (name == null) return;
+
+    final version = await _vm.saveCurrentVersion(name: name);
+    if (!mounted || version == null) return;
+    _showHistoryActionBar(
+      message: 'Version saved: ${version.name}',
+      icon: Icons.history,
+    );
+  }
+
+  Future<void> _handleRenameVersion(EditorVersion version) async {
+    final name = await _showVersionNameDialog(
+      initialName: version.name,
+      title: 'RENAME VERSION',
+    );
+    if (name == null) return;
+
+    final renamed = await _vm.renameVersion(version.id, name);
+    if (!mounted || renamed == null) return;
+    _showHistoryActionBar(
+      message: 'Version renamed: ${renamed.name}',
+      icon: Icons.edit,
+    );
+  }
+
+  Future<void> _handleDeleteVersion(EditorVersion version) async {
+    final confirmed = await _showDeleteVersionDialog(version.name);
+    if (!mounted || !confirmed) return;
+
+    final deleted = await _vm.deleteVersion(version.id);
+    if (!mounted || !deleted) return;
+    _showHistoryActionBar(
+      message: 'Version deleted: ${version.name}',
+      icon: Icons.delete_outline,
+    );
+  }
+
+  Future<void> _handleSwitchVersion(String versionId) async {
+    final result = await _vm.switchToVersion(versionId);
+    if (!mounted || result == null) return;
+    _showHistoryActionBar(
+      message: 'Switched to: ${result.label}',
+      icon: Icons.history,
+    );
+  }
+
+  Future<bool> _showDeleteVersionDialog(String versionName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'DELETE VERSION',
+          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
+        ),
+        content: Text(
+          'Are you sure? This cannot be restored.\n\n$versionName',
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<String?> _showVersionNameDialog({
+    required String initialName,
+    required String title,
+  }) async {
+    final initialValue = initialName.length > EditorViewModel.versionNameMaxLength
+        ? initialName.substring(0, EditorViewModel.versionNameMaxLength)
+        : initialName;
+    final controller = TextEditingController(text: initialValue);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          title,
+          style: const TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: EditorViewModel.versionNameMaxLength,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(EditorViewModel.versionNameMaxLength),
+          ],
+          style: const TextStyle(color: AppColors.accent),
+          decoration: const InputDecoration(
+            labelText: 'Version name',
+            counterText: '',
+            labelStyle: TextStyle(color: AppColors.muted),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.muted),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.highlight),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text(
+              'SAVE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (name == null) return null;
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? initialValue : trimmed;
+  }
+
+  String _formatVersionTimestamp(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   Future<void> _openAiSettings() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -410,6 +786,12 @@ class _EditorScreenState extends State<EditorScreen> {
                 icon: Icons.redo,
                 enabled: _vm.canRedo && !_vm.isProcessing && !_vm.isWaitingForAi,
                 onTap: () => unawaited(_handleRedo()),
+              ),
+              const SizedBox(width: 8),
+              _buildToolbarIconButton(
+                icon: Icons.history,
+                enabled: _vm.canUseVersions,
+                onTap: _showVersionsSheet,
               ),
               const SizedBox(width: 12),
               _buildToolbarButton('RESET', _showResetDialog),

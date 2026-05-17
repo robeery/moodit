@@ -50,6 +50,35 @@ class ProjectFileStore {
     return StoredProjectOriginal(path: copied.path);
   }
 
+  Future<StoredProjectOriginal> moveOriginalImage({
+    required String sourcePath,
+    required String projectId,
+  }) async {
+    final source = File(sourcePath);
+    if (!await source.exists()) {
+      throw FileSystemException('Original image does not exist', sourcePath);
+    }
+
+    final projectDir = await projectDirectory(projectId);
+    final targetPath = _join(
+      projectDir.path,
+      'original${_extension(sourcePath)}',
+    );
+    final target = File(targetPath);
+    if (await target.exists()) {
+      await target.delete();
+    }
+
+    try {
+      final moved = await source.rename(targetPath);
+      return StoredProjectOriginal(path: moved.path);
+    } on FileSystemException {
+      final copied = await source.copy(targetPath);
+      await source.delete();
+      return StoredProjectOriginal(path: copied.path);
+    }
+  }
+
   Future<String> previewImagePath(String projectId) async {
     final projectDir = await projectDirectory(projectId);
     return _join(projectDir.path, 'preview.jpg');

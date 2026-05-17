@@ -88,7 +88,7 @@ class EditorDrawer extends StatelessWidget {
                           letterSpacing: 2,
                         ),
                       ),
-                      trailing: option.implemented
+                      trailing: option == ExportOption.gallery
                           ? IconButton(
                               icon: const Icon(Icons.settings_outlined, color: AppColors.muted, size: 16),
                               onPressed: () async {

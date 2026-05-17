@@ -5,26 +5,32 @@ import '../model/editor_version.dart';
 abstract class EditorProjectRepository {
   Future<List<EditorProject>> loadRecentProjects({int limit = 20});
   Future<List<EditorProject>> loadRecoverableDrafts({int limit = 20});
-  Future<EditorProject?> loadProject(String id);
-  Future<void> saveProject(EditorProject project);
+  Future<EditorProject?> loadProject(int id);
+  Future<EditorProject> saveProject(EditorProject project);
   Future<void> saveCurrentState({
-    required String projectId,
+    required int projectId,
+    required EditorEditState state,
+    required DateTime updatedAt,
+  });
+  Future<void> setActiveVersion({
+    required int projectId,
+    required String? versionId,
     required EditorEditState state,
     required DateTime updatedAt,
   });
   Future<void> promoteDraftToSaved({
-    required String projectId,
+    required int projectId,
     required String name,
     required EditorEditState state,
     required DateTime updatedAt,
   });
   Future<void> markProjectOpened({
-    required String projectId,
+    required int projectId,
     required DateTime openedAt,
   });
-  Future<void> deleteProject(String id);
+  Future<void> deleteProject(int id);
 
-  Future<List<EditorVersion>> loadVersions(String projectId);
+  Future<List<EditorVersion>> loadVersions(int projectId);
   Future<EditorVersion?> loadVersion(String id);
   Future<void> saveVersion(EditorVersion version);
   Future<void> deleteVersion(String id);

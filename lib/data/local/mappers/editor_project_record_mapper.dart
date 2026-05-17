@@ -7,10 +7,11 @@ import '../app_database.dart';
 extension EditorProjectRecordMapper on EditorProjectRecord {
   EditorProject toModel() {
     return EditorProject(
-      id: id,
-      name: name,
-      status: EditorProjectStatus.fromStorageValue(status),
-      originalImagePath: originalImagePath,
+	      id: id,
+	      name: name,
+	      status: EditorProjectStatus.fromStorageValue(status),
+	      activeVersionId: activeVersionId,
+	      originalImagePath: originalImagePath,
       previewImagePath: previewImagePath,
       currentState: EditorEditState.fromJsonString(currentStateJson),
       originalWidth: originalWidth,
@@ -26,19 +27,20 @@ extension EditorProjectRecordMapper on EditorProjectRecord {
 
 extension EditorProjectMapper on EditorProject {
   EditorProjectRecordsCompanion toRecordCompanion() {
-    return EditorProjectRecordsCompanion.insert(
-      id: id,
-      name: name,
-      status: Value(status.storageValue),
-      originalImagePath: originalImagePath,
+    return EditorProjectRecordsCompanion(
+	      id: id > 0 ? Value(id) : const Value.absent(),
+	      name: Value(name),
+	      status: Value(status.storageValue),
+	      activeVersionId: Value(activeVersionId),
+	      originalImagePath: Value(originalImagePath),
       previewImagePath: Value(previewImagePath),
-      currentStateJson: currentState.toJsonString(),
-      originalWidth: originalWidth,
-      originalHeight: originalHeight,
-      previewWidth: previewWidth,
-      previewHeight: previewHeight,
-      createdAt: createdAt,
-      updatedAt: updatedAt,
+      currentStateJson: Value(currentState.toJsonString()),
+      originalWidth: Value(originalWidth),
+      originalHeight: Value(originalHeight),
+      previewWidth: Value(previewWidth),
+      previewHeight: Value(previewHeight),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
       lastOpenedAt: Value(lastOpenedAt),
     );
   }

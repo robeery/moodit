@@ -11,12 +11,16 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
   $EditorProjectRecordsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
     false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -36,6 +40,17 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultValue: const Constant('draft'),
+  );
+  static const VerificationMeta _activeVersionIdMeta = const VerificationMeta(
+    'activeVersionId',
+  );
+  @override
+  late final GeneratedColumn<String> activeVersionId = GeneratedColumn<String>(
+    'active_version_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _originalImagePathMeta = const VerificationMeta(
     'originalImagePath',
@@ -153,6 +168,7 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
     id,
     name,
     status,
+    activeVersionId,
     originalImagePath,
     previewImagePath,
     currentStateJson,
@@ -178,8 +194,6 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -193,6 +207,15 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
       context.handle(
         _statusMeta,
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('active_version_id')) {
+      context.handle(
+        _activeVersionIdMeta,
+        activeVersionId.isAcceptableOrUnknown(
+          data['active_version_id']!,
+          _activeVersionIdMeta,
+        ),
       );
     }
     if (data.containsKey('original_image_path')) {
@@ -305,7 +328,7 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EditorProjectRecord(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
       name: attachedDatabase.typeMapping.read(
@@ -316,6 +339,10 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      activeVersionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}active_version_id'],
+      ),
       originalImagePath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}original_image_path'],
@@ -367,9 +394,10 @@ class $EditorProjectRecordsTable extends EditorProjectRecords
 
 class EditorProjectRecord extends DataClass
     implements Insertable<EditorProjectRecord> {
-  final String id;
+  final int id;
   final String name;
   final String status;
+  final String? activeVersionId;
   final String originalImagePath;
   final String? previewImagePath;
   final String currentStateJson;
@@ -384,6 +412,7 @@ class EditorProjectRecord extends DataClass
     required this.id,
     required this.name,
     required this.status,
+    this.activeVersionId,
     required this.originalImagePath,
     this.previewImagePath,
     required this.currentStateJson,
@@ -398,9 +427,12 @@ class EditorProjectRecord extends DataClass
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
+    map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
     map['status'] = Variable<String>(status);
+    if (!nullToAbsent || activeVersionId != null) {
+      map['active_version_id'] = Variable<String>(activeVersionId);
+    }
     map['original_image_path'] = Variable<String>(originalImagePath);
     if (!nullToAbsent || previewImagePath != null) {
       map['preview_image_path'] = Variable<String>(previewImagePath);
@@ -423,6 +455,9 @@ class EditorProjectRecord extends DataClass
       id: Value(id),
       name: Value(name),
       status: Value(status),
+      activeVersionId: activeVersionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activeVersionId),
       originalImagePath: Value(originalImagePath),
       previewImagePath: previewImagePath == null && nullToAbsent
           ? const Value.absent()
@@ -446,9 +481,10 @@ class EditorProjectRecord extends DataClass
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return EditorProjectRecord(
-      id: serializer.fromJson<String>(json['id']),
+      id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       status: serializer.fromJson<String>(json['status']),
+      activeVersionId: serializer.fromJson<String?>(json['activeVersionId']),
       originalImagePath: serializer.fromJson<String>(json['originalImagePath']),
       previewImagePath: serializer.fromJson<String?>(json['previewImagePath']),
       currentStateJson: serializer.fromJson<String>(json['currentStateJson']),
@@ -465,9 +501,10 @@ class EditorProjectRecord extends DataClass
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
+      'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
       'status': serializer.toJson<String>(status),
+      'activeVersionId': serializer.toJson<String?>(activeVersionId),
       'originalImagePath': serializer.toJson<String>(originalImagePath),
       'previewImagePath': serializer.toJson<String?>(previewImagePath),
       'currentStateJson': serializer.toJson<String>(currentStateJson),
@@ -482,9 +519,10 @@ class EditorProjectRecord extends DataClass
   }
 
   EditorProjectRecord copyWith({
-    String? id,
+    int? id,
     String? name,
     String? status,
+    Value<String?> activeVersionId = const Value.absent(),
     String? originalImagePath,
     Value<String?> previewImagePath = const Value.absent(),
     String? currentStateJson,
@@ -499,6 +537,9 @@ class EditorProjectRecord extends DataClass
     id: id ?? this.id,
     name: name ?? this.name,
     status: status ?? this.status,
+    activeVersionId: activeVersionId.present
+        ? activeVersionId.value
+        : this.activeVersionId,
     originalImagePath: originalImagePath ?? this.originalImagePath,
     previewImagePath: previewImagePath.present
         ? previewImagePath.value
@@ -517,6 +558,9 @@ class EditorProjectRecord extends DataClass
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       status: data.status.present ? data.status.value : this.status,
+      activeVersionId: data.activeVersionId.present
+          ? data.activeVersionId.value
+          : this.activeVersionId,
       originalImagePath: data.originalImagePath.present
           ? data.originalImagePath.value
           : this.originalImagePath,
@@ -552,6 +596,7 @@ class EditorProjectRecord extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('status: $status, ')
+          ..write('activeVersionId: $activeVersionId, ')
           ..write('originalImagePath: $originalImagePath, ')
           ..write('previewImagePath: $previewImagePath, ')
           ..write('currentStateJson: $currentStateJson, ')
@@ -571,6 +616,7 @@ class EditorProjectRecord extends DataClass
     id,
     name,
     status,
+    activeVersionId,
     originalImagePath,
     previewImagePath,
     currentStateJson,
@@ -589,6 +635,7 @@ class EditorProjectRecord extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.status == this.status &&
+          other.activeVersionId == this.activeVersionId &&
           other.originalImagePath == this.originalImagePath &&
           other.previewImagePath == this.previewImagePath &&
           other.currentStateJson == this.currentStateJson &&
@@ -603,9 +650,10 @@ class EditorProjectRecord extends DataClass
 
 class EditorProjectRecordsCompanion
     extends UpdateCompanion<EditorProjectRecord> {
-  final Value<String> id;
+  final Value<int> id;
   final Value<String> name;
   final Value<String> status;
+  final Value<String?> activeVersionId;
   final Value<String> originalImagePath;
   final Value<String?> previewImagePath;
   final Value<String> currentStateJson;
@@ -616,11 +664,11 @@ class EditorProjectRecordsCompanion
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> lastOpenedAt;
-  final Value<int> rowid;
   const EditorProjectRecordsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.status = const Value.absent(),
+    this.activeVersionId = const Value.absent(),
     this.originalImagePath = const Value.absent(),
     this.previewImagePath = const Value.absent(),
     this.currentStateJson = const Value.absent(),
@@ -631,12 +679,12 @@ class EditorProjectRecordsCompanion
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
   });
   EditorProjectRecordsCompanion.insert({
-    required String id,
+    this.id = const Value.absent(),
     required String name,
     this.status = const Value.absent(),
+    this.activeVersionId = const Value.absent(),
     required String originalImagePath,
     this.previewImagePath = const Value.absent(),
     required String currentStateJson,
@@ -647,9 +695,7 @@ class EditorProjectRecordsCompanion
     required DateTime createdAt,
     required DateTime updatedAt,
     this.lastOpenedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       name = Value(name),
+  }) : name = Value(name),
        originalImagePath = Value(originalImagePath),
        currentStateJson = Value(currentStateJson),
        originalWidth = Value(originalWidth),
@@ -659,9 +705,10 @@ class EditorProjectRecordsCompanion
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<EditorProjectRecord> custom({
-    Expression<String>? id,
+    Expression<int>? id,
     Expression<String>? name,
     Expression<String>? status,
+    Expression<String>? activeVersionId,
     Expression<String>? originalImagePath,
     Expression<String>? previewImagePath,
     Expression<String>? currentStateJson,
@@ -672,12 +719,12 @@ class EditorProjectRecordsCompanion
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? lastOpenedAt,
-    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (status != null) 'status': status,
+      if (activeVersionId != null) 'active_version_id': activeVersionId,
       if (originalImagePath != null) 'original_image_path': originalImagePath,
       if (previewImagePath != null) 'preview_image_path': previewImagePath,
       if (currentStateJson != null) 'current_state_json': currentStateJson,
@@ -688,14 +735,14 @@ class EditorProjectRecordsCompanion
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
-      if (rowid != null) 'rowid': rowid,
     });
   }
 
   EditorProjectRecordsCompanion copyWith({
-    Value<String>? id,
+    Value<int>? id,
     Value<String>? name,
     Value<String>? status,
+    Value<String?>? activeVersionId,
     Value<String>? originalImagePath,
     Value<String?>? previewImagePath,
     Value<String>? currentStateJson,
@@ -706,12 +753,12 @@ class EditorProjectRecordsCompanion
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? lastOpenedAt,
-    Value<int>? rowid,
   }) {
     return EditorProjectRecordsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       status: status ?? this.status,
+      activeVersionId: activeVersionId ?? this.activeVersionId,
       originalImagePath: originalImagePath ?? this.originalImagePath,
       previewImagePath: previewImagePath ?? this.previewImagePath,
       currentStateJson: currentStateJson ?? this.currentStateJson,
@@ -722,7 +769,6 @@ class EditorProjectRecordsCompanion
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
-      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -730,13 +776,16 @@ class EditorProjectRecordsCompanion
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<String>(id.value);
+      map['id'] = Variable<int>(id.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
+    }
+    if (activeVersionId.present) {
+      map['active_version_id'] = Variable<String>(activeVersionId.value);
     }
     if (originalImagePath.present) {
       map['original_image_path'] = Variable<String>(originalImagePath.value);
@@ -768,9 +817,6 @@ class EditorProjectRecordsCompanion
     if (lastOpenedAt.present) {
       map['last_opened_at'] = Variable<DateTime>(lastOpenedAt.value);
     }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
     return map;
   }
 
@@ -780,6 +826,7 @@ class EditorProjectRecordsCompanion
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('status: $status, ')
+          ..write('activeVersionId: $activeVersionId, ')
           ..write('originalImagePath: $originalImagePath, ')
           ..write('previewImagePath: $previewImagePath, ')
           ..write('currentStateJson: $currentStateJson, ')
@@ -789,8 +836,7 @@ class EditorProjectRecordsCompanion
           ..write('previewHeight: $previewHeight, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('lastOpenedAt: $lastOpenedAt, ')
-          ..write('rowid: $rowid')
+          ..write('lastOpenedAt: $lastOpenedAt')
           ..write(')'))
         .toString();
   }
@@ -815,11 +861,11 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     'projectId',
   );
   @override
-  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+  late final GeneratedColumn<int> projectId = GeneratedColumn<int>(
     'project_id',
     aliasedName,
     false,
-    type: DriftSqlType.string,
+    type: DriftSqlType.int,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES editor_projects (id) ON DELETE CASCADE',
@@ -834,6 +880,17 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _parentVersionIdMeta = const VerificationMeta(
+    'parentVersionId',
+  );
+  @override
+  late final GeneratedColumn<String> parentVersionId = GeneratedColumn<String>(
+    'parent_version_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stateJsonMeta = const VerificationMeta(
     'stateJson',
   );
@@ -844,6 +901,18 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _historyJsonMeta = const VerificationMeta(
+    'historyJson',
+  );
+  @override
+  late final GeneratedColumn<String> historyJson = GeneratedColumn<String>(
+    'history_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(EditorHistorySnapshot.emptyJson),
   );
   static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
     'thumbnailPath',
@@ -883,7 +952,9 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     id,
     projectId,
     name,
+    parentVersionId,
     stateJson,
+    historyJson,
     thumbnailPath,
     sortOrder,
     createdAt,
@@ -921,6 +992,15 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
+    if (data.containsKey('parent_version_id')) {
+      context.handle(
+        _parentVersionIdMeta,
+        parentVersionId.isAcceptableOrUnknown(
+          data['parent_version_id']!,
+          _parentVersionIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('state_json')) {
       context.handle(
         _stateJsonMeta,
@@ -928,6 +1008,15 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
       );
     } else if (isInserting) {
       context.missing(_stateJsonMeta);
+    }
+    if (data.containsKey('history_json')) {
+      context.handle(
+        _historyJsonMeta,
+        historyJson.isAcceptableOrUnknown(
+          data['history_json']!,
+          _historyJsonMeta,
+        ),
+      );
     }
     if (data.containsKey('thumbnail_path')) {
       context.handle(
@@ -968,16 +1057,24 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
         data['${effectivePrefix}id'],
       )!,
       projectId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.int,
         data['${effectivePrefix}project_id'],
       )!,
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      parentVersionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_version_id'],
+      ),
       stateJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state_json'],
+      )!,
+      historyJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}history_json'],
       )!,
       thumbnailPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1003,9 +1100,11 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
 class EditorVersionRecord extends DataClass
     implements Insertable<EditorVersionRecord> {
   final String id;
-  final String projectId;
+  final int projectId;
   final String name;
+  final String? parentVersionId;
   final String stateJson;
+  final String historyJson;
   final String? thumbnailPath;
   final int sortOrder;
   final DateTime createdAt;
@@ -1013,7 +1112,9 @@ class EditorVersionRecord extends DataClass
     required this.id,
     required this.projectId,
     required this.name,
+    this.parentVersionId,
     required this.stateJson,
+    required this.historyJson,
     this.thumbnailPath,
     required this.sortOrder,
     required this.createdAt,
@@ -1022,9 +1123,13 @@ class EditorVersionRecord extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['project_id'] = Variable<String>(projectId);
+    map['project_id'] = Variable<int>(projectId);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || parentVersionId != null) {
+      map['parent_version_id'] = Variable<String>(parentVersionId);
+    }
     map['state_json'] = Variable<String>(stateJson);
+    map['history_json'] = Variable<String>(historyJson);
     if (!nullToAbsent || thumbnailPath != null) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath);
     }
@@ -1038,7 +1143,11 @@ class EditorVersionRecord extends DataClass
       id: Value(id),
       projectId: Value(projectId),
       name: Value(name),
+      parentVersionId: parentVersionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentVersionId),
       stateJson: Value(stateJson),
+      historyJson: Value(historyJson),
       thumbnailPath: thumbnailPath == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailPath),
@@ -1054,9 +1163,11 @@ class EditorVersionRecord extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return EditorVersionRecord(
       id: serializer.fromJson<String>(json['id']),
-      projectId: serializer.fromJson<String>(json['projectId']),
+      projectId: serializer.fromJson<int>(json['projectId']),
       name: serializer.fromJson<String>(json['name']),
+      parentVersionId: serializer.fromJson<String?>(json['parentVersionId']),
       stateJson: serializer.fromJson<String>(json['stateJson']),
+      historyJson: serializer.fromJson<String>(json['historyJson']),
       thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -1067,9 +1178,11 @@ class EditorVersionRecord extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'projectId': serializer.toJson<String>(projectId),
+      'projectId': serializer.toJson<int>(projectId),
       'name': serializer.toJson<String>(name),
+      'parentVersionId': serializer.toJson<String?>(parentVersionId),
       'stateJson': serializer.toJson<String>(stateJson),
+      'historyJson': serializer.toJson<String>(historyJson),
       'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -1078,9 +1191,11 @@ class EditorVersionRecord extends DataClass
 
   EditorVersionRecord copyWith({
     String? id,
-    String? projectId,
+    int? projectId,
     String? name,
+    Value<String?> parentVersionId = const Value.absent(),
     String? stateJson,
+    String? historyJson,
     Value<String?> thumbnailPath = const Value.absent(),
     int? sortOrder,
     DateTime? createdAt,
@@ -1088,7 +1203,11 @@ class EditorVersionRecord extends DataClass
     id: id ?? this.id,
     projectId: projectId ?? this.projectId,
     name: name ?? this.name,
+    parentVersionId: parentVersionId.present
+        ? parentVersionId.value
+        : this.parentVersionId,
     stateJson: stateJson ?? this.stateJson,
+    historyJson: historyJson ?? this.historyJson,
     thumbnailPath: thumbnailPath.present
         ? thumbnailPath.value
         : this.thumbnailPath,
@@ -1100,7 +1219,13 @@ class EditorVersionRecord extends DataClass
       id: data.id.present ? data.id.value : this.id,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       name: data.name.present ? data.name.value : this.name,
+      parentVersionId: data.parentVersionId.present
+          ? data.parentVersionId.value
+          : this.parentVersionId,
       stateJson: data.stateJson.present ? data.stateJson.value : this.stateJson,
+      historyJson: data.historyJson.present
+          ? data.historyJson.value
+          : this.historyJson,
       thumbnailPath: data.thumbnailPath.present
           ? data.thumbnailPath.value
           : this.thumbnailPath,
@@ -1115,7 +1240,9 @@ class EditorVersionRecord extends DataClass
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('name: $name, ')
+          ..write('parentVersionId: $parentVersionId, ')
           ..write('stateJson: $stateJson, ')
+          ..write('historyJson: $historyJson, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt')
@@ -1128,7 +1255,9 @@ class EditorVersionRecord extends DataClass
     id,
     projectId,
     name,
+    parentVersionId,
     stateJson,
+    historyJson,
     thumbnailPath,
     sortOrder,
     createdAt,
@@ -1140,7 +1269,9 @@ class EditorVersionRecord extends DataClass
           other.id == this.id &&
           other.projectId == this.projectId &&
           other.name == this.name &&
+          other.parentVersionId == this.parentVersionId &&
           other.stateJson == this.stateJson &&
+          other.historyJson == this.historyJson &&
           other.thumbnailPath == this.thumbnailPath &&
           other.sortOrder == this.sortOrder &&
           other.createdAt == this.createdAt);
@@ -1149,9 +1280,11 @@ class EditorVersionRecord extends DataClass
 class EditorVersionRecordsCompanion
     extends UpdateCompanion<EditorVersionRecord> {
   final Value<String> id;
-  final Value<String> projectId;
+  final Value<int> projectId;
   final Value<String> name;
+  final Value<String?> parentVersionId;
   final Value<String> stateJson;
+  final Value<String> historyJson;
   final Value<String?> thumbnailPath;
   final Value<int> sortOrder;
   final Value<DateTime> createdAt;
@@ -1160,7 +1293,9 @@ class EditorVersionRecordsCompanion
     this.id = const Value.absent(),
     this.projectId = const Value.absent(),
     this.name = const Value.absent(),
+    this.parentVersionId = const Value.absent(),
     this.stateJson = const Value.absent(),
+    this.historyJson = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1168,9 +1303,11 @@ class EditorVersionRecordsCompanion
   });
   EditorVersionRecordsCompanion.insert({
     required String id,
-    required String projectId,
+    required int projectId,
     required String name,
+    this.parentVersionId = const Value.absent(),
     required String stateJson,
+    this.historyJson = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     required int sortOrder,
     required DateTime createdAt,
@@ -1183,9 +1320,11 @@ class EditorVersionRecordsCompanion
        createdAt = Value(createdAt);
   static Insertable<EditorVersionRecord> custom({
     Expression<String>? id,
-    Expression<String>? projectId,
+    Expression<int>? projectId,
     Expression<String>? name,
+    Expression<String>? parentVersionId,
     Expression<String>? stateJson,
+    Expression<String>? historyJson,
     Expression<String>? thumbnailPath,
     Expression<int>? sortOrder,
     Expression<DateTime>? createdAt,
@@ -1195,7 +1334,9 @@ class EditorVersionRecordsCompanion
       if (id != null) 'id': id,
       if (projectId != null) 'project_id': projectId,
       if (name != null) 'name': name,
+      if (parentVersionId != null) 'parent_version_id': parentVersionId,
       if (stateJson != null) 'state_json': stateJson,
+      if (historyJson != null) 'history_json': historyJson,
       if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (createdAt != null) 'created_at': createdAt,
@@ -1205,9 +1346,11 @@ class EditorVersionRecordsCompanion
 
   EditorVersionRecordsCompanion copyWith({
     Value<String>? id,
-    Value<String>? projectId,
+    Value<int>? projectId,
     Value<String>? name,
+    Value<String?>? parentVersionId,
     Value<String>? stateJson,
+    Value<String>? historyJson,
     Value<String?>? thumbnailPath,
     Value<int>? sortOrder,
     Value<DateTime>? createdAt,
@@ -1217,7 +1360,9 @@ class EditorVersionRecordsCompanion
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       name: name ?? this.name,
+      parentVersionId: parentVersionId ?? this.parentVersionId,
       stateJson: stateJson ?? this.stateJson,
+      historyJson: historyJson ?? this.historyJson,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
@@ -1232,13 +1377,19 @@ class EditorVersionRecordsCompanion
       map['id'] = Variable<String>(id.value);
     }
     if (projectId.present) {
-      map['project_id'] = Variable<String>(projectId.value);
+      map['project_id'] = Variable<int>(projectId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
+    if (parentVersionId.present) {
+      map['parent_version_id'] = Variable<String>(parentVersionId.value);
+    }
     if (stateJson.present) {
       map['state_json'] = Variable<String>(stateJson.value);
+    }
+    if (historyJson.present) {
+      map['history_json'] = Variable<String>(historyJson.value);
     }
     if (thumbnailPath.present) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
@@ -1261,7 +1412,9 @@ class EditorVersionRecordsCompanion
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('name: $name, ')
+          ..write('parentVersionId: $parentVersionId, ')
           ..write('stateJson: $stateJson, ')
+          ..write('historyJson: $historyJson, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt, ')
@@ -1306,9 +1459,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 
 typedef $$EditorProjectRecordsTableCreateCompanionBuilder =
     EditorProjectRecordsCompanion Function({
-      required String id,
+      Value<int> id,
       required String name,
       Value<String> status,
+      Value<String?> activeVersionId,
       required String originalImagePath,
       Value<String?> previewImagePath,
       required String currentStateJson,
@@ -1319,13 +1473,13 @@ typedef $$EditorProjectRecordsTableCreateCompanionBuilder =
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> lastOpenedAt,
-      Value<int> rowid,
     });
 typedef $$EditorProjectRecordsTableUpdateCompanionBuilder =
     EditorProjectRecordsCompanion Function({
-      Value<String> id,
+      Value<int> id,
       Value<String> name,
       Value<String> status,
+      Value<String?> activeVersionId,
       Value<String> originalImagePath,
       Value<String?> previewImagePath,
       Value<String> currentStateJson,
@@ -1336,7 +1490,6 @@ typedef $$EditorProjectRecordsTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> lastOpenedAt,
-      Value<int> rowid,
     });
 
 final class $$EditorProjectRecordsTableReferences
@@ -1370,7 +1523,7 @@ final class $$EditorProjectRecordsTableReferences
     final manager = $$EditorVersionRecordsTableTableManager(
       $_db,
       $_db.editorVersionRecords,
-    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _editorVersionRecordsRefsTable($_db),
@@ -1390,7 +1543,7 @@ class $$EditorProjectRecordsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id => $composableBuilder(
+  ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -1402,6 +1555,11 @@ class $$EditorProjectRecordsTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activeVersionId => $composableBuilder(
+    column: $table.activeVersionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1490,7 +1648,7 @@ class $$EditorProjectRecordsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id => $composableBuilder(
+  ColumnOrderings<int> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1502,6 +1660,11 @@ class $$EditorProjectRecordsTableOrderingComposer
 
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activeVersionId => $composableBuilder(
+    column: $table.activeVersionId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1565,7 +1728,7 @@ class $$EditorProjectRecordsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
+  GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -1573,6 +1736,11 @@ class $$EditorProjectRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get activeVersionId => $composableBuilder(
+    column: $table.activeVersionId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get originalImagePath => $composableBuilder(
     column: $table.originalImagePath,
@@ -1683,9 +1851,10 @@ class $$EditorProjectRecordsTableTableManager
               ),
           updateCompanionCallback:
               ({
-                Value<String> id = const Value.absent(),
+                Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String?> activeVersionId = const Value.absent(),
                 Value<String> originalImagePath = const Value.absent(),
                 Value<String?> previewImagePath = const Value.absent(),
                 Value<String> currentStateJson = const Value.absent(),
@@ -1696,11 +1865,11 @@ class $$EditorProjectRecordsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
               }) => EditorProjectRecordsCompanion(
                 id: id,
                 name: name,
                 status: status,
+                activeVersionId: activeVersionId,
                 originalImagePath: originalImagePath,
                 previewImagePath: previewImagePath,
                 currentStateJson: currentStateJson,
@@ -1711,13 +1880,13 @@ class $$EditorProjectRecordsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,
-                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                required String id,
+                Value<int> id = const Value.absent(),
                 required String name,
                 Value<String> status = const Value.absent(),
+                Value<String?> activeVersionId = const Value.absent(),
                 required String originalImagePath,
                 Value<String?> previewImagePath = const Value.absent(),
                 required String currentStateJson,
@@ -1728,11 +1897,11 @@ class $$EditorProjectRecordsTableTableManager
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
               }) => EditorProjectRecordsCompanion.insert(
                 id: id,
                 name: name,
                 status: status,
+                activeVersionId: activeVersionId,
                 originalImagePath: originalImagePath,
                 previewImagePath: previewImagePath,
                 currentStateJson: currentStateJson,
@@ -1743,7 +1912,6 @@ class $$EditorProjectRecordsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,
-                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -1806,9 +1974,11 @@ typedef $$EditorProjectRecordsTableProcessedTableManager =
 typedef $$EditorVersionRecordsTableCreateCompanionBuilder =
     EditorVersionRecordsCompanion Function({
       required String id,
-      required String projectId,
+      required int projectId,
       required String name,
+      Value<String?> parentVersionId,
       required String stateJson,
+      Value<String> historyJson,
       Value<String?> thumbnailPath,
       required int sortOrder,
       required DateTime createdAt,
@@ -1817,9 +1987,11 @@ typedef $$EditorVersionRecordsTableCreateCompanionBuilder =
 typedef $$EditorVersionRecordsTableUpdateCompanionBuilder =
     EditorVersionRecordsCompanion Function({
       Value<String> id,
-      Value<String> projectId,
+      Value<int> projectId,
       Value<String> name,
+      Value<String?> parentVersionId,
       Value<String> stateJson,
+      Value<String> historyJson,
       Value<String?> thumbnailPath,
       Value<int> sortOrder,
       Value<DateTime> createdAt,
@@ -1848,7 +2020,7 @@ final class $$EditorVersionRecordsTableReferences
       );
 
   $$EditorProjectRecordsTableProcessedTableManager get projectId {
-    final $_column = $_itemColumn<String>('project_id')!;
+    final $_column = $_itemColumn<int>('project_id')!;
 
     final manager = $$EditorProjectRecordsTableTableManager(
       $_db,
@@ -1881,8 +2053,18 @@ class $$EditorVersionRecordsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get parentVersionId => $composableBuilder(
+    column: $table.parentVersionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get stateJson => $composableBuilder(
     column: $table.stateJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get historyJson => $composableBuilder(
+    column: $table.historyJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1944,8 +2126,18 @@ class $$EditorVersionRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get parentVersionId => $composableBuilder(
+    column: $table.parentVersionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get stateJson => $composableBuilder(
     column: $table.stateJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get historyJson => $composableBuilder(
+    column: $table.historyJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -2004,8 +2196,18 @@ class $$EditorVersionRecordsTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
+  GeneratedColumn<String> get parentVersionId => $composableBuilder(
+    column: $table.parentVersionId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get stateJson =>
       $composableBuilder(column: $table.stateJson, builder: (column) => column);
+
+  GeneratedColumn<String> get historyJson => $composableBuilder(
+    column: $table.historyJson,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get thumbnailPath => $composableBuilder(
     column: $table.thumbnailPath,
@@ -2080,9 +2282,11 @@ class $$EditorVersionRecordsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> projectId = const Value.absent(),
+                Value<int> projectId = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> parentVersionId = const Value.absent(),
                 Value<String> stateJson = const Value.absent(),
+                Value<String> historyJson = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2091,7 +2295,9 @@ class $$EditorVersionRecordsTableTableManager
                 id: id,
                 projectId: projectId,
                 name: name,
+                parentVersionId: parentVersionId,
                 stateJson: stateJson,
+                historyJson: historyJson,
                 thumbnailPath: thumbnailPath,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
@@ -2100,9 +2306,11 @@ class $$EditorVersionRecordsTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                required String projectId,
+                required int projectId,
                 required String name,
+                Value<String?> parentVersionId = const Value.absent(),
                 required String stateJson,
+                Value<String> historyJson = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 required int sortOrder,
                 required DateTime createdAt,
@@ -2111,7 +2319,9 @@ class $$EditorVersionRecordsTableTableManager
                 id: id,
                 projectId: projectId,
                 name: name,
+                parentVersionId: parentVersionId,
                 stateJson: stateJson,
+                historyJson: historyJson,
                 thumbnailPath: thumbnailPath,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
