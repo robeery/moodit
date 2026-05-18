@@ -7,7 +7,7 @@ import '../../model/editor_project.dart';
 import '../../theme/app_theme.dart';
 import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
-import '../editor/widgets/tbd_dialog.dart';
+import '../projects/projects_screen.dart';
 
 enum _DraftRecoveryAction {
   discard,
@@ -122,6 +122,16 @@ class _HomeScreenState extends State<HomeScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => EditorScreen(projectId: projectId),
+      ),
+    );
+    if (!mounted) return;
+    unawaited(_checkForDraft(force: true));
+  }
+
+  Future<void> _openProjects() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => const ProjectsScreen(),
       ),
     );
     if (!mounted) return;
@@ -299,26 +309,28 @@ class _HomeScreenState extends State<HomeScreen> {
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-	                  child: LayoutBuilder(
-	                    builder: (context, constraints) {
-	                      final tileSize = constraints.maxWidth
-	                          .clamp(132.0, 160.0)
-	                          .toDouble();
-	                      return Column(
-	                        mainAxisSize: MainAxisSize.min,
-	                        children: [
-	                          _HomeActionTile(
-	                            icon: Icons.add,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final tileSize = constraints.maxWidth
+                          .clamp(132.0, 160.0)
+                          .toDouble();
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _HomeActionTile(
+                            icon: Icons.add,
                             label: 'IMPORT PHOTO',
-	                            size: tileSize,
-	                            onPressed: isLoading ? null : _pickImage,
-	                          ),
-	                          const SizedBox(height: 16),
-	                          _HomeActionTile(
-	                            icon: Icons.folder_open_outlined,
-	                            label: 'MY PROJECTS',
                             size: tileSize,
-                            onPressed: isLoading ? null : () => showTbdDialog(context),
+                            onPressed: isLoading ? null : _pickImage,
+                          ),
+                          const SizedBox(height: 16),
+                          _HomeActionTile(
+                            icon: Icons.folder_open_outlined,
+                            label: 'MY PROJECTS',
+                            size: tileSize,
+                            onPressed: isLoading
+                                ? null
+                                : () => unawaited(_openProjects()),
                           ),
                         ],
                       );

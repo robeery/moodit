@@ -84,6 +84,17 @@ class ProjectFileStore {
     return _join(projectDir.path, 'preview.jpg');
   }
 
+  Future<String> projectPreviewImagePath({
+    required String projectId,
+    required String revision,
+  }) async {
+    final projectDir = await projectDirectory(projectId);
+    return _join(
+      projectDir.path,
+      'preview_${_safeSegment(revision)}.jpg',
+    );
+  }
+
   Future<String> versionThumbnailPath({
     required String projectId,
     required String versionId,

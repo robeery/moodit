@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -54,6 +55,24 @@ Uint8List encodeJpgFromFrame(RgbaImageFrame frame, {int quality = 90}) {
 
 Uint8List encodePngFromFrame(RgbaImageFrame frame) {
   return Uint8List.fromList(img.encodePng(imageFromRgbaFrame(frame)));
+}
+
+RgbaImageFrame resizeRgbaFrameToFit(
+  RgbaImageFrame frame, {
+  required int maxDimension,
+}) {
+  if (frame.width <= maxDimension && frame.height <= maxDimension) {
+    return copyRgbaImageFrame(frame);
+  }
+
+  final scale = maxDimension / math.max(frame.width, frame.height);
+  final resized = img.copyResize(
+    imageFromRgbaFrame(frame),
+    width: math.max(1, (frame.width * scale).round()),
+    height: math.max(1, (frame.height * scale).round()),
+    interpolation: img.Interpolation.linear,
+  );
+  return frameFromImage(resized);
 }
 
 RgbaImageFrame copyRgbaImageFrame(RgbaImageFrame frame) {

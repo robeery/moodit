@@ -114,6 +114,10 @@ void main() {
           .contentEquals(EditorEditState.empty()),
       isTrue,
     );
+    final initialPreviewPath = repository.savedProjects.single.previewImagePath;
+    expect(initialPreviewPath, isNotNull);
+    expect(initialPreviewPath, contains('preview_'));
+    expect(await File(initialPreviewPath!).exists(), isTrue);
 
     vm.beginManualEdit();
     vm.updateEditPreview(Edit(type: OperationType.brightness, value: 30));
@@ -124,6 +128,11 @@ void main() {
         OperationType.brightness);
     expect(repository.savedVersions.single.state.edits.single.value, 30);
     expect(repository.savedProjects.single.currentState.edits.single.value, 30);
+    expect(repository.updatedPreviewPaths, isNotEmpty);
+    expect(repository.savedProjects.single.previewImagePath,
+        repository.updatedPreviewPaths.last);
+    expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
+    expect(repository.updatedPreviewPaths.last, isNot(initialPreviewPath));
 
     final saved = await vm.saveCurrentDraftAsProject('Portrait edit');
 
@@ -133,6 +142,13 @@ void main() {
     expect(repository.promotedProjects.single.projectId, project.id);
     expect(repository.promotedProjects.single.name, 'Portrait edit');
     expect(repository.promotedProjects.single.state.edits.single.value, 30);
+
+    final savedPreviewPath = repository.updatedPreviewPaths.last;
+
+    await vm.resetEdits();
+
+    expect(repository.updatedPreviewPaths.last, isNot(savedPreviewPath));
+    expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
   });
 
   test('load project restores persisted edit state', () async {
@@ -267,10 +283,13 @@ void main() {
     vm.beginManualEdit();
     vm.updateEditPreview(Edit(type: OperationType.saturation, value: 20));
     await vm.applyEdit(Edit(type: OperationType.saturation, value: 20));
+    final version2PreviewPath = repository.updatedPreviewPaths.last;
 
     final switchToVersion1 = await vm.switchToVersion(version1.id);
 
     expect(switchToVersion1?.label, 'Version 1');
+    expect(repository.updatedPreviewPaths.last, isNot(version2PreviewPath));
+    expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
     expect(vm.getEditValue(OperationType.brightness), 30);
     expect(vm.getEditValue(OperationType.contrast), 10);
     expect(vm.getEditValue(OperationType.exposure), 0);
@@ -282,10 +301,13 @@ void main() {
     expect(v1Redo?.label, 'Exposure +5');
     expect(vm.getEditValue(OperationType.exposure), 5);
     expect(vm.getEditValue(OperationType.saturation), 0);
+    final version1PreviewPath = repository.updatedPreviewPaths.last;
 
     final switchToVersion2 = await vm.switchToVersion(version2.id);
 
     expect(switchToVersion2?.label, renamedVersion2.name);
+    expect(repository.updatedPreviewPaths.last, isNot(version1PreviewPath));
+    expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
     expect(vm.getEditValue(OperationType.exposure), 5);
     expect(vm.getEditValue(OperationType.saturation), 20);
 
@@ -389,6 +411,7 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   final List<_SavedState> savedStates = [];
   final List<_OpenedProject> openedProjects = [];
   final List<_PromotedProject> promotedProjects = [];
+  final List<String> updatedPreviewPaths = [];
   final List<EditorVersion> savedVersions = [];
 
   @override
@@ -477,6 +500,21 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
       state: state,
       updatedAt: updatedAt,
     ));
+  }
+
+  @override
+  Future<void> updateProjectPreviewPath({
+    required int projectId,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  }) async {
+    updatedPreviewPaths.add(previewImagePath);
+    final index = savedProjects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    savedProjects[index] = savedProjects[index].copyWith(
+      previewImagePath: previewImagePath,
+      updatedAt: updatedAt,
+    );
   }
 
   @override

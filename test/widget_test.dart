@@ -7,7 +7,9 @@ import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
 import 'package:licenta/view/home/home_screen.dart';
+import 'package:licenta/view/projects/projects_screen.dart';
 import 'package:licenta/viewmodel/home_viewmodel.dart';
+import 'package:licenta/viewmodel/projects_viewmodel.dart';
 
 void main() {
   testWidgets('app starts on the home actions', (WidgetTester tester) async {
@@ -55,6 +57,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(repository.deletedProjectIds, [7]);
+  });
+
+  testWidgets('projects screen shows empty state', (tester) async {
+    final repository = _NoDraftProjectRepository();
+    final projectsViewModel = ProjectsViewModel(projectRepository: repository);
+    addTearDown(projectsViewModel.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ProjectsScreen(viewModel: projectsViewModel),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text("You don't have any projects yet"), findsOneWidget);
+  });
+
+  testWidgets('projects screen lists saved projects', (tester) async {
+    final repository = _NoDraftProjectRepository();
+    repository.projects
+      ..add(_project(id: 1, status: EditorProjectStatus.draft))
+      ..add(_project(
+        id: 2,
+        status: EditorProjectStatus.saved,
+        name: 'Saved portrait',
+      ));
+    final projectsViewModel = ProjectsViewModel(projectRepository: repository);
+    addTearDown(projectsViewModel.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ProjectsScreen(viewModel: projectsViewModel),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('SAVED PORTRAIT'), findsOneWidget);
+    expect(find.text('PROJECT 1'), findsNothing);
   });
 }
 
@@ -129,6 +167,20 @@ class _NoDraftProjectRepository implements EditorProjectRepository {
   }) async {}
 
   @override
+  Future<void> updateProjectPreviewPath({
+    required int projectId,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  }) async {
+    final index = projects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    projects[index] = projects[index].copyWith(
+      previewImagePath: previewImagePath,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
   Future<EditorProject> saveProject(EditorProject project) async => project;
 
   @override
@@ -146,11 +198,12 @@ class _NoDraftProjectRepository implements EditorProjectRepository {
 EditorProject _project({
   required int id,
   required EditorProjectStatus status,
+  String? name,
 }) {
   final createdAt = DateTime.utc(2026, 5, 17, 9);
   return EditorProject(
     id: id,
-    name: 'Project $id',
+    name: name ?? 'Project $id',
     status: status,
     originalImagePath: '/tmp/project_$id.jpg',
     currentState: EditorEditState.empty(),

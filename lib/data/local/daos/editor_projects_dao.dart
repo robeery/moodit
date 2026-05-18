@@ -44,6 +44,20 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     ));
   }
 
+  Future<int> updatePreviewPath({
+    required int id,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      previewImagePath: Value(previewImagePath),
+      updatedAt: Value(updatedAt),
+    ));
+  }
+
   Future<int> updateActiveVersion({
     required int id,
     required String? activeVersionId,

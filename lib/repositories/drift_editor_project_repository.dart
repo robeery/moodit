@@ -57,6 +57,19 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
+  Future<void> updateProjectPreviewPath({
+    required int projectId,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  }) async {
+    await _database.editorProjectsDao.updatePreviewPath(
+      id: projectId,
+      previewImagePath: previewImagePath,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
   Future<void> setActiveVersion({
     required int projectId,
     required String? versionId,

@@ -12,6 +12,11 @@ abstract class EditorProjectRepository {
     required EditorEditState state,
     required DateTime updatedAt,
   });
+  Future<void> updateProjectPreviewPath({
+    required int projectId,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  });
   Future<void> setActiveVersion({
     required int projectId,
     required String? versionId,

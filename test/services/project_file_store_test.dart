@@ -41,12 +41,20 @@ void main() {
     );
 
     final previewPath = await store.previewImagePath('project-1');
+    final revisedPreviewPath = await store.projectPreviewImagePath(
+      projectId: 'project-1',
+      revision: '123_1',
+    );
     final thumbnailPath = await store.versionThumbnailPath(
       projectId: 'project-1',
       versionId: 'version-1',
     );
 
     expect(previewPath, endsWith('${Platform.pathSeparator}preview.jpg'));
+    expect(
+      revisedPreviewPath,
+      endsWith('${Platform.pathSeparator}preview_123_1.jpg'),
+    );
     expect(
       thumbnailPath,
       endsWith(

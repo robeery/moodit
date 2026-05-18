@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -36,6 +37,7 @@ enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 class EditorViewModel extends ChangeNotifier {
   static const String _projectHistoryKey = '__project__';
   static const int versionNameMaxLength = 32;
+  static const int _projectPreviewMaxDimension = 256;
 
   final Map<String, AiProvider Function(String? apiKey)> _providerFactories = {
     AiProfileSettings.geminiProviderId: (apiKey) => GeminiProvider(apiKey: apiKey),
@@ -82,6 +84,7 @@ class EditorViewModel extends ChangeNotifier {
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
   Map<String, String> _apiKeysByProfileId = {};
+  int _projectPreviewRevision = 0;
 
   EditorViewModel({
     AiProfilesStorage? aiProfilesStorage,
@@ -503,6 +506,13 @@ class EditorViewModel extends ChangeNotifier {
       _currentProject = savedProject;
       if (savedProject.id > 0) {
         await _createInitialVersionBestEffort(savedProject);
+        final currentProject = _currentProject;
+        if (currentProject != null) {
+          await _persistProjectPreviewBestEffort(
+            currentProject,
+            updatedAt: currentProject.updatedAt,
+          );
+        }
       }
     } finally {
       _isProcessing = false;
@@ -608,6 +618,10 @@ class EditorViewModel extends ChangeNotifier {
       name: trimmedName,
       status: EditorProjectStatus.saved,
       currentState: state,
+      updatedAt: updatedAt,
+    );
+    await _persistProjectPreviewBestEffort(
+      _currentProject!,
       updatedAt: updatedAt,
     );
     notifyListeners();
@@ -761,6 +775,10 @@ class EditorViewModel extends ChangeNotifier {
         projectId: project.id,
         versionId: version.id,
         state: version.state,
+        updatedAt: updatedAt,
+      );
+      await _persistProjectPreviewBestEffort(
+        _currentProject!,
         updatedAt: updatedAt,
       );
     }
@@ -1043,7 +1061,7 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
-  void resetEdits() {
+  Future<void> resetEdits() async {
     if (_photoEditingImage == null || _originalFrame == null) return;
     _acceptPendingEditsForHistory();
     final before = _currentEditState();
@@ -1063,15 +1081,17 @@ class EditorViewModel extends ChangeNotifier {
     _pendingEdits = null;
     _pendingAiHistoryEntry = null;
     _manualEditBeforeState = null;
-    unawaited(_persistCurrentProjectStateBestEffort());
-    unawaited(() async {
-      await _setProcessedFrame(_originalFrame!);
-      notifyListeners();
-    }());
+    _isProcessing = true;
     _editorMode = EditorMode.basic;
     _selectedOperation = OperationType.exposure;
     _selectedColorRange = ColorRange.red;
     _selectedGradingZone = ColorGradingZone.shadows;
+    notifyListeners();
+
+    await _setProcessedFrame(_originalFrame!);
+    await _persistCurrentProjectStateBestEffort();
+
+    _isProcessing = false;
     notifyListeners();
   }
 
@@ -1268,6 +1288,76 @@ class EditorViewModel extends ChangeNotifier {
       }
     } catch (_) {
       // Runtime editing should keep working even if persistence fails.
+    }
+    await _persistProjectPreviewBestEffort(
+      _currentProject ?? project,
+      updatedAt: updatedAt,
+    );
+  }
+
+  Future<void> _persistProjectPreviewBestEffort(
+    EditorProject project, {
+    required DateTime updatedAt,
+  }) async {
+    final frame = _processedFrame;
+    if (project.id <= 0 || frame == null) return;
+
+    try {
+      final currentProjectPreviewPath = _currentProject?.id == project.id
+          ? _currentProject?.previewImagePath
+          : null;
+      final previousPreviewPath =
+          currentProjectPreviewPath ?? project.previewImagePath;
+      final previewPath = await _projectFileStore.projectPreviewImagePath(
+        projectId: project.id.toString(),
+        revision: _nextProjectPreviewRevision(updatedAt),
+      );
+      final thumbnailFrame = resizeRgbaFrameToFit(
+        frame,
+        maxDimension: _projectPreviewMaxDimension,
+      );
+      await File(previewPath).writeAsBytes(
+        encodeJpgFromFrame(thumbnailFrame, quality: 80),
+      );
+      await _projectRepositoryInstance.updateProjectPreviewPath(
+        projectId: project.id,
+        previewImagePath: previewPath,
+        updatedAt: updatedAt,
+      );
+      _currentProject = (_currentProject ?? project).copyWith(
+        previewImagePath: previewPath,
+        updatedAt: updatedAt,
+      );
+      await _deleteOldProjectPreviewBestEffort(
+        previousPreviewPath,
+        currentPreviewPath: previewPath,
+      );
+    } catch (_) {
+      // Project browsing can fall back to a placeholder if preview persistence fails.
+    }
+  }
+
+  String _nextProjectPreviewRevision(DateTime updatedAt) {
+    final revision = _projectPreviewRevision++;
+    return '${updatedAt.microsecondsSinceEpoch}_$revision';
+  }
+
+  Future<void> _deleteOldProjectPreviewBestEffort(
+    String? previousPreviewPath, {
+    required String currentPreviewPath,
+  }) async {
+    if (previousPreviewPath == null ||
+        previousPreviewPath == currentPreviewPath) {
+      return;
+    }
+
+    try {
+      final oldPreview = File(previousPreviewPath);
+      if (await oldPreview.exists()) {
+        await oldPreview.delete();
+      }
+    } catch (_) {
+      // Old previews are disposable cache files; a failed cleanup should not block editing.
     }
   }
 

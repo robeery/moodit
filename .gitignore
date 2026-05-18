@@ -51,6 +51,7 @@ app.*.map.json
 todo.txt
 docs
 .vscode
+scripts
 
 # Benchmark
 benchmark_results.json

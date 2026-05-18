@@ -729,7 +729,7 @@ class _EditorScreenState extends State<EditorScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _vm.resetEdits();
+              unawaited(_vm.resetEdits());
             },
             child: const Text(
               'YES',

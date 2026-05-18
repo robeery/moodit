@@ -211,6 +211,20 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   }) async {}
 
   @override
+  Future<void> updateProjectPreviewPath({
+    required int projectId,
+    required String previewImagePath,
+    required DateTime updatedAt,
+  }) async {
+    final index = projects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    projects[index] = projects[index].copyWith(
+      previewImagePath: previewImagePath,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
   Future<void> setActiveVersion({
     required int projectId,
     required String? versionId,
