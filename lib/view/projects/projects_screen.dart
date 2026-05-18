@@ -7,6 +7,7 @@ import '../../model/editor_project.dart';
 import '../../theme/app_theme.dart';
 import '../../viewmodel/projects_viewmodel.dart';
 import '../editor/editor_screen.dart';
+import 'project_details_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({
@@ -51,6 +52,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
     if (!mounted) return;
     unawaited(_vm.refresh());
+  }
+
+  Future<void> _openProjectDetails(EditorProject project) async {
+    final result = await Navigator.of(context).push<ProjectDetailsResult>(
+      MaterialPageRoute(
+        builder: (_) => ProjectDetailsScreen(projectId: project.id),
+      ),
+    );
+    if (!mounted) return;
+
+    unawaited(_vm.refresh());
+    if (result == ProjectDetailsResult.deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Project deleted.'),
+          backgroundColor: AppColors.surface,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _showErrorIfNeeded() {
@@ -122,6 +143,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       return _ProjectRow(
                         project: project,
                         onTap: () => unawaited(_openProject(project)),
+                        onDetailsTap: () =>
+                            unawaited(_openProjectDetails(project)),
                       );
                     },
                   ),
@@ -147,10 +170,12 @@ class _ProjectRow extends StatelessWidget {
   const _ProjectRow({
     required this.project,
     required this.onTap,
+    required this.onDetailsTap,
   });
 
   final EditorProject project;
   final VoidCallback onTap;
+  final VoidCallback onDetailsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +217,14 @@ class _ProjectRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
+            IconButton(
+              icon: const Icon(Icons.more_vert, size: 20),
+              color: AppColors.muted,
+              tooltip: 'Project details',
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              padding: EdgeInsets.zero,
+              onPressed: onDetailsTap,
+            ),
           ],
         ),
       ),

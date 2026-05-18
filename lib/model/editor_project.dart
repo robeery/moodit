@@ -1,5 +1,11 @@
 import 'editor_edit_state.dart';
 
+const String unnamedDraftProjectName = 'Unnamed draft';
+final RegExp _generatedNumericDraftName = RegExp(r'^\d{10,}$');
+final RegExp _generatedUuidDraftName = RegExp(
+  r'^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$',
+);
+
 enum EditorProjectStatus {
   draft('draft'),
   saved('saved');
@@ -14,6 +20,34 @@ enum EditorProjectStatus {
     }
     return EditorProjectStatus.draft;
   }
+}
+
+String suggestedSavedProjectName(EditorProject project) {
+  final displayName = displayProjectName(project);
+  if (displayName.isEmpty ||
+      (project.status == EditorProjectStatus.draft &&
+          displayName == unnamedDraftProjectName)) {
+    return project.id > 0 ? 'Project ${project.id}' : 'Project';
+  }
+  return displayName;
+}
+
+String displayProjectName(EditorProject project) {
+  final trimmedName = project.name.trim();
+  if (project.status == EditorProjectStatus.draft &&
+      (trimmedName.isEmpty || isGeneratedDraftProjectName(trimmedName))) {
+    return unnamedDraftProjectName;
+  }
+  return trimmedName.isEmpty ? 'Project ${project.id}' : trimmedName;
+}
+
+bool isGeneratedDraftProjectName(String name) {
+  final trimmedName = name.trim();
+  return trimmedName == unnamedDraftProjectName ||
+      trimmedName.startsWith('import_') ||
+      trimmedName.startsWith('image_picker_') ||
+      _generatedNumericDraftName.hasMatch(trimmedName) ||
+      _generatedUuidDraftName.hasMatch(trimmedName);
 }
 
 class EditorProject {

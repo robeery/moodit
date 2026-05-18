@@ -29,6 +29,11 @@ abstract class EditorProjectRepository {
     required EditorEditState state,
     required DateTime updatedAt,
   });
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  });
   Future<void> markProjectOpened({
     required int projectId,
     required DateTime openedAt,

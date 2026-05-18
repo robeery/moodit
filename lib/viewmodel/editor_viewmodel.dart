@@ -310,13 +310,18 @@ class EditorViewModel extends ChangeNotifier {
       _pendingEdits == null &&
       !_isProcessing &&
       !_isWaitingForAi;
+  bool get hasPersistedProject =>
+      _currentProject != null && _currentProject!.id > 0;
+  bool get canOpenProjectSettings =>
+      hasPersistedProject &&
+      _pendingEdits == null &&
+      !_isProcessing &&
+      !_isWaitingForAi;
   String get defaultVersionName => 'Version ${_nextVersionSortOrder()}';
   String get defaultProjectName {
     final project = _currentProject;
     if (project == null) return 'Project';
-    if (project.status == EditorProjectStatus.saved) return project.name;
-    if (project.id > 0) return 'Project ${project.id}';
-    return 'Project';
+    return suggestedSavedProjectName(project);
   }
   ui.Image? get processedImage => _processedPreviewImage;
   ui.Image? get originalPreviewImage => _originalPreviewImage;
@@ -472,7 +477,7 @@ class EditorViewModel extends ChangeNotifier {
       final previewFrame = _originalFrame!;
       final createdAt = _now();
       final project = EditorProject(
-        name: _projectNameFromPath(sourceImagePath),
+        name: unnamedDraftProjectName,
         status: EditorProjectStatus.draft,
         originalImagePath: storedOriginal.path,
         currentState: EditorEditState.empty(),
@@ -597,7 +602,9 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<bool> saveCurrentDraftAsProject(String name) async {
     final project = _currentProject;
-    final trimmedName = name.trim();
+    final trimmedName = name.trim().isEmpty
+        ? defaultProjectName
+        : name.trim();
     if (project == null ||
         project.id <= 0 ||
         _photoEditingImage == null ||
@@ -626,6 +633,33 @@ class EditorViewModel extends ChangeNotifier {
     );
     notifyListeners();
     return true;
+  }
+
+  Future<bool> refreshCurrentProjectMetadata() async {
+    final project = _currentProject;
+    if (project == null || project.id <= 0) return false;
+
+    try {
+      final latest = await _projectRepositoryInstance.loadProject(project.id);
+      if (latest == null) return false;
+      _currentProject = project.copyWith(
+        name: latest.name,
+        status: latest.status,
+        previewImagePath: latest.previewImagePath,
+        originalImagePath: latest.originalImagePath,
+        originalWidth: latest.originalWidth,
+        originalHeight: latest.originalHeight,
+        previewWidth: latest.previewWidth,
+        previewHeight: latest.previewHeight,
+        createdAt: latest.createdAt,
+        updatedAt: latest.updatedAt,
+        lastOpenedAt: latest.lastOpenedAt,
+      );
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<EditorVersion?> saveCurrentVersion({String? name}) async {
@@ -1019,18 +1053,6 @@ class EditorViewModel extends ChangeNotifier {
       for (final version in _versions)
         if (version.id == updatedVersion.id) updatedVersion else version,
     ];
-  }
-
-  String _projectNameFromPath(String path) {
-    final slashIndex = path.lastIndexOf('/');
-    final backslashIndex = path.lastIndexOf(r'\');
-    final separatorIndex =
-        slashIndex > backslashIndex ? slashIndex : backslashIndex;
-    final fileName = path.substring(separatorIndex + 1);
-    final dotIndex = fileName.lastIndexOf('.');
-    final baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
-    final trimmed = baseName.trim();
-    return trimmed.isEmpty ? 'Untitled' : trimmed;
   }
 
   void printLogs() {

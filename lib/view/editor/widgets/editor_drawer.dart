@@ -6,6 +6,9 @@ import 'export_settings_dialog.dart';
 
 class EditorDrawer extends StatelessWidget {
   final VoidCallback onOpenAiSettings;
+  final VoidCallback onOpenProjectSettings;
+  final bool showProjectSettings;
+  final bool canOpenProjectSettings;
   final void Function(ExportOption) onExport;
   final ExportSettings exportSettings;
   final void Function(ExportSettings) onExportSettingsChanged;
@@ -13,6 +16,9 @@ class EditorDrawer extends StatelessWidget {
   const EditorDrawer({
     super.key,
     required this.onOpenAiSettings,
+    required this.onOpenProjectSettings,
+    required this.showProjectSettings,
+    required this.canOpenProjectSettings,
     required this.onExport,
     required this.exportSettings,
     required this.onExportSettingsChanged,
@@ -50,6 +56,33 @@ class EditorDrawer extends StatelessWidget {
                 onOpenAiSettings();
               },
             ),
+            if (showProjectSettings)
+              ListTile(
+                leading: Icon(
+                  Icons.folder_open_outlined,
+                  color: canOpenProjectSettings
+                      ? AppColors.accent
+                      : AppColors.muted,
+                  size: 20,
+                ),
+                title: Text(
+                  'PROJECT SETTINGS',
+                  style: TextStyle(
+                    color: canOpenProjectSettings
+                        ? AppColors.accent
+                        : AppColors.muted,
+                    fontSize: 11,
+                    letterSpacing: 2,
+                  ),
+                ),
+                enabled: canOpenProjectSettings,
+                onTap: canOpenProjectSettings
+                    ? () {
+                        Navigator.of(context).pop();
+                        onOpenProjectSettings();
+                      }
+                    : null,
+              ),
             Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(

@@ -105,6 +105,13 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   }) async {}
 
   @override
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  }) async {}
+
+  @override
   Future<void> saveCurrentState({
     required int projectId,
     required EditorEditState state,

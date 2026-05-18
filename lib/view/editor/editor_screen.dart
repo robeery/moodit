@@ -7,6 +7,7 @@ import '../../model/editor_version.dart';
 import '../../model/export_option.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
+import '../projects/project_details_screen.dart';
 import '../settings/ai_settings_screen.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/history_action_bar.dart';
@@ -137,6 +138,9 @@ class _EditorScreenState extends State<EditorScreen> {
           backgroundColor: AppColors.bg,
           endDrawer: EditorDrawer(
             onOpenAiSettings: _openAiSettings,
+            onOpenProjectSettings: _openProjectSettings,
+            showProjectSettings: _vm.hasPersistedProject,
+            canOpenProjectSettings: _vm.canOpenProjectSettings,
             onExport: _handleExport,
             exportSettings: _vm.exportSettings,
             onExportSettingsChanged: _vm.updateExportSettings,
@@ -387,6 +391,32 @@ class _EditorScreenState extends State<EditorScreen> {
       message: 'Project saved: ${_vm.currentProject?.name ?? name.trim()}',
       icon: Icons.folder_outlined,
     );
+  }
+
+  Future<void> _openProjectSettings() async {
+    final project = _vm.currentProject;
+    if (project == null || !_vm.canOpenProjectSettings) return;
+
+    final result = await Navigator.of(context).push<ProjectDetailsResult>(
+      MaterialPageRoute(
+        builder: (_) => ProjectDetailsScreen(projectId: project.id),
+      ),
+    );
+    if (!mounted) return;
+
+    if (result == ProjectDetailsResult.deleted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (result == ProjectDetailsResult.updated) {
+      final refreshed = await _vm.refreshCurrentProjectMetadata();
+      if (!mounted || !refreshed) return;
+      _showHistoryActionBar(
+        message: 'Project updated: ${_vm.currentProject?.name ?? 'Project'}',
+        icon: Icons.folder_open_outlined,
+      );
+    }
   }
 
   void _showVersionsSheet() {

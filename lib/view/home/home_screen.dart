@@ -233,9 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<String?> _showProjectNameDialog(EditorProject draft) async {
-    final initialName = draft.name.trim().isEmpty
-        ? 'Project ${draft.id}'
-        : draft.name.trim();
+    final initialName = _vm.suggestedProjectNameForDraft(draft);
     final controller = TextEditingController(text: initialName);
     controller.selection = TextSelection(
       baseOffset: 0,

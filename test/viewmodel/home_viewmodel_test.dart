@@ -82,6 +82,33 @@ void main() {
     expect(repository.promotedProjects.single.state.edits.single.value, 20);
   });
 
+  test('save as project falls back to project name for unnamed draft', () async {
+    final updatedAt = DateTime.utc(2026, 5, 17, 10);
+    final repository = _FakeEditorProjectRepository();
+    repository.projects.add(_project(
+      id: 7,
+      name: unnamedDraftProjectName,
+      status: EditorProjectStatus.draft,
+    ));
+    final vm = HomeViewModel(
+      projectRepository: repository,
+      now: () => updatedAt,
+    );
+    addTearDown(vm.dispose);
+
+    await vm.checkForRecoverableDraft();
+
+    expect(
+      vm.suggestedProjectNameForDraft(vm.recoverableDraft!),
+      'Project 7',
+    );
+
+    final projectId = await vm.saveRecoverableDraftAsProject('');
+
+    expect(projectId, 7);
+    expect(repository.promotedProjects.single.name, 'Project 7');
+  });
+
   test('continue returns draft id and clears pending recovery', () async {
     final repository = _FakeEditorProjectRepository();
     repository.projects.add(_project(id: 7, status: EditorProjectStatus.draft));
@@ -99,12 +126,13 @@ void main() {
 EditorProject _project({
   required int id,
   required EditorProjectStatus status,
+  String? name,
   EditorEditState? state,
 }) {
   final createdAt = DateTime.utc(2026, 5, 17, 9);
   return EditorProject(
     id: id,
-    name: 'Project $id',
+    name: name ?? 'Project $id',
     status: status,
     originalImagePath: '/tmp/project_$id.jpg',
     currentState: state ?? EditorEditState.empty(),
@@ -199,6 +227,20 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
       name: name,
       status: EditorProjectStatus.saved,
       currentState: state,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    final index = projects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    projects[index] = projects[index].copyWith(
+      name: name,
       updatedAt: updatedAt,
     );
   }

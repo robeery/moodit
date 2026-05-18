@@ -93,7 +93,7 @@ void main() {
     final project = vm.currentProject;
     expect(project, isNotNull);
     expect(project!.id, 1);
-    expect(project.name, 'source');
+    expect(project.name, unnamedDraftProjectName);
     expect(project.status, EditorProjectStatus.draft);
     expect(project.originalImagePath, isNot(sourceFile.path));
     expect(project.originalImagePath, vm.originalImagePath);
@@ -118,6 +118,19 @@ void main() {
     expect(initialPreviewPath, isNotNull);
     expect(initialPreviewPath, contains('preview_'));
     expect(await File(initialPreviewPath!).exists(), isTrue);
+    expect(vm.canOpenProjectSettings, isTrue);
+    expect(vm.defaultProjectName, 'Project 1');
+
+    await repository.renameProject(
+      projectId: project.id,
+      name: 'Renamed draft',
+      updatedAt: DateTime.utc(2026, 5, 16, 13),
+    );
+    final refreshedMetadata = await vm.refreshCurrentProjectMetadata();
+
+    expect(refreshedMetadata, isTrue);
+    expect(vm.currentProject?.name, 'Renamed draft');
+    expect(vm.defaultProjectName, 'Renamed draft');
 
     vm.beginManualEdit();
     vm.updateEditPreview(Edit(type: OperationType.brightness, value: 30));
@@ -485,6 +498,20 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
       name: name,
       status: EditorProjectStatus.saved,
       currentState: state,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    final index = savedProjects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    savedProjects[index] = savedProjects[index].copyWith(
+      name: name,
       updatedAt: updatedAt,
     );
   }

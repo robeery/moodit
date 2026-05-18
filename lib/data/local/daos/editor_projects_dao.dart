@@ -104,6 +104,20 @@ class EditorProjectsDao extends DatabaseAccessor<AppDatabase>
     ));
   }
 
+  Future<int> renameProject({
+    required int id,
+    required String name,
+    required DateTime updatedAt,
+  }) {
+    final query = update(editorProjectRecords)
+      ..where((table) => table.id.equals(id));
+
+    return query.write(EditorProjectRecordsCompanion(
+      name: Value(name),
+      updatedAt: Value(updatedAt),
+    ));
+  }
+
   Future<int> deleteProject(int id) {
     final query = delete(editorProjectRecords)
       ..where((table) => table.id.equals(id));

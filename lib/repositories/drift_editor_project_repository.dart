@@ -101,6 +101,19 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    await _database.editorProjectsDao.renameProject(
+      id: projectId,
+      name: name,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
   Future<void> markProjectOpened({
     required int projectId,
     required DateTime openedAt,
@@ -113,7 +126,10 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
 
   @override
   Future<void> deleteProject(int id) async {
-    await _database.editorProjectsDao.deleteProject(id);
+    await _database.transaction(() async {
+      await _database.editorVersionsDao.deleteVersionsForProject(id);
+      await _database.editorProjectsDao.deleteProject(id);
+    });
   }
 
   @override

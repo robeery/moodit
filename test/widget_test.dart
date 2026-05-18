@@ -5,10 +5,15 @@ import 'package:licenta/main.dart';
 import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
+import 'package:licenta/model/export_option.dart';
+import 'package:licenta/model/export_settings.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
 import 'package:licenta/view/home/home_screen.dart';
+import 'package:licenta/view/projects/project_details_screen.dart';
 import 'package:licenta/view/projects/projects_screen.dart';
+import 'package:licenta/view/editor/widgets/editor_drawer.dart';
 import 'package:licenta/viewmodel/home_viewmodel.dart';
+import 'package:licenta/viewmodel/project_details_viewmodel.dart';
 import 'package:licenta/viewmodel/projects_viewmodel.dart';
 
 void main() {
@@ -94,6 +99,62 @@ void main() {
     expect(find.text('SAVED PORTRAIT'), findsOneWidget);
     expect(find.text('PROJECT 1'), findsNothing);
   });
+
+  testWidgets('project details shows actions and metadata', (tester) async {
+    final repository = _NoDraftProjectRepository();
+    repository.projects.add(_project(
+      id: 2,
+      status: EditorProjectStatus.saved,
+      name: 'Saved portrait',
+    ));
+    final viewModel = ProjectDetailsViewModel(
+      projectId: 2,
+      projectRepository: repository,
+    );
+    addTearDown(viewModel.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ProjectDetailsScreen(projectId: 2, viewModel: viewModel),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('PROJECT DETAILS'), findsOneWidget);
+    expect(find.text('SAVED PORTRAIT'), findsOneWidget);
+    expect(find.text('RENAME PROJECT'), findsOneWidget);
+    expect(find.text('DELETE PROJECT'), findsOneWidget);
+    expect(find.text('PROJECT INFO'), findsOneWidget);
+    expect(find.text('ORIGINAL SIZE'), findsOneWidget);
+  });
+
+  testWidgets('editor drawer exposes project settings when project is loaded',
+      (tester) async {
+    var openedProjectSettings = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: EditorDrawer(
+          onOpenAiSettings: () {},
+          onOpenProjectSettings: () {
+            openedProjectSettings = true;
+          },
+          showProjectSettings: true,
+          canOpenProjectSettings: true,
+          onExport: (ExportOption option) {},
+          exportSettings: const ExportSettings(),
+          onExportSettingsChanged: (ExportSettings settings) {},
+        ),
+      ),
+    ));
+
+    expect(find.text('AI SETTINGS'), findsOneWidget);
+    expect(find.text('PROJECT SETTINGS'), findsOneWidget);
+
+    await tester.tap(find.text('PROJECT SETTINGS'));
+    await tester.pump();
+
+    expect(openedProjectSettings, isTrue);
+  });
 }
 
 class _NoDraftProjectRepository implements EditorProjectRepository {
@@ -155,6 +216,20 @@ class _NoDraftProjectRepository implements EditorProjectRepository {
       name: name,
       status: EditorProjectStatus.saved,
       currentState: state,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Future<void> renameProject({
+    required int projectId,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    final index = projects.indexWhere((project) => project.id == projectId);
+    if (index == -1) return;
+    projects[index] = projects[index].copyWith(
+      name: name,
       updatedAt: updatedAt,
     );
   }

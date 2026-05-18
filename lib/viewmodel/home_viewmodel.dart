@@ -35,6 +35,10 @@ class HomeViewModel extends ChangeNotifier {
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
 
+  String suggestedProjectNameForDraft(EditorProject draft) {
+    return suggestedSavedProjectName(draft);
+  }
+
   Future<void> checkForRecoverableDraft({bool force = false}) async {
     if (_isCheckingDraft || (_hasCheckedDraft && !force)) return;
 
@@ -94,7 +98,9 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<int?> saveRecoverableDraftAsProject(String name) async {
     final draft = _recoverableDraft;
-    final trimmedName = name.trim();
+    final trimmedName = name.trim().isEmpty && draft != null
+        ? suggestedSavedProjectName(draft)
+        : name.trim();
     if (draft == null || trimmedName.isEmpty || _isBusy) return null;
 
     _isBusy = true;
