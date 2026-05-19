@@ -1,6 +1,8 @@
 import '../data/local/app_database.dart';
+import '../data/local/mappers/ai_chat_message_record_mapper.dart';
 import '../data/local/mappers/editor_project_record_mapper.dart';
 import '../data/local/mappers/editor_version_record_mapper.dart';
+import '../model/chat_message.dart';
 import '../model/editor_edit_state.dart';
 import '../model/editor_project.dart';
 import '../model/editor_version.dart';
@@ -130,6 +132,32 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
       await _database.editorVersionsDao.deleteVersionsForProject(id);
       await _database.editorProjectsDao.deleteProject(id);
     });
+  }
+
+  @override
+  Future<List<ChatMessage>> loadAiMessagesForProject(int projectId) async {
+    final records = await _database.aiChatMessagesDao.loadForProject(projectId);
+    return records.map((record) => record.toModel()).toList();
+  }
+
+  @override
+  Future<void> saveAiMessageForProject({
+    required int projectId,
+    required ChatMessage message,
+  }) async {
+    final sortOrder =
+        await _database.aiChatMessagesDao.nextSortOrderForProject(projectId);
+    await _database.aiChatMessagesDao.insertMessage(
+      message.toProjectRecordCompanion(
+        projectId: projectId,
+        sortOrder: sortOrder,
+      ),
+    );
+  }
+
+  @override
+  Future<void> clearAiMessagesForProject(int projectId) async {
+    await _database.aiChatMessagesDao.clearForProject(projectId);
   }
 
   @override

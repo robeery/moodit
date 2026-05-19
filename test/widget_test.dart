@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:licenta/main.dart';
+import 'package:licenta/model/chat_message.dart';
 import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
@@ -166,6 +167,20 @@ class _NoDraftProjectRepository implements EditorProjectRepository {
     deletedProjectIds.add(id);
     projects.removeWhere((project) => project.id == id);
   }
+
+  @override
+  Future<List<ChatMessage>> loadAiMessagesForProject(int projectId) async {
+    return const [];
+  }
+
+  @override
+  Future<void> saveAiMessageForProject({
+    required int projectId,
+    required ChatMessage message,
+  }) async {}
+
+  @override
+  Future<void> clearAiMessagesForProject(int projectId) async {}
 
   @override
   Future<void> deleteVersion(String id) async {}

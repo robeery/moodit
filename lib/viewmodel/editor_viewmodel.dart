@@ -456,6 +456,7 @@ class EditorViewModel extends ChangeNotifier {
     _currentProject = null;
     _versions = [];
     _activeVersionId = null;
+    _messages.clear();
     _resetVersionHistories();
     _isProcessing = true;
     notifyListeners();
@@ -529,6 +530,7 @@ class EditorViewModel extends ChangeNotifier {
     _currentProject = null;
     _versions = [];
     _activeVersionId = null;
+    _messages.clear();
     _resetVersionHistories();
     await _loadImageFromPath(originalImagePath);
   }
@@ -537,6 +539,7 @@ class EditorViewModel extends ChangeNotifier {
     _currentProject = null;
     _versions = [];
     _activeVersionId = null;
+    _messages.clear();
     _resetVersionHistories();
     _isProcessing = true;
     notifyListeners();
@@ -549,6 +552,7 @@ class EditorViewModel extends ChangeNotifier {
         project.originalImagePath,
         manageProcessingState: false,
       );
+      final aiMessages = await _loadAiMessagesBestEffort(project.id);
 
       var versions = await _projectRepositoryInstance.loadVersions(project.id);
       var activeVersion = _resolveActiveVersion(
@@ -575,6 +579,9 @@ class EditorViewModel extends ChangeNotifier {
 
       final openedAt = _now();
       _versions = versions;
+      _messages
+        ..clear()
+        ..addAll(aiMessages);
       _currentProject = project.copyWith(
         activeVersionId: activeVersion?.id,
         currentState: restoredState,
@@ -660,6 +667,43 @@ class EditorViewModel extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<List<ChatMessage>> _loadAiMessagesBestEffort(int projectId) async {
+    try {
+      return await _projectRepositoryInstance.loadAiMessagesForProject(
+        projectId,
+      );
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _persistAiMessageBestEffort(ChatMessage message) async {
+    final project = _currentProject;
+    if (project == null || project.id <= 0) return;
+
+    try {
+      await _projectRepositoryInstance.saveAiMessageForProject(
+        projectId: project.id,
+        message: message,
+      );
+    } catch (_) {
+      // Chat persistence is best-effort; keep the live conversation intact.
+    }
+  }
+
+  Future<void> _clearAiMessagesBestEffort(int projectId) async {
+    try {
+      await _projectRepositoryInstance.clearAiMessagesForProject(projectId);
+    } catch (_) {
+      // The editor should not crash if chat cleanup fails.
+    }
+  }
+
+  Future<void> _addChatMessage(ChatMessage message) async {
+    _messages.add(message);
+    await _persistAiMessageBestEffort(message);
   }
 
   Future<EditorVersion?> saveCurrentVersion({String? name}) async {
@@ -1465,7 +1509,7 @@ class EditorViewModel extends ChangeNotifier {
         : List<ChatMessage>.from(_messages);
     final stateJson = _buildCurrentStateJson();
 
-    _messages.add(ChatMessage(text: text, type: MessageType.user));
+    await _addChatMessage(ChatMessage(text: text, type: MessageType.user));
     notifyListeners();
 
     _isWaitingForAi = true;
@@ -1476,13 +1520,16 @@ class EditorViewModel extends ChangeNotifier {
       aiReply = await _sendWithRetry(text, history, stateJson, aiSettings.model);
     } on AiException catch (e) {
       _isWaitingForAi = false;
-      _messages.add(ChatMessage(text: e.message, type: MessageType.error));
+      await _addChatMessage(
+        ChatMessage(text: e.message, type: MessageType.error),
+      );
       notifyListeners();
       return null;
     } catch (e) {
       _isWaitingForAi = false;
-      _messages
-          .add(ChatMessage(text: 'Unexpected error: $e', type: MessageType.error));
+      await _addChatMessage(
+        ChatMessage(text: 'Unexpected error: $e', type: MessageType.error),
+      );
       notifyListeners();
       return null;
     }
@@ -1504,7 +1551,9 @@ class EditorViewModel extends ChangeNotifier {
         result = parseEditsJson(aiReply);
       } on AiException catch (e) {
         _isWaitingForAi = false;
-        _messages.add(ChatMessage(text: e.message, type: MessageType.error));
+        await _addChatMessage(
+          ChatMessage(text: e.message, type: MessageType.error),
+        );
         notifyListeners();
         return null;
       } catch (_) {
@@ -1512,18 +1561,20 @@ class EditorViewModel extends ChangeNotifier {
       }
 
       if (result.error != null) {
-        _messages.add(ChatMessage(
-          text:
-              'AI returned invalid response after retrying. Error: ${result.error}.\nPlease try again.',
-          type: MessageType.error,
-        ));
+        await _addChatMessage(
+          ChatMessage(
+            text:
+                'AI returned invalid response after retrying. Error: ${result.error}.\nPlease try again.',
+            type: MessageType.error,
+          ),
+        );
         notifyListeners();
         return null;
       }
     }
 
     final parsed = result.edits!;
-    _messages.add(
+    await _addChatMessage(
       ChatMessage(text: parsed.message ?? 'Edits applied.', type: MessageType.ai),
     );
 
@@ -1671,9 +1722,13 @@ class EditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearChat() {
+  Future<void> clearChat() async {
+    final projectId = _currentProject?.id;
     _messages.clear();
     notifyListeners();
+    if (projectId != null && projectId > 0) {
+      await _clearAiMessagesBestEffort(projectId);
+    }
   }
 
   ExportSettings get exportSettings => _exportSettings;

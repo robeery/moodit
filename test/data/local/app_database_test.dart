@@ -15,13 +15,25 @@ void main() {
 	    final versionColumnNames =
 	        database.editorVersionRecords.$columns.map((column) => column.$name);
 
-	    expect(database.schemaVersion, 4);
-	    expect(tableNames, containsAll(['editor_projects', 'editor_versions']));
+	    final aiMessageColumnNames =
+	        database.aiChatMessageRecords.$columns.map((column) => column.$name);
+
+	    expect(database.schemaVersion, 5);
+	    expect(tableNames, containsAll([
+	      'editor_projects',
+	      'editor_versions',
+	      'ai_chat_messages',
+	    ]));
 	    expect(projectColumnNames, contains('status'));
 	    expect(projectColumnNames, contains('active_version_id'));
 	    expect(versionColumnNames, contains('parent_version_id'));
 	    expect(versionColumnNames, contains('history_json'));
+	    expect(aiMessageColumnNames, contains('project_id'));
+	    expect(aiMessageColumnNames, contains('version_id'));
+	    expect(aiMessageColumnNames, contains('sort_order'));
+	    expect(database.aiChatMessagesDao, isA<AiChatMessagesDao>());
 	    expect(database.editorProjectsDao, isA<EditorProjectsDao>());
     expect(database.editorVersionsDao, isA<EditorVersionsDao>());
   });
+
 }

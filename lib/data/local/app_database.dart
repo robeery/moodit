@@ -3,18 +3,22 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 import '../../model/editor_history_snapshot.dart';
 
+part 'tables/ai_chat_messages_table.dart';
 part 'tables/editor_projects_table.dart';
 part 'tables/editor_versions_table.dart';
+part 'daos/ai_chat_messages_dao.dart';
 part 'daos/editor_projects_dao.dart';
 part 'daos/editor_versions_dao.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
   tables: [
+    AiChatMessageRecords,
     EditorProjectRecords,
     EditorVersionRecords,
   ],
   daos: [
+    AiChatMessagesDao,
     EditorProjectsDao,
     EditorVersionsDao,
   ],
@@ -25,7 +29,7 @@ final class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'moodit_editor'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -35,6 +39,7 @@ final class AppDatabase extends _$AppDatabase {
             await m.deleteTable(editorProjectRecords.actualTableName);
             await m.createTable(editorProjectRecords);
             await m.createTable(editorVersionRecords);
+            await m.createTable(aiChatMessageRecords);
             return;
           }
           if (from < 4) {
@@ -56,6 +61,9 @@ final class AppDatabase extends _$AppDatabase {
                 editorVersionRecords.historyJson,
               );
             }
+          }
+          if (from < 5) {
+            await m.createTable(aiChatMessageRecords);
           }
         },
         beforeOpen: (details) async {

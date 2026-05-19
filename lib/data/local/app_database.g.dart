@@ -1424,6 +1424,469 @@ class EditorVersionRecordsCompanion
   }
 }
 
+class $AiChatMessageRecordsTable extends AiChatMessageRecords
+    with TableInfo<$AiChatMessageRecordsTable, AiChatMessageRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiChatMessageRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<int> projectId = GeneratedColumn<int>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES editor_projects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _versionIdMeta = const VerificationMeta(
+    'versionId',
+  );
+  @override
+  late final GeneratedColumn<String> versionId = GeneratedColumn<String>(
+    'version_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES editor_versions (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageTextMeta = const VerificationMeta(
+    'messageText',
+  );
+  @override
+  late final GeneratedColumn<String> messageText = GeneratedColumn<String>(
+    'text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    projectId,
+    versionId,
+    type,
+    messageText,
+    createdAt,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_chat_messages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiChatMessageRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('version_id')) {
+      context.handle(
+        _versionIdMeta,
+        versionId.isAcceptableOrUnknown(data['version_id']!, _versionIdMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('text')) {
+      context.handle(
+        _messageTextMeta,
+        messageText.isAcceptableOrUnknown(data['text']!, _messageTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_messageTextMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sortOrderMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AiChatMessageRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiChatMessageRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}project_id'],
+      )!,
+      versionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version_id'],
+      ),
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      messageText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $AiChatMessageRecordsTable createAlias(String alias) {
+    return $AiChatMessageRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class AiChatMessageRecord extends DataClass
+    implements Insertable<AiChatMessageRecord> {
+  final int id;
+  final int projectId;
+  final String? versionId;
+  final String type;
+  final String messageText;
+  final DateTime createdAt;
+  final int sortOrder;
+  const AiChatMessageRecord({
+    required this.id,
+    required this.projectId,
+    this.versionId,
+    required this.type,
+    required this.messageText,
+    required this.createdAt,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['project_id'] = Variable<int>(projectId);
+    if (!nullToAbsent || versionId != null) {
+      map['version_id'] = Variable<String>(versionId);
+    }
+    map['type'] = Variable<String>(type);
+    map['text'] = Variable<String>(messageText);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  AiChatMessageRecordsCompanion toCompanion(bool nullToAbsent) {
+    return AiChatMessageRecordsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      versionId: versionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(versionId),
+      type: Value(type),
+      messageText: Value(messageText),
+      createdAt: Value(createdAt),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory AiChatMessageRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiChatMessageRecord(
+      id: serializer.fromJson<int>(json['id']),
+      projectId: serializer.fromJson<int>(json['projectId']),
+      versionId: serializer.fromJson<String?>(json['versionId']),
+      type: serializer.fromJson<String>(json['type']),
+      messageText: serializer.fromJson<String>(json['messageText']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'projectId': serializer.toJson<int>(projectId),
+      'versionId': serializer.toJson<String?>(versionId),
+      'type': serializer.toJson<String>(type),
+      'messageText': serializer.toJson<String>(messageText),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  AiChatMessageRecord copyWith({
+    int? id,
+    int? projectId,
+    Value<String?> versionId = const Value.absent(),
+    String? type,
+    String? messageText,
+    DateTime? createdAt,
+    int? sortOrder,
+  }) => AiChatMessageRecord(
+    id: id ?? this.id,
+    projectId: projectId ?? this.projectId,
+    versionId: versionId.present ? versionId.value : this.versionId,
+    type: type ?? this.type,
+    messageText: messageText ?? this.messageText,
+    createdAt: createdAt ?? this.createdAt,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  AiChatMessageRecord copyWithCompanion(AiChatMessageRecordsCompanion data) {
+    return AiChatMessageRecord(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      versionId: data.versionId.present ? data.versionId.value : this.versionId,
+      type: data.type.present ? data.type.value : this.type,
+      messageText: data.messageText.present
+          ? data.messageText.value
+          : this.messageText,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiChatMessageRecord(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('versionId: $versionId, ')
+          ..write('type: $type, ')
+          ..write('messageText: $messageText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    projectId,
+    versionId,
+    type,
+    messageText,
+    createdAt,
+    sortOrder,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiChatMessageRecord &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.versionId == this.versionId &&
+          other.type == this.type &&
+          other.messageText == this.messageText &&
+          other.createdAt == this.createdAt &&
+          other.sortOrder == this.sortOrder);
+}
+
+class AiChatMessageRecordsCompanion
+    extends UpdateCompanion<AiChatMessageRecord> {
+  final Value<int> id;
+  final Value<int> projectId;
+  final Value<String?> versionId;
+  final Value<String> type;
+  final Value<String> messageText;
+  final Value<DateTime> createdAt;
+  final Value<int> sortOrder;
+  const AiChatMessageRecordsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.versionId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.messageText = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+  });
+  AiChatMessageRecordsCompanion.insert({
+    this.id = const Value.absent(),
+    required int projectId,
+    this.versionId = const Value.absent(),
+    required String type,
+    required String messageText,
+    required DateTime createdAt,
+    required int sortOrder,
+  }) : projectId = Value(projectId),
+       type = Value(type),
+       messageText = Value(messageText),
+       createdAt = Value(createdAt),
+       sortOrder = Value(sortOrder);
+  static Insertable<AiChatMessageRecord> custom({
+    Expression<int>? id,
+    Expression<int>? projectId,
+    Expression<String>? versionId,
+    Expression<String>? type,
+    Expression<String>? messageText,
+    Expression<DateTime>? createdAt,
+    Expression<int>? sortOrder,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (versionId != null) 'version_id': versionId,
+      if (type != null) 'type': type,
+      if (messageText != null) 'text': messageText,
+      if (createdAt != null) 'created_at': createdAt,
+      if (sortOrder != null) 'sort_order': sortOrder,
+    });
+  }
+
+  AiChatMessageRecordsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? projectId,
+    Value<String?>? versionId,
+    Value<String>? type,
+    Value<String>? messageText,
+    Value<DateTime>? createdAt,
+    Value<int>? sortOrder,
+  }) {
+    return AiChatMessageRecordsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      versionId: versionId ?? this.versionId,
+      type: type ?? this.type,
+      messageText: messageText ?? this.messageText,
+      createdAt: createdAt ?? this.createdAt,
+      sortOrder: sortOrder ?? this.sortOrder,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<int>(projectId.value);
+    }
+    if (versionId.present) {
+      map['version_id'] = Variable<String>(versionId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (messageText.present) {
+      map['text'] = Variable<String>(messageText.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiChatMessageRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('versionId: $versionId, ')
+          ..write('type: $type, ')
+          ..write('messageText: $messageText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1431,6 +1894,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $EditorProjectRecordsTable(this);
   late final $EditorVersionRecordsTable editorVersionRecords =
       $EditorVersionRecordsTable(this);
+  late final $AiChatMessageRecordsTable aiChatMessageRecords =
+      $AiChatMessageRecordsTable(this);
+  late final AiChatMessagesDao aiChatMessagesDao = AiChatMessagesDao(
+    this as AppDatabase,
+  );
   late final EditorProjectsDao editorProjectsDao = EditorProjectsDao(
     this as AppDatabase,
   );
@@ -1444,6 +1912,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     editorProjectRecords,
     editorVersionRecords,
+    aiChatMessageRecords,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -1453,6 +1922,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('editor_versions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'editor_projects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('ai_chat_messages', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'editor_versions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('ai_chat_messages', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -1527,6 +2010,34 @@ final class $$EditorProjectRecordsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _editorVersionRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AiChatMessageRecordsTable,
+    List<AiChatMessageRecord>
+  >
+  _aiChatMessageRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.aiChatMessageRecords,
+        aliasName: $_aliasNameGenerator(
+          db.editorProjectRecords.id,
+          db.aiChatMessageRecords.projectId,
+        ),
+      );
+
+  $$AiChatMessageRecordsTableProcessedTableManager
+  get aiChatMessageRecordsRefs {
+    final manager = $$AiChatMessageRecordsTableTableManager(
+      $_db,
+      $_db.aiChatMessageRecords,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _aiChatMessageRecordsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -1629,6 +2140,31 @@ class $$EditorProjectRecordsTableFilterComposer
           }) => $$EditorVersionRecordsTableFilterComposer(
             $db: $db,
             $table: $db.editorVersionRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> aiChatMessageRecordsRefs(
+    Expression<bool> Function($$AiChatMessageRecordsTableFilterComposer f) f,
+  ) {
+    final $$AiChatMessageRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiChatMessageRecords,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiChatMessageRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiChatMessageRecords,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -1813,6 +2349,32 @@ class $$EditorProjectRecordsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> aiChatMessageRecordsRefs<T extends Object>(
+    Expression<T> Function($$AiChatMessageRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$AiChatMessageRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.aiChatMessageRecords,
+          getReferencedColumn: (t) => t.projectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AiChatMessageRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.aiChatMessageRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$EditorProjectRecordsTableTableManager
@@ -1828,7 +2390,10 @@ class $$EditorProjectRecordsTableTableManager
           $$EditorProjectRecordsTableUpdateCompanionBuilder,
           (EditorProjectRecord, $$EditorProjectRecordsTableReferences),
           EditorProjectRecord,
-          PrefetchHooks Function({bool editorVersionRecordsRefs})
+          PrefetchHooks Function({
+            bool editorVersionRecordsRefs,
+            bool aiChatMessageRecordsRefs,
+          })
         > {
   $$EditorProjectRecordsTableTableManager(
     _$AppDatabase db,
@@ -1921,38 +2486,66 @@ class $$EditorProjectRecordsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({editorVersionRecordsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (editorVersionRecordsRefs) db.editorVersionRecords,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (editorVersionRecordsRefs)
-                    await $_getPrefetchedData<
-                      EditorProjectRecord,
-                      $EditorProjectRecordsTable,
-                      EditorVersionRecord
-                    >(
-                      currentTable: table,
-                      referencedTable: $$EditorProjectRecordsTableReferences
-                          ._editorVersionRecordsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$EditorProjectRecordsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).editorVersionRecordsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.projectId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({
+                editorVersionRecordsRefs = false,
+                aiChatMessageRecordsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (editorVersionRecordsRefs) db.editorVersionRecords,
+                    if (aiChatMessageRecordsRefs) db.aiChatMessageRecords,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (editorVersionRecordsRefs)
+                        await $_getPrefetchedData<
+                          EditorProjectRecord,
+                          $EditorProjectRecordsTable,
+                          EditorVersionRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$EditorProjectRecordsTableReferences
+                              ._editorVersionRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$EditorProjectRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).editorVersionRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (aiChatMessageRecordsRefs)
+                        await $_getPrefetchedData<
+                          EditorProjectRecord,
+                          $EditorProjectRecordsTable,
+                          AiChatMessageRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$EditorProjectRecordsTableReferences
+                              ._aiChatMessageRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$EditorProjectRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiChatMessageRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -1969,7 +2562,10 @@ typedef $$EditorProjectRecordsTableProcessedTableManager =
       $$EditorProjectRecordsTableUpdateCompanionBuilder,
       (EditorProjectRecord, $$EditorProjectRecordsTableReferences),
       EditorProjectRecord,
-      PrefetchHooks Function({bool editorVersionRecordsRefs})
+      PrefetchHooks Function({
+        bool editorVersionRecordsRefs,
+        bool aiChatMessageRecordsRefs,
+      })
     >;
 typedef $$EditorVersionRecordsTableCreateCompanionBuilder =
     EditorVersionRecordsCompanion Function({
@@ -2030,6 +2626,34 @@ final class $$EditorVersionRecordsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AiChatMessageRecordsTable,
+    List<AiChatMessageRecord>
+  >
+  _aiChatMessageRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.aiChatMessageRecords,
+        aliasName: $_aliasNameGenerator(
+          db.editorVersionRecords.id,
+          db.aiChatMessageRecords.versionId,
+        ),
+      );
+
+  $$AiChatMessageRecordsTableProcessedTableManager
+  get aiChatMessageRecordsRefs {
+    final manager = $$AiChatMessageRecordsTableTableManager(
+      $_db,
+      $_db.aiChatMessageRecords,
+    ).filter((f) => f.versionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _aiChatMessageRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -2104,6 +2728,31 @@ class $$EditorVersionRecordsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> aiChatMessageRecordsRefs(
+    Expression<bool> Function($$AiChatMessageRecordsTableFilterComposer f) f,
+  ) {
+    final $$AiChatMessageRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiChatMessageRecords,
+      getReferencedColumn: (t) => t.versionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiChatMessageRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiChatMessageRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -2243,6 +2892,32 @@ class $$EditorVersionRecordsTableAnnotationComposer
         );
     return composer;
   }
+
+  Expression<T> aiChatMessageRecordsRefs<T extends Object>(
+    Expression<T> Function($$AiChatMessageRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$AiChatMessageRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.aiChatMessageRecords,
+          getReferencedColumn: (t) => t.versionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AiChatMessageRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.aiChatMessageRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$EditorVersionRecordsTableTableManager
@@ -2258,7 +2933,10 @@ class $$EditorVersionRecordsTableTableManager
           $$EditorVersionRecordsTableUpdateCompanionBuilder,
           (EditorVersionRecord, $$EditorVersionRecordsTableReferences),
           EditorVersionRecord,
-          PrefetchHooks Function({bool projectId})
+          PrefetchHooks Function({
+            bool projectId,
+            bool aiChatMessageRecordsRefs,
+          })
         > {
   $$EditorVersionRecordsTableTableManager(
     _$AppDatabase db,
@@ -2335,7 +3013,489 @@ class $$EditorVersionRecordsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({projectId = false}) {
+          prefetchHooksCallback:
+              ({projectId = false, aiChatMessageRecordsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (aiChatMessageRecordsRefs) db.aiChatMessageRecords,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.projectId,
+                                    referencedTable:
+                                        $$EditorVersionRecordsTableReferences
+                                            ._projectIdTable(db),
+                                    referencedColumn:
+                                        $$EditorVersionRecordsTableReferences
+                                            ._projectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (aiChatMessageRecordsRefs)
+                        await $_getPrefetchedData<
+                          EditorVersionRecord,
+                          $EditorVersionRecordsTable,
+                          AiChatMessageRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$EditorVersionRecordsTableReferences
+                              ._aiChatMessageRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$EditorVersionRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiChatMessageRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.versionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$EditorVersionRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EditorVersionRecordsTable,
+      EditorVersionRecord,
+      $$EditorVersionRecordsTableFilterComposer,
+      $$EditorVersionRecordsTableOrderingComposer,
+      $$EditorVersionRecordsTableAnnotationComposer,
+      $$EditorVersionRecordsTableCreateCompanionBuilder,
+      $$EditorVersionRecordsTableUpdateCompanionBuilder,
+      (EditorVersionRecord, $$EditorVersionRecordsTableReferences),
+      EditorVersionRecord,
+      PrefetchHooks Function({bool projectId, bool aiChatMessageRecordsRefs})
+    >;
+typedef $$AiChatMessageRecordsTableCreateCompanionBuilder =
+    AiChatMessageRecordsCompanion Function({
+      Value<int> id,
+      required int projectId,
+      Value<String?> versionId,
+      required String type,
+      required String messageText,
+      required DateTime createdAt,
+      required int sortOrder,
+    });
+typedef $$AiChatMessageRecordsTableUpdateCompanionBuilder =
+    AiChatMessageRecordsCompanion Function({
+      Value<int> id,
+      Value<int> projectId,
+      Value<String?> versionId,
+      Value<String> type,
+      Value<String> messageText,
+      Value<DateTime> createdAt,
+      Value<int> sortOrder,
+    });
+
+final class $$AiChatMessageRecordsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AiChatMessageRecordsTable,
+          AiChatMessageRecord
+        > {
+  $$AiChatMessageRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $EditorProjectRecordsTable _projectIdTable(_$AppDatabase db) =>
+      db.editorProjectRecords.createAlias(
+        $_aliasNameGenerator(
+          db.aiChatMessageRecords.projectId,
+          db.editorProjectRecords.id,
+        ),
+      );
+
+  $$EditorProjectRecordsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<int>('project_id')!;
+
+    final manager = $$EditorProjectRecordsTableTableManager(
+      $_db,
+      $_db.editorProjectRecords,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $EditorVersionRecordsTable _versionIdTable(_$AppDatabase db) =>
+      db.editorVersionRecords.createAlias(
+        $_aliasNameGenerator(
+          db.aiChatMessageRecords.versionId,
+          db.editorVersionRecords.id,
+        ),
+      );
+
+  $$EditorVersionRecordsTableProcessedTableManager? get versionId {
+    final $_column = $_itemColumn<String>('version_id');
+    if ($_column == null) return null;
+    final manager = $$EditorVersionRecordsTableTableManager(
+      $_db,
+      $_db.editorVersionRecords,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_versionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AiChatMessageRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $AiChatMessageRecordsTable> {
+  $$AiChatMessageRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$EditorProjectRecordsTableFilterComposer get projectId {
+    final $$EditorProjectRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.editorProjectRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EditorProjectRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.editorProjectRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$EditorVersionRecordsTableFilterComposer get versionId {
+    final $$EditorVersionRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.versionId,
+      referencedTable: $db.editorVersionRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EditorVersionRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.editorVersionRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiChatMessageRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiChatMessageRecordsTable> {
+  $$AiChatMessageRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$EditorProjectRecordsTableOrderingComposer get projectId {
+    final $$EditorProjectRecordsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.projectId,
+          referencedTable: $db.editorProjectRecords,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EditorProjectRecordsTableOrderingComposer(
+                $db: $db,
+                $table: $db.editorProjectRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$EditorVersionRecordsTableOrderingComposer get versionId {
+    final $$EditorVersionRecordsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.versionId,
+          referencedTable: $db.editorVersionRecords,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EditorVersionRecordsTableOrderingComposer(
+                $db: $db,
+                $table: $db.editorVersionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$AiChatMessageRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiChatMessageRecordsTable> {
+  $$AiChatMessageRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$EditorProjectRecordsTableAnnotationComposer get projectId {
+    final $$EditorProjectRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.projectId,
+          referencedTable: $db.editorProjectRecords,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EditorProjectRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.editorProjectRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$EditorVersionRecordsTableAnnotationComposer get versionId {
+    final $$EditorVersionRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.versionId,
+          referencedTable: $db.editorVersionRecords,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EditorVersionRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.editorVersionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$AiChatMessageRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiChatMessageRecordsTable,
+          AiChatMessageRecord,
+          $$AiChatMessageRecordsTableFilterComposer,
+          $$AiChatMessageRecordsTableOrderingComposer,
+          $$AiChatMessageRecordsTableAnnotationComposer,
+          $$AiChatMessageRecordsTableCreateCompanionBuilder,
+          $$AiChatMessageRecordsTableUpdateCompanionBuilder,
+          (AiChatMessageRecord, $$AiChatMessageRecordsTableReferences),
+          AiChatMessageRecord,
+          PrefetchHooks Function({bool projectId, bool versionId})
+        > {
+  $$AiChatMessageRecordsTableTableManager(
+    _$AppDatabase db,
+    $AiChatMessageRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiChatMessageRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiChatMessageRecordsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AiChatMessageRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> projectId = const Value.absent(),
+                Value<String?> versionId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> messageText = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+              }) => AiChatMessageRecordsCompanion(
+                id: id,
+                projectId: projectId,
+                versionId: versionId,
+                type: type,
+                messageText: messageText,
+                createdAt: createdAt,
+                sortOrder: sortOrder,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int projectId,
+                Value<String?> versionId = const Value.absent(),
+                required String type,
+                required String messageText,
+                required DateTime createdAt,
+                required int sortOrder,
+              }) => AiChatMessageRecordsCompanion.insert(
+                id: id,
+                projectId: projectId,
+                versionId: versionId,
+                type: type,
+                messageText: messageText,
+                createdAt: createdAt,
+                sortOrder: sortOrder,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AiChatMessageRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({projectId = false, versionId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -2361,11 +3521,26 @@ class $$EditorVersionRecordsTableTableManager
                                 currentTable: table,
                                 currentColumn: table.projectId,
                                 referencedTable:
-                                    $$EditorVersionRecordsTableReferences
+                                    $$AiChatMessageRecordsTableReferences
                                         ._projectIdTable(db),
                                 referencedColumn:
-                                    $$EditorVersionRecordsTableReferences
+                                    $$AiChatMessageRecordsTableReferences
                                         ._projectIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (versionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.versionId,
+                                referencedTable:
+                                    $$AiChatMessageRecordsTableReferences
+                                        ._versionIdTable(db),
+                                referencedColumn:
+                                    $$AiChatMessageRecordsTableReferences
+                                        ._versionIdTable(db)
                                         .id,
                               )
                               as T;
@@ -2382,19 +3557,19 @@ class $$EditorVersionRecordsTableTableManager
       );
 }
 
-typedef $$EditorVersionRecordsTableProcessedTableManager =
+typedef $$AiChatMessageRecordsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $EditorVersionRecordsTable,
-      EditorVersionRecord,
-      $$EditorVersionRecordsTableFilterComposer,
-      $$EditorVersionRecordsTableOrderingComposer,
-      $$EditorVersionRecordsTableAnnotationComposer,
-      $$EditorVersionRecordsTableCreateCompanionBuilder,
-      $$EditorVersionRecordsTableUpdateCompanionBuilder,
-      (EditorVersionRecord, $$EditorVersionRecordsTableReferences),
-      EditorVersionRecord,
-      PrefetchHooks Function({bool projectId})
+      $AiChatMessageRecordsTable,
+      AiChatMessageRecord,
+      $$AiChatMessageRecordsTableFilterComposer,
+      $$AiChatMessageRecordsTableOrderingComposer,
+      $$AiChatMessageRecordsTableAnnotationComposer,
+      $$AiChatMessageRecordsTableCreateCompanionBuilder,
+      $$AiChatMessageRecordsTableUpdateCompanionBuilder,
+      (AiChatMessageRecord, $$AiChatMessageRecordsTableReferences),
+      AiChatMessageRecord,
+      PrefetchHooks Function({bool projectId, bool versionId})
     >;
 
 class $AppDatabaseManager {
@@ -2404,6 +3579,38 @@ class $AppDatabaseManager {
       $$EditorProjectRecordsTableTableManager(_db, _db.editorProjectRecords);
   $$EditorVersionRecordsTableTableManager get editorVersionRecords =>
       $$EditorVersionRecordsTableTableManager(_db, _db.editorVersionRecords);
+  $$AiChatMessageRecordsTableTableManager get aiChatMessageRecords =>
+      $$AiChatMessageRecordsTableTableManager(_db, _db.aiChatMessageRecords);
+}
+
+mixin _$AiChatMessagesDaoMixin on DatabaseAccessor<AppDatabase> {
+  $EditorProjectRecordsTable get editorProjectRecords =>
+      attachedDatabase.editorProjectRecords;
+  $EditorVersionRecordsTable get editorVersionRecords =>
+      attachedDatabase.editorVersionRecords;
+  $AiChatMessageRecordsTable get aiChatMessageRecords =>
+      attachedDatabase.aiChatMessageRecords;
+  AiChatMessagesDaoManager get managers => AiChatMessagesDaoManager(this);
+}
+
+class AiChatMessagesDaoManager {
+  final _$AiChatMessagesDaoMixin _db;
+  AiChatMessagesDaoManager(this._db);
+  $$EditorProjectRecordsTableTableManager get editorProjectRecords =>
+      $$EditorProjectRecordsTableTableManager(
+        _db.attachedDatabase,
+        _db.editorProjectRecords,
+      );
+  $$EditorVersionRecordsTableTableManager get editorVersionRecords =>
+      $$EditorVersionRecordsTableTableManager(
+        _db.attachedDatabase,
+        _db.editorVersionRecords,
+      );
+  $$AiChatMessageRecordsTableTableManager get aiChatMessageRecords =>
+      $$AiChatMessageRecordsTableTableManager(
+        _db.attachedDatabase,
+        _db.aiChatMessageRecords,
+      );
 }
 
 mixin _$EditorProjectsDaoMixin on DatabaseAccessor<AppDatabase> {

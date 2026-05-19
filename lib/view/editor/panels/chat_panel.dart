@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../model/chat_message.dart';
 import '../../../theme/app_theme.dart';
@@ -172,7 +174,7 @@ class _ChatPanelState extends State<ChatPanel> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('CLEAR CHAT', style: AppTextStyles.screenTitle),
         content: const Text(
-          'This will permanently delete the conversation. The AI will lose all context from this session.',
+          'This will permanently delete the saved AI conversation for this project. The AI will lose this chat context.',
           style: TextStyle(color: AppColors.accent, fontSize: 13),
         ),
         actions: [
@@ -186,7 +188,7 @@ class _ChatPanelState extends State<ChatPanel> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              widget.vm.clearChat();
+              unawaited(widget.vm.clearChat());
             },
             child: const Text(
               'CLEAR',

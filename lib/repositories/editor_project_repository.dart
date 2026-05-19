@@ -1,3 +1,4 @@
+import '../model/chat_message.dart';
 import '../model/editor_edit_state.dart';
 import '../model/editor_project.dart';
 import '../model/editor_version.dart';
@@ -39,6 +40,12 @@ abstract class EditorProjectRepository {
     required DateTime openedAt,
   });
   Future<void> deleteProject(int id);
+  Future<List<ChatMessage>> loadAiMessagesForProject(int projectId);
+  Future<void> saveAiMessageForProject({
+    required int projectId,
+    required ChatMessage message,
+  });
+  Future<void> clearAiMessagesForProject(int projectId);
 
   Future<List<EditorVersion>> loadVersions(int projectId);
   Future<EditorVersion?> loadVersion(String id);

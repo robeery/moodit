@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:licenta/model/ai_profile_settings.dart';
+import 'package:licenta/model/chat_message.dart';
 import 'package:licenta/model/edit.dart';
 import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_project.dart';
@@ -102,6 +103,7 @@ void main() {
     expect(project.originalHeight, 16);
     expect(project.previewWidth, 16);
     expect(project.previewHeight, 16);
+    expect(vm.messages, isEmpty);
     expect(repository.savedProjects.single.originalImagePath,
         project.originalImagePath);
     expect(repository.savedProjects.single.status, EditorProjectStatus.draft);
@@ -200,6 +202,18 @@ void main() {
       updatedAt: savedAt,
       lastOpenedAt: savedAt,
     ));
+    repository.aiMessagesByProject[1] = [
+      ChatMessage(
+        text: 'Make it warmer',
+        type: MessageType.user,
+        timestamp: savedAt,
+      ),
+      ChatMessage(
+        text: 'Added warmth.',
+        type: MessageType.ai,
+        timestamp: savedAt.add(const Duration(seconds: 1)),
+      ),
+    ];
     final vm = EditorViewModel(
       aiProfilesStorage: _FakeAiProfilesStorage(),
       aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
@@ -215,8 +229,27 @@ void main() {
     expect(vm.currentProject?.lastOpenedAt, openedAt);
     expect(vm.originalImagePath, sourceFile.path);
     expect(vm.getEditValue(OperationType.brightness), 30);
+    expect(vm.messages.map((message) => message.text), [
+      'Make it warmer',
+      'Added warmth.',
+    ]);
     expect(repository.openedProjects.single.projectId, 1);
     expect(repository.openedProjects.single.openedAt, openedAt);
+
+    await vm.clearChat();
+
+    expect(vm.messages, isEmpty);
+    expect(repository.clearedAiMessageProjectIds, [1]);
+    expect(repository.aiMessagesByProject[1], isNull);
+
+    await vm.sendMessage('Try a softer look');
+
+    final persistedMessages = repository.aiMessagesByProject[1]!;
+    expect(persistedMessages.map((message) => message.type), [
+      MessageType.user,
+      MessageType.error,
+    ]);
+    expect(persistedMessages.first.text, 'Try a softer look');
   });
 
   test('versions clone and preserve independent undo and redo stacks', () async {
@@ -426,6 +459,8 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   final List<_PromotedProject> promotedProjects = [];
   final List<String> updatedPreviewPaths = [];
   final List<EditorVersion> savedVersions = [];
+  final Map<int, List<ChatMessage>> aiMessagesByProject = {};
+  final List<int> clearedAiMessageProjectIds = [];
 
   @override
   Future<void> deleteProject(int id) async {}
@@ -433,6 +468,25 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   @override
   Future<void> deleteVersion(String id) async {
     savedVersions.removeWhere((version) => version.id == id);
+  }
+
+  @override
+  Future<List<ChatMessage>> loadAiMessagesForProject(int projectId) async {
+    return List.of(aiMessagesByProject[projectId] ?? const []);
+  }
+
+  @override
+  Future<void> saveAiMessageForProject({
+    required int projectId,
+    required ChatMessage message,
+  }) async {
+    aiMessagesByProject.putIfAbsent(projectId, () => []).add(message);
+  }
+
+  @override
+  Future<void> clearAiMessagesForProject(int projectId) async {
+    clearedAiMessageProjectIds.add(projectId);
+    aiMessagesByProject.remove(projectId);
   }
 
   @override
