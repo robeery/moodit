@@ -25,6 +25,28 @@ void main() {
     expect(companion.sortOrder.value, 2);
   });
 
+  test('chat message maps to version Drift companion', () {
+    final createdAt = DateTime.utc(2026, 5, 19, 11);
+    final message = ChatMessage(
+      text: 'Make it softer',
+      type: MessageType.user,
+      timestamp: createdAt,
+    );
+
+    final companion = message.toVersionRecordCompanion(
+      projectId: 4,
+      versionId: 'version-1',
+      sortOrder: 3,
+    );
+
+    expect(companion.projectId.value, 4);
+    expect(companion.versionId.value, 'version-1');
+    expect(companion.type.value, MessageType.user.name);
+    expect(companion.messageText.value, 'Make it softer');
+    expect(companion.createdAt.value, createdAt);
+    expect(companion.sortOrder.value, 3);
+  });
+
   test('chat Drift record maps to app model', () {
     final createdAt = DateTime.utc(2026, 5, 19, 11);
     final record = AiChatMessageRecord(

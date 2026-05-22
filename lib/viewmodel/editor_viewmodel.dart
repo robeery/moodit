@@ -552,7 +552,6 @@ class EditorViewModel extends ChangeNotifier {
         project.originalImagePath,
         manageProcessingState: false,
       );
-      final aiMessages = await _loadAiMessagesBestEffort(project.id);
 
       var versions = await _projectRepositoryInstance.loadVersions(project.id);
       var activeVersion = _resolveActiveVersion(
@@ -571,6 +570,10 @@ class EditorViewModel extends ChangeNotifier {
         versions = [activeVersion];
         await _saveVersionBestEffort(activeVersion);
       }
+      final aiMessages = await _loadAiMessagesForScopeBestEffort(
+        projectId: project.id,
+        versionId: activeVersion?.id,
+      );
 
       final restoredState = activeVersion?.state ?? project.currentState;
       restoredState.applyTo(_photoEditingImage!);
@@ -669,11 +672,33 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
-  Future<List<ChatMessage>> _loadAiMessagesBestEffort(int projectId) async {
+  Future<List<ChatMessage>> _loadAiMessagesForScopeBestEffort({
+    required int projectId,
+    required String? versionId,
+  }) async {
     try {
-      return await _projectRepositoryInstance.loadAiMessagesForProject(
-        projectId,
+      if (versionId == null) {
+        return await _projectRepositoryInstance.loadAiMessagesForProject(
+          projectId,
+        );
+      }
+
+      final versionMessages =
+          await _projectRepositoryInstance.loadAiMessagesForVersion(
+        projectId: projectId,
+        versionId: versionId,
       );
+      if (versionMessages.isNotEmpty) return versionMessages;
+
+      final projectMessages =
+          await _projectRepositoryInstance.loadAiMessagesForProject(projectId);
+      if (projectMessages.isNotEmpty) {
+        await _projectRepositoryInstance.moveProjectAiMessagesToVersion(
+          projectId: projectId,
+          versionId: versionId,
+        );
+      }
+      return projectMessages;
     } catch (_) {
       return [];
     }
@@ -682,22 +707,57 @@ class EditorViewModel extends ChangeNotifier {
   Future<void> _persistAiMessageBestEffort(ChatMessage message) async {
     final project = _currentProject;
     if (project == null || project.id <= 0) return;
+    final versionId = _activeVersionId;
 
     try {
-      await _projectRepositoryInstance.saveAiMessageForProject(
-        projectId: project.id,
-        message: message,
-      );
+      if (versionId == null) {
+        await _projectRepositoryInstance.saveAiMessageForProject(
+          projectId: project.id,
+          message: message,
+        );
+      } else {
+        await _projectRepositoryInstance.saveAiMessageForVersion(
+          projectId: project.id,
+          versionId: versionId,
+          message: message,
+        );
+      }
     } catch (_) {
       // Chat persistence is best-effort; keep the live conversation intact.
     }
   }
 
-  Future<void> _clearAiMessagesBestEffort(int projectId) async {
+  Future<void> _clearAiMessagesForScopeBestEffort({
+    required int projectId,
+    required String? versionId,
+  }) async {
     try {
-      await _projectRepositoryInstance.clearAiMessagesForProject(projectId);
+      if (versionId == null) {
+        await _projectRepositoryInstance.clearAiMessagesForProject(projectId);
+      } else {
+        await _projectRepositoryInstance.clearAiMessagesForVersion(
+          projectId: projectId,
+          versionId: versionId,
+        );
+      }
     } catch (_) {
       // The editor should not crash if chat cleanup fails.
+    }
+  }
+
+  Future<void> _cloneAiMessagesForVersionBestEffort({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {
+    try {
+      await _projectRepositoryInstance.cloneAiMessagesForVersion(
+        projectId: projectId,
+        sourceVersionId: sourceVersionId,
+        targetVersionId: targetVersionId,
+      );
+    } catch (_) {
+      // Version creation should still work if chat cloning fails.
     }
   }
 
@@ -720,6 +780,7 @@ class EditorViewModel extends ChangeNotifier {
     await _persistCurrentProjectStateBestEffort();
 
     final sortOrder = _nextVersionSortOrder();
+    final sourceVersionId = _activeVersionId;
     final version = _createVersion(
       project: project,
       sortOrder: sortOrder,
@@ -730,6 +791,13 @@ class EditorViewModel extends ChangeNotifier {
     );
 
     await _projectRepositoryInstance.saveVersion(version);
+    if (sourceVersionId != null) {
+      await _cloneAiMessagesForVersionBestEffort(
+        projectId: project.id,
+        sourceVersionId: sourceVersionId,
+        targetVersionId: version.id,
+      );
+    }
     _versions = [..._versions, version];
     _activateVersionHistory(
       version.id,
@@ -859,6 +927,13 @@ class EditorViewModel extends ChangeNotifier {
         _currentProject!,
         updatedAt: updatedAt,
       );
+      final aiMessages = await _loadAiMessagesForScopeBestEffort(
+        projectId: project.id,
+        versionId: version.id,
+      );
+      _messages
+        ..clear()
+        ..addAll(aiMessages);
     }
 
     _isProcessing = false;
@@ -1724,10 +1799,14 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<void> clearChat() async {
     final projectId = _currentProject?.id;
+    final versionId = _activeVersionId;
     _messages.clear();
     notifyListeners();
     if (projectId != null && projectId > 0) {
-      await _clearAiMessagesBestEffort(projectId);
+      await _clearAiMessagesForScopeBestEffort(
+        projectId: projectId,
+        versionId: versionId,
+      );
     }
   }
 

@@ -49,6 +49,7 @@ app.*.map.json
 
 #reference to-do-list
 todo.txt
+todo2.txt
 docs
 .vscode
 scripts

@@ -46,6 +46,28 @@ abstract class EditorProjectRepository {
     required ChatMessage message,
   });
   Future<void> clearAiMessagesForProject(int projectId);
+  Future<List<ChatMessage>> loadAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  });
+  Future<void> saveAiMessageForVersion({
+    required int projectId,
+    required String versionId,
+    required ChatMessage message,
+  });
+  Future<void> cloneAiMessagesForVersion({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  });
+  Future<void> moveProjectAiMessagesToVersion({
+    required int projectId,
+    required String versionId,
+  });
+  Future<void> clearAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  });
 
   Future<List<EditorVersion>> loadVersions(int projectId);
   Future<EditorVersion?> loadVersion(String id);

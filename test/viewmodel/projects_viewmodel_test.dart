@@ -79,6 +79,40 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   Future<void> clearAiMessagesForProject(int projectId) async {}
 
   @override
+  Future<List<ChatMessage>> loadAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<void> saveAiMessageForVersion({
+    required int projectId,
+    required String versionId,
+    required ChatMessage message,
+  }) async {}
+
+  @override
+  Future<void> cloneAiMessagesForVersion({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {}
+
+  @override
+  Future<void> moveProjectAiMessagesToVersion({
+    required int projectId,
+    required String versionId,
+  }) async {}
+
+  @override
+  Future<void> clearAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {}
+
+  @override
   Future<EditorProject?> loadProject(int id) async {
     return projects.where((project) => project.id == id).firstOrNull;
   }

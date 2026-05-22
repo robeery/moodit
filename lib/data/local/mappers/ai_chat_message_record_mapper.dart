@@ -27,6 +27,21 @@ extension AiChatMessageMapper on ChatMessage {
       sortOrder: sortOrder,
     );
   }
+
+  AiChatMessageRecordsCompanion toVersionRecordCompanion({
+    required int projectId,
+    required String versionId,
+    required int sortOrder,
+  }) {
+    return AiChatMessageRecordsCompanion.insert(
+      projectId: projectId,
+      versionId: Value(versionId),
+      type: type.name,
+      messageText: text,
+      createdAt: timestamp,
+      sortOrder: sortOrder,
+    );
+  }
 }
 
 MessageType _messageTypeFromStorage(String value) {

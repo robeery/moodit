@@ -161,6 +161,73 @@ class DriftEditorProjectRepository implements EditorProjectRepository {
   }
 
   @override
+  Future<List<ChatMessage>> loadAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    final records = await _database.aiChatMessagesDao.loadForVersion(
+      projectId: projectId,
+      versionId: versionId,
+    );
+    return records.map((record) => record.toModel()).toList();
+  }
+
+  @override
+  Future<void> saveAiMessageForVersion({
+    required int projectId,
+    required String versionId,
+    required ChatMessage message,
+  }) async {
+    final sortOrder =
+        await _database.aiChatMessagesDao.nextSortOrderForVersion(
+      projectId: projectId,
+      versionId: versionId,
+    );
+    await _database.aiChatMessagesDao.insertMessage(
+      message.toVersionRecordCompanion(
+        projectId: projectId,
+        versionId: versionId,
+        sortOrder: sortOrder,
+      ),
+    );
+  }
+
+  @override
+  Future<void> cloneAiMessagesForVersion({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {
+    await _database.aiChatMessagesDao.cloneVersionMessages(
+      projectId: projectId,
+      sourceVersionId: sourceVersionId,
+      targetVersionId: targetVersionId,
+    );
+  }
+
+  @override
+  Future<void> moveProjectAiMessagesToVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    await _database.aiChatMessagesDao.moveProjectMessagesToVersion(
+      projectId: projectId,
+      versionId: versionId,
+    );
+  }
+
+  @override
+  Future<void> clearAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    await _database.aiChatMessagesDao.clearForVersion(
+      projectId: projectId,
+      versionId: versionId,
+    );
+  }
+
+  @override
   Future<List<EditorVersion>> loadVersions(int projectId) async {
     final records = await _database.editorVersionsDao.loadForProject(projectId);
     return records.map((record) => record.toModel()).toList();

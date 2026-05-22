@@ -233,18 +233,25 @@ void main() {
       'Make it warmer',
       'Added warmth.',
     ]);
+    final activeVersionId = vm.activeVersion!.id;
+    expect(repository.migratedAiMessageVersionIds, [activeVersionId]);
+    expect(repository.aiMessagesByProject[1], isNull);
+    expect(repository.aiMessagesByVersion[activeVersionId]!.map((message) => message.text), [
+      'Make it warmer',
+      'Added warmth.',
+    ]);
     expect(repository.openedProjects.single.projectId, 1);
     expect(repository.openedProjects.single.openedAt, openedAt);
 
     await vm.clearChat();
 
     expect(vm.messages, isEmpty);
-    expect(repository.clearedAiMessageProjectIds, [1]);
-    expect(repository.aiMessagesByProject[1], isNull);
+    expect(repository.clearedAiMessageVersionIds, [activeVersionId]);
+    expect(repository.aiMessagesByVersion[activeVersionId], isNull);
 
     await vm.sendMessage('Try a softer look');
 
-    final persistedMessages = repository.aiMessagesByProject[1]!;
+    final persistedMessages = repository.aiMessagesByVersion[activeVersionId]!;
     expect(persistedMessages.map((message) => message.type), [
       MessageType.user,
       MessageType.error,
@@ -285,6 +292,13 @@ void main() {
     expect(version1, isNotNull);
     expect(version1!.name, 'Version 1');
 
+    await vm.sendMessage('Remember this branch');
+
+    expect(repository.aiMessagesByVersion[version1.id]!.map((message) => message.type), [
+      MessageType.user,
+      MessageType.error,
+    ]);
+
     vm.beginManualEdit();
     vm.updateEditPreview(Edit(type: OperationType.brightness, value: 30));
     await vm.applyEdit(Edit(type: OperationType.brightness, value: 30));
@@ -311,6 +325,10 @@ void main() {
     expect(version2.parentVersionId, version1.id);
     expect(vm.activeVersion?.id, version2.id);
     expect(vm.canRedo, isTrue);
+    expect(repository.aiMessagesByVersion[version2.id]!.map((message) => message.text), [
+      'Remember this branch',
+      'API key not configured. Set your Gemini API key.',
+    ]);
 
     final renamedVersion2 = await vm.renameVersion(
       version2.id,
@@ -329,6 +347,7 @@ void main() {
     vm.beginManualEdit();
     vm.updateEditPreview(Edit(type: OperationType.saturation, value: 20));
     await vm.applyEdit(Edit(type: OperationType.saturation, value: 20));
+    await vm.sendMessage('Version 2 note');
     final version2PreviewPath = repository.updatedPreviewPaths.last;
 
     final switchToVersion1 = await vm.switchToVersion(version1.id);
@@ -341,6 +360,10 @@ void main() {
     expect(vm.getEditValue(OperationType.exposure), 0);
     expect(vm.getEditValue(OperationType.saturation), 0);
     expect(vm.canRedo, isTrue);
+    expect(vm.messages.map((message) => message.text), [
+      'Remember this branch',
+      'API key not configured. Set your Gemini API key.',
+    ]);
 
     final v1Redo = await vm.redo();
 
@@ -356,6 +379,12 @@ void main() {
     expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
     expect(vm.getEditValue(OperationType.exposure), 5);
     expect(vm.getEditValue(OperationType.saturation), 20);
+    expect(vm.messages.map((message) => message.text), [
+      'Remember this branch',
+      'API key not configured. Set your Gemini API key.',
+      'Version 2 note',
+      'API key not configured. Set your Gemini API key.',
+    ]);
 
     final v2Undo = await vm.undo();
 
@@ -460,7 +489,10 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   final List<String> updatedPreviewPaths = [];
   final List<EditorVersion> savedVersions = [];
   final Map<int, List<ChatMessage>> aiMessagesByProject = {};
+  final Map<String, List<ChatMessage>> aiMessagesByVersion = {};
   final List<int> clearedAiMessageProjectIds = [];
+  final List<String> clearedAiMessageVersionIds = [];
+  final List<String> migratedAiMessageVersionIds = [];
 
   @override
   Future<void> deleteProject(int id) async {}
@@ -487,6 +519,53 @@ class _FakeEditorProjectRepository implements EditorProjectRepository {
   Future<void> clearAiMessagesForProject(int projectId) async {
     clearedAiMessageProjectIds.add(projectId);
     aiMessagesByProject.remove(projectId);
+  }
+
+  @override
+  Future<List<ChatMessage>> loadAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    return List.of(aiMessagesByVersion[versionId] ?? const []);
+  }
+
+  @override
+  Future<void> saveAiMessageForVersion({
+    required int projectId,
+    required String versionId,
+    required ChatMessage message,
+  }) async {
+    aiMessagesByVersion.putIfAbsent(versionId, () => []).add(message);
+  }
+
+  @override
+  Future<void> cloneAiMessagesForVersion({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {
+    aiMessagesByVersion[targetVersionId] =
+        List.of(aiMessagesByVersion[sourceVersionId] ?? const []);
+  }
+
+  @override
+  Future<void> moveProjectAiMessagesToVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    final messages = aiMessagesByProject.remove(projectId);
+    if (messages == null) return;
+    migratedAiMessageVersionIds.add(versionId);
+    aiMessagesByVersion[versionId] = List.of(messages);
+  }
+
+  @override
+  Future<void> clearAiMessagesForVersion({
+    required int projectId,
+    required String versionId,
+  }) async {
+    clearedAiMessageVersionIds.add(versionId);
+    aiMessagesByVersion.remove(versionId);
   }
 
   @override
