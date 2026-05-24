@@ -117,57 +117,65 @@ class ColorEditPanel extends StatelessWidget {
   Widget _buildColorBar() {
     return SizedBox(
       height: 64,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: ColorRange.values.length,
-        itemBuilder: (context, index) {
-          final range = ColorRange.values[index];
-          final isSelected = range == vm.selectedColorRange;
-          final hasEdit = vm.hasColorEdit(range);
-          final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiColorRanges.contains(range);
-          final color = AppColors.colorRange[range]!;
+        child: Row(
+          children: ColorRange.values.map((range) {
+            final isSelected = range == vm.selectedColorRange;
+            final hasEdit = vm.hasColorEdit(range);
+            final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiColorRanges.contains(range);
+            final showIndicator = hasEdit || isPendingAiEdit;
+            final color = AppColors.colorRange[range]!;
 
-          return GestureDetector(
-            onTap: () => vm.setSelectedColorRange(range),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected ? AppColors.highlight : Colors.transparent,
-                        width: 2,
-                      ),
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => vm.setSelectedColorRange(range),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? AppColors.highlight : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: showIndicator ? 1 : 0,
+                          child: Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: isPendingAiEdit
+                                  ? const LinearGradient(
+                                      colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                                    )
+                                  : null,
+                              color: isPendingAiEdit ? null : AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (hasEdit) ...[
-                    const SizedBox(height: 2),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: isPendingAiEdit
-                            ? const LinearGradient(
-                                colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-                              )
-                            : null,
-                        color: isPendingAiEdit ? null : AppColors.accent,
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
