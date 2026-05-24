@@ -148,6 +148,9 @@ class _EditorScreenState extends State<EditorScreen> {
           appBar: AppBar(
             backgroundColor: AppColors.bg,
             elevation: 0,
+            scrolledUnderElevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             iconTheme: const IconThemeData(color: AppColors.highlight),
             title: const Text('EDIT', style: AppTextStyles.screenTitle),
             centerTitle: true,

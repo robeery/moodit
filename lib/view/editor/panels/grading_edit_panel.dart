@@ -127,6 +127,7 @@ class GradingEditPanel extends StatelessWidget {
           final isSelected = zone == vm.selectedGradingZone;
           final hasEdit = vm.hasColorGradingEdit(zone);
           final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiGradingZones.contains(zone);
+          final showIndicator = hasEdit || isPendingAiEdit;
 
           return GestureDetector(
             onTap: () => vm.setSelectedGradingZone(zone),
@@ -142,7 +143,9 @@ class GradingEditPanel extends StatelessWidget {
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
                 children: [
                   Text(
                     zone.name.toUpperCase(),
@@ -153,24 +156,32 @@ class GradingEditPanel extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (hasEdit) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: isPendingAiEdit
-                            ? const LinearGradient(
-                                colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-                              )
-                            : null,
-                        color: isPendingAiEdit
-                            ? null
-                            : (isSelected ? AppColors.bg : AppColors.accent),
+                  Positioned(
+                    right: -8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 150),
+                        opacity: showIndicator ? 1 : 0,
+                        child: Container(
+                          width: 4,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: isPendingAiEdit
+                                ? const LinearGradient(
+                                    colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+                                  )
+                                : null,
+                            color: isPendingAiEdit
+                                ? null
+                                : (isSelected ? AppColors.bg : AppColors.accent),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
