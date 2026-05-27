@@ -112,4 +112,69 @@ void main() {
     expect(state.colorGradingEdits.single.zone, ColorGradingZone.midtones);
     expect(state.colorGradingEdits.single.strength, 30);
   });
+
+  test('activeOnly removes inactive entries', () {
+    final state = EditorEditState(
+      edits: [
+        Edit(type: OperationType.brightness, value: 0),
+        Edit(type: OperationType.contrast, value: 18),
+      ],
+      colorEdits: [
+        ColorEdit(range: ColorRange.red),
+        ColorEdit(range: ColorRange.blue, saturation: 12),
+      ],
+      colorGradingEdits: [
+        ColorGradingEdit(zone: ColorGradingZone.shadows, hue: 240),
+        ColorGradingEdit(zone: ColorGradingZone.midtones, luminance: 8),
+      ],
+    );
+
+    final compact = state.activeOnly();
+
+    expect(compact.edits.single.type, OperationType.contrast);
+    expect(compact.colorEdits.single.range, ColorRange.blue);
+    expect(compact.colorGradingEdits.single.zone, ColorGradingZone.midtones);
+  });
+
+  test('mergedWith overlays matching entries and preserves unrelated edits', () {
+    final current = EditorEditState(
+      edits: [
+        Edit(type: OperationType.brightness, value: 10),
+        Edit(type: OperationType.blur, value: 7),
+      ],
+      colorEdits: [
+        ColorEdit(range: ColorRange.red, saturation: 4),
+      ],
+      colorGradingEdits: [
+        ColorGradingEdit(zone: ColorGradingZone.shadows, strength: 20),
+      ],
+    );
+    final overlay = EditorEditState(
+      edits: [
+        Edit(type: OperationType.brightness, value: 30),
+      ],
+      colorEdits: [
+        ColorEdit(range: ColorRange.blue, saturation: 12),
+      ],
+      colorGradingEdits: [
+        ColorGradingEdit(zone: ColorGradingZone.shadows, strength: 45),
+      ],
+    );
+
+    final merged = current.mergedWith(overlay);
+
+    expect(
+      merged.edits.where((edit) => edit.type == OperationType.brightness).single.value,
+      30,
+    );
+    expect(
+      merged.edits.where((edit) => edit.type == OperationType.blur).single.value,
+      7,
+    );
+    expect(merged.colorEdits.map((edit) => edit.range), containsAll([
+      ColorRange.red,
+      ColorRange.blue,
+    ]));
+    expect(merged.colorGradingEdits.single.strength, 45);
+  });
 }

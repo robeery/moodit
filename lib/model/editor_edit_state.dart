@@ -53,6 +53,41 @@ class EditorEditState {
   final List<ColorEdit> colorEdits;
   final List<ColorGradingEdit> colorGradingEdits;
 
+  bool get isEmpty =>
+      edits.every((edit) => edit.value == 0) &&
+      colorEdits.every((edit) => edit.isEmpty) &&
+      colorGradingEdits.every((edit) => edit.isEmpty);
+
+  EditorEditState activeOnly() {
+    return EditorEditState(
+      edits: edits.where((edit) => edit.value != 0).toList(),
+      colorEdits: colorEdits.where((edit) => !edit.isEmpty).toList(),
+      colorGradingEdits:
+          colorGradingEdits.where((edit) => !edit.isEmpty).toList(),
+    );
+  }
+
+  EditorEditState mergedWith(EditorEditState overlay) {
+    final mergedEdits = {
+      for (final edit in edits) edit.type: edit,
+      for (final edit in overlay.edits) edit.type: edit,
+    };
+    final mergedColorEdits = {
+      for (final edit in colorEdits) edit.range: edit,
+      for (final edit in overlay.colorEdits) edit.range: edit,
+    };
+    final mergedColorGradingEdits = {
+      for (final edit in colorGradingEdits) edit.zone: edit,
+      for (final edit in overlay.colorGradingEdits) edit.zone: edit,
+    };
+
+    return EditorEditState(
+      edits: mergedEdits.values.toList(),
+      colorEdits: mergedColorEdits.values.toList(),
+      colorGradingEdits: mergedColorGradingEdits.values.toList(),
+    ).activeOnly();
+  }
+
   bool contentEquals(EditorEditState other) {
     return _editListsEqual(edits, other.edits) &&
         _colorEditListsEqual(colorEdits, other.colorEdits) &&

@@ -1,0 +1,71 @@
+// Moodit current persisted database schema
+// Source of truth: lib/data/local/tables/*.dart
+// Drift schema version: 6
+//
+// Import this file at https://dbdiagram.io to render the ER diagram.
+
+Table editor_projects {
+  id integer [pk, increment]
+  name text [not null, note: 'Drafts display as Unnamed draft until named']
+  status text [not null, default: 'draft', note: 'Application values: draft or saved']
+  active_version_id text [note: 'Logical reference to editor_versions.id; not declared as a Drift foreign key']
+  original_image_path text [not null, note: 'App-owned full-resolution source image path']
+  preview_image_path text [note: 'App-owned current edited preview image path']
+  current_state_json text [not null, note: 'Serialized EditorEditState for current project state']
+  original_width integer [not null]
+  original_height integer [not null]
+  preview_width integer [not null]
+  preview_height integer [not null]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  last_opened_at datetime [note: 'Nullable; planned for later removal if unused']
+
+  Note: 'One imported photo/editing project. It may be a recoverable draft or a named saved project.'
+}
+
+Table editor_versions {
+  id text [pk, not null]
+  project_id integer [not null]
+  name text [not null]
+  parent_version_id text [note: 'Logical parent version id for branching; not declared as a Drift foreign key']
+  state_json text [not null, note: 'Serialized EditorEditState snapshot']
+  history_json text [not null, note: 'Serialized independent undo/redo stacks for this version']
+  thumbnail_path text [note: 'Optional app-owned version thumbnail path']
+  sort_order integer [not null]
+  created_at datetime [not null]
+
+  Note: 'A named editing branch/snapshot inside a project. New versions clone the selected version history.'
+}
+
+Table ai_chat_messages {
+  id integer [pk, increment]
+  project_id integer [not null]
+  version_id text [note: 'Nullable only for legacy project-level messages before one-time migration']
+  type text [not null, note: 'Application values: user, ai, or error']
+  text text [not null]
+  created_at datetime [not null]
+  sort_order integer [not null]
+
+  Note: 'Persisted AI chat messages. Current behavior scopes conversation context to each editor version.'
+}
+
+Table editor_presets {
+  id integer [pk, increment]
+  name text [not null]
+  normalized_name text [not null, unique, note: 'Trimmed lowercase name used for case-insensitive uniqueness']
+  state_json text [not null, note: 'Compact serialized EditorEditState containing active values only']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Note: 'Global reusable editing recipe. Presets intentionally do not belong to projects or versions.'
+}
+
+Ref: editor_versions.project_id > editor_projects.id [delete: cascade]
+Ref: ai_chat_messages.project_id > editor_projects.id [delete: cascade]
+Ref: ai_chat_messages.version_id > editor_versions.id [delete: cascade]
+
+// Logical application relationships intentionally not rendered as DB foreign
+// keys because the current Drift table definitions do not enforce them.
+// Uncomment these only for an application-level conceptual view:
+// Ref: editor_projects.active_version_id > editor_versions.id
+// Ref: editor_versions.parent_version_id > editor_versions.id

@@ -5,9 +5,11 @@ import '../../model/editor_history_snapshot.dart';
 
 part 'tables/ai_chat_messages_table.dart';
 part 'tables/editor_projects_table.dart';
+part 'tables/editor_presets_table.dart';
 part 'tables/editor_versions_table.dart';
 part 'daos/ai_chat_messages_dao.dart';
 part 'daos/editor_projects_dao.dart';
+part 'daos/editor_presets_dao.dart';
 part 'daos/editor_versions_dao.dart';
 part 'app_database.g.dart';
 
@@ -15,11 +17,13 @@ part 'app_database.g.dart';
   tables: [
     AiChatMessageRecords,
     EditorProjectRecords,
+    EditorPresetRecords,
     EditorVersionRecords,
   ],
   daos: [
     AiChatMessagesDao,
     EditorProjectsDao,
+    EditorPresetsDao,
     EditorVersionsDao,
   ],
 )
@@ -29,7 +33,7 @@ final class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'moodit_editor'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -40,6 +44,7 @@ final class AppDatabase extends _$AppDatabase {
             await m.createTable(editorProjectRecords);
             await m.createTable(editorVersionRecords);
             await m.createTable(aiChatMessageRecords);
+            await m.createTable(editorPresetRecords);
             return;
           }
           if (from < 4) {
@@ -64,6 +69,9 @@ final class AppDatabase extends _$AppDatabase {
           }
           if (from < 5) {
             await m.createTable(aiChatMessageRecords);
+          }
+          if (from < 6) {
+            await m.createTable(editorPresetRecords);
           }
         },
         beforeOpen: (details) async {
