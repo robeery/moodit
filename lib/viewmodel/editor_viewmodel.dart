@@ -11,6 +11,7 @@ import '../model/color_grading_edit.dart';
 import '../model/editor_edit_source.dart';
 import '../model/editor_edit_state.dart';
 import '../model/editor_history_entry.dart';
+import '../model/editor_preset.dart';
 import '../model/editor_project.dart';
 import '../model/editor_version.dart';
 import '../model/photo_editing_image.dart';
@@ -31,6 +32,8 @@ import '../services/preview_image_decoder.dart';
 import '../services/project_file_store.dart';
 import '../repositories/editor_project_repository.dart';
 import '../repositories/editor_project_repository_factory.dart';
+import '../repositories/preset_repository.dart';
+import '../repositories/preset_repository_factory.dart';
 
 enum EditorMode { basic, selectiveColor, colorGrading, askAi }
 
@@ -67,9 +70,11 @@ class EditorViewModel extends ChangeNotifier {
   final EditPipelineWorker _editPipelineWorker;
   final PreviewImageDecoder _previewImageDecoder;
   EditorProjectRepository? _projectRepository;
+  PresetRepository? _presetRepository;
   late final ProjectFileStore _projectFileStore;
   final DateTime Function() _now;
   Future<void> Function()? _disposeOwnedProjectRepository;
+  Future<void> Function()? _disposeOwnedPresetRepository;
   final ExportService _exportService = ExportService();
   ExportSettings _exportSettings = const ExportSettings();
   EditorProject? _currentProject;
@@ -92,6 +97,7 @@ class EditorViewModel extends ChangeNotifier {
     EditPipelineWorker? editPipelineWorker,
     PreviewImageDecoder? previewImageDecoder,
     EditorProjectRepository? projectRepository,
+    PresetRepository? presetRepository,
     ProjectFileStore? projectFileStore,
     DateTime Function()? now,
   })
@@ -105,6 +111,7 @@ class EditorViewModel extends ChangeNotifier {
             previewImageDecoder ?? const PreviewImageDecoder(),
         _now = now ?? DateTime.now {
     _projectRepository = projectRepository;
+    _presetRepository = presetRepository;
     _projectFileStore = projectFileStore ?? ProjectFileStore();
 
     _initializeAiProvider();
@@ -317,6 +324,13 @@ class EditorViewModel extends ChangeNotifier {
       _pendingEdits == null &&
       !_isProcessing &&
       !_isWaitingForAi;
+  bool get canUsePresets =>
+      _photoEditingImage != null &&
+      _pendingEdits == null &&
+      !_isProcessing &&
+      !_isWaitingForAi;
+  bool get canSavePreset =>
+      canUsePresets && !_currentEditState().activeOnly().isEmpty;
   String get defaultVersionName => 'Version ${_nextVersionSortOrder()}';
   String get defaultProjectName {
     final project = _currentProject;
@@ -341,6 +355,7 @@ class EditorViewModel extends ChangeNotifier {
     _disposePreviewImages();
     _editPipelineWorker.dispose();
     unawaited(_disposeOwnedProjectRepository?.call());
+    unawaited(_disposeOwnedPresetRepository?.call());
     _connectivitySub.cancel();
     super.dispose();
   }
@@ -1013,6 +1028,16 @@ class EditorViewModel extends ChangeNotifier {
     return handle.repository;
   }
 
+  PresetRepository get _presetRepositoryInstance {
+    final existing = _presetRepository;
+    if (existing != null) return existing;
+
+    final handle = createDefaultPresetRepository();
+    _disposeOwnedPresetRepository = handle.dispose;
+    _presetRepository = handle.repository;
+    return handle.repository;
+  }
+
   String _createTemporaryProjectFolderId() {
     return 'import_${_now().microsecondsSinceEpoch}';
   }
@@ -1238,6 +1263,68 @@ class EditorViewModel extends ChangeNotifier {
 
   EditorEditState _currentEditState() {
     return EditorEditState.fromImage(_photoEditingImage!);
+  }
+
+  Future<String> defaultPresetName() async {
+    final presets = await _presetRepositoryInstance.loadPresets();
+    final names = presets
+        .map((preset) => normalizeEditorPresetName(preset.name))
+        .toSet();
+    var suffix = 1;
+    while (names.contains(normalizeEditorPresetName('Preset $suffix'))) {
+      suffix++;
+    }
+    return 'Preset $suffix';
+  }
+
+  Future<EditorPreset> saveCurrentPreset(String name) async {
+    if (!canUsePresets) {
+      throw const PresetValidationException(
+        'Presets are unavailable while the editor is busy.',
+      );
+    }
+
+    return _presetRepositoryInstance.createPreset(
+      name: name,
+      state: _currentEditState().activeOnly(),
+      createdAt: _now(),
+    );
+  }
+
+  Future<HistoryActionResult?> applyPreset(
+    EditorPreset preset,
+    PresetApplyMode mode,
+  ) async {
+    final image = _photoEditingImage;
+    if (image == null || !canUsePresets) return null;
+
+    final before = _currentEditState();
+    final recipe = preset.state.activeOnly();
+    final after = switch (mode) {
+      PresetApplyMode.merge => before.mergedWith(recipe),
+      PresetApplyMode.replace => recipe,
+    };
+    if (before.contentEquals(after)) return null;
+
+    _manualEditBeforeState = null;
+    after.applyTo(image);
+    _isProcessing = true;
+    notifyListeners();
+
+    try {
+      final resultFrame = await _processAllEdits();
+      await _setProcessedFrame(resultFrame);
+      _pushHistoryEntry(
+        before: before,
+        label: 'Preset ${preset.name}',
+        source: EditorEditSource.preset,
+      );
+      await _persistCurrentProjectStateBestEffort();
+      return HistoryActionResult(label: 'Preset ${preset.name}');
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
+    }
   }
 
   void beginManualEdit() {

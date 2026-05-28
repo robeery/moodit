@@ -129,4 +129,22 @@ void main() {
     expect(restored.canRedo, isTrue);
     expect(restored.redo()?.label, 'Brightness +30');
   });
+
+  test('snapshot round trips preset source', () {
+    final history = EditorHistory();
+    history.push(EditorHistoryEntry(
+      before: EditorEditState.empty(),
+      after: EditorEditState(
+        edits: [Edit(type: OperationType.contrast, value: 15)],
+        colorEdits: const [],
+        colorGradingEdits: const [],
+      ),
+      label: 'Preset Portrait',
+      source: EditorEditSource.preset,
+    ));
+
+    final restored = EditorHistory.fromSnapshot(history.toSnapshot());
+
+    expect(restored.undo()?.source, EditorEditSource.preset);
+  });
 }

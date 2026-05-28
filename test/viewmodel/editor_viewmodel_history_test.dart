@@ -7,9 +7,11 @@ import 'package:licenta/model/ai_profile_settings.dart';
 import 'package:licenta/model/chat_message.dart';
 import 'package:licenta/model/edit.dart';
 import 'package:licenta/model/editor_edit_state.dart';
+import 'package:licenta/model/editor_preset.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
+import 'package:licenta/repositories/preset_repository.dart';
 import 'package:licenta/services/ai_profiles_api_key_storage.dart';
 import 'package:licenta/services/ai_profiles_storage.dart';
 import 'package:licenta/services/project_file_store.dart';
@@ -405,6 +407,136 @@ void main() {
     expect(deletedLastVersion, isFalse);
     expect(vm.versions, hasLength(1));
   });
+
+  test('saves compact presets and generates the first available default name',
+      () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final presetRepository = _FakePresetRepository()
+      ..presets.add(_preset(
+        id: 1,
+        name: 'Preset 1',
+        state: _presetState(OperationType.warmth, 8),
+      ));
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      presetRepository: presetRepository,
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await sourceFile.parent.exists()) {
+        await sourceFile.parent.delete(recursive: true);
+      }
+    });
+
+    await vm.loadImageFromPath(sourceFile.path);
+
+    expect(vm.canSavePreset, isFalse);
+    expect(
+      () => vm.saveCurrentPreset('Empty'),
+      throwsA(isA<PresetValidationException>()),
+    );
+    expect(await vm.defaultPresetName(), 'Preset 2');
+
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.brightness, value: 25));
+    await vm.applyEdit(Edit(type: OperationType.brightness, value: 25));
+    final saved = await vm.saveCurrentPreset('Portrait');
+
+    expect(saved.name, 'Portrait');
+    expect(saved.state.edits.single.type, OperationType.brightness);
+    expect(saved.state.edits.single.value, 25);
+  });
+
+  test('preset merge and replace are atomic history actions and persist preview',
+      () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final projectRepository = _FakeEditorProjectRepository();
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: projectRepository,
+      presetRepository: _FakePresetRepository(),
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+      now: () => DateTime.utc(2026, 6, 1, 12),
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.brightness, value: 15));
+    await vm.applyEdit(Edit(type: OperationType.brightness, value: 15));
+    final previewBeforePreset = projectRepository.updatedPreviewPaths.last;
+    final contrastPreset = _preset(
+      id: 1,
+      name: 'Contrast lift',
+      state: _presetState(OperationType.contrast, 20),
+    );
+
+    final mergeResult = await vm.applyPreset(
+      contrastPreset,
+      PresetApplyMode.merge,
+    );
+
+    expect(mergeResult?.label, 'Preset Contrast lift');
+    expect(vm.getEditValue(OperationType.brightness), 15);
+    expect(vm.getEditValue(OperationType.contrast), 20);
+    expect(projectRepository.updatedPreviewPaths.last, isNot(previewBeforePreset));
+    expect(projectRepository.savedVersions.single.state.edits, hasLength(2));
+
+    final undoMerge = await vm.undo();
+    expect(undoMerge?.label, 'Preset Contrast lift');
+    expect(vm.getEditValue(OperationType.brightness), 15);
+    expect(vm.getEditValue(OperationType.contrast), 0);
+
+    final redoMerge = await vm.redo();
+    expect(redoMerge?.label, 'Preset Contrast lift');
+    expect(vm.getEditValue(OperationType.contrast), 20);
+
+    final blurPreset = _preset(
+      id: 2,
+      name: 'Soft focus',
+      state: _presetState(OperationType.blur, 6),
+    );
+    final replaceResult = await vm.applyPreset(
+      blurPreset,
+      PresetApplyMode.replace,
+    );
+
+    expect(replaceResult?.label, 'Preset Soft focus');
+    expect(vm.getEditValue(OperationType.brightness), 0);
+    expect(vm.getEditValue(OperationType.contrast), 0);
+    expect(vm.getEditValue(OperationType.blur), 6);
+    expect(
+      await vm.applyPreset(blurPreset, PresetApplyMode.replace),
+      isNull,
+    );
+    expect((await vm.undo())?.label, 'Preset Soft focus');
+    expect(vm.getEditValue(OperationType.brightness), 15);
+    expect(vm.getEditValue(OperationType.contrast), 20);
+  });
 }
 
 Future<File> _createTempImage() async {
@@ -443,6 +575,83 @@ class _FakeAiProfilesApiKeyStorage extends AiProfilesApiKeyStorage {
     required Map<String, String> apiKeysByProfileId,
     required Set<String> validProfileIds,
   }) async {}
+}
+
+class _FakePresetRepository implements PresetRepository {
+  final List<EditorPreset> presets = [];
+
+  @override
+  Future<EditorPreset> createPreset({
+    required String name,
+    required EditorEditState state,
+    required DateTime createdAt,
+  }) async {
+    final compact = state.activeOnly();
+    if (compact.isEmpty) {
+      throw const PresetValidationException(
+        'Cannot save a preset without edits.',
+      );
+    }
+    final preset = EditorPreset(
+      id: presets.length + 1,
+      name: name.trim(),
+      state: compact,
+      createdAt: createdAt,
+      updatedAt: createdAt,
+    );
+    presets.add(preset);
+    return preset;
+  }
+
+  @override
+  Future<void> deletePreset(int id) async {
+    presets.removeWhere((preset) => preset.id == id);
+  }
+
+  @override
+  Future<List<EditorPreset>> loadPresets() async => List.of(presets);
+
+  @override
+  Future<EditorPreset> renamePreset({
+    required int id,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    final index = presets.indexWhere((preset) => preset.id == id);
+    final current = presets[index];
+    final renamed = EditorPreset(
+      id: current.id,
+      name: name.trim(),
+      state: current.state,
+      createdAt: current.createdAt,
+      updatedAt: updatedAt,
+    );
+    presets[index] = renamed;
+    return renamed;
+  }
+}
+
+EditorPreset _preset({
+  required int id,
+  required String name,
+  required EditorEditState state,
+}) {
+  final createdAt = DateTime.utc(2026, 6, 1);
+  return EditorPreset(
+    id: id,
+    name: name,
+    state: state,
+    createdAt: createdAt,
+    updatedAt: createdAt,
+  );
+}
+
+EditorEditState _presetState(OperationType type, double value) {
+  return EditorEditState(
+    edits: [Edit(type: type, value: value)],
+    colorEdits: const [],
+    colorGradingEdits: const [],
+  );
 }
 
 class _SavedState {
