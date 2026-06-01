@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../domain/edit_pipeline/edit_pipeline.dart';
 import '../domain/edit_pipeline/image_frame_codec.dart';
@@ -9,7 +10,17 @@ import '../model/rgba_image_frame.dart';
 class PresetThumbnailService {
   const PresetThumbnailService();
 
-  static const int thumbnailMaxDimension = 128;
+  static const int thumbnailMaxDimension = 256;
+  static const String defaultSourceAssetPath = 'assets/images/lenna.jpg';
+
+  Future<RgbaImageFrame> loadDefaultSourceFrame() async {
+    final data = await rootBundle.load(defaultSourceAssetPath);
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+    return compute(decodeRgbaImageFrame, Uint8List.fromList(bytes));
+  }
 
   Future<Map<int, Uint8List>> buildThumbnails({
     required RgbaImageFrame originalFrame,

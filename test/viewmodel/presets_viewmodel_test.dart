@@ -63,6 +63,30 @@ void main() {
     expect(vm.thumbnailFor(vm.presets.single), Uint8List.fromList([1, 2, 3]));
     expect(vm.isLoadingThumbnails, isFalse);
   });
+
+  test('loads a thumbnail source lazily when requested', () async {
+    final repository = _FakePresetRepository()
+      ..presets.add(_preset(id: 1, name: 'Portrait'));
+    final thumbnailService = _FakePresetThumbnailService();
+    var sourceLoadCount = 0;
+    final vm = PresetsViewModel(
+      presetRepository: repository,
+      thumbnailSourceLoader: () async {
+        sourceLoadCount++;
+        return _frame();
+      },
+      thumbnailService: thumbnailService,
+    );
+    addTearDown(vm.dispose);
+
+    expect(sourceLoadCount, 0);
+
+    await vm.loadPresets();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(sourceLoadCount, 1);
+    expect(vm.thumbnailFor(vm.presets.single), Uint8List.fromList([1, 2, 3]));
+  });
 }
 
 class _FakePresetThumbnailService extends PresetThumbnailService {

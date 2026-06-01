@@ -9,6 +9,15 @@ import 'package:licenta/model/rgba_image_frame.dart';
 import 'package:licenta/services/preset_thumbnail_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('loads the bundled default thumbnail source', () async {
+    final frame = await const PresetThumbnailService().loadDefaultSourceFrame();
+
+    expect(frame.width, 512);
+    expect(frame.height, 512);
+  });
+
   test('builds small encoded thumbnails for preset recipes', () async {
     final service = PresetThumbnailService();
     final preset = EditorPreset(
@@ -31,7 +40,7 @@ void main() {
 
     expect(decoded, isNotNull);
     expect(decoded!.width, PresetThumbnailService.thumbnailMaxDimension);
-    expect(decoded.height, 64);
+    expect(decoded.height, 128);
   });
 }
 

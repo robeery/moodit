@@ -12,13 +12,16 @@ class PresetsViewModel extends ChangeNotifier {
   PresetsViewModel({
     PresetRepository? presetRepository,
     RgbaImageFrame? thumbnailSourceFrame,
+    Future<RgbaImageFrame> Function()? thumbnailSourceLoader,
     PresetThumbnailService? thumbnailService,
   })  : _presetRepository = presetRepository,
         _thumbnailSourceFrame = thumbnailSourceFrame,
+        _thumbnailSourceLoader = thumbnailSourceLoader,
         _thumbnailService = thumbnailService ?? const PresetThumbnailService();
 
   PresetRepository? _presetRepository;
-  final RgbaImageFrame? _thumbnailSourceFrame;
+  RgbaImageFrame? _thumbnailSourceFrame;
+  final Future<RgbaImageFrame> Function()? _thumbnailSourceLoader;
   final PresetThumbnailService _thumbnailService;
   Future<void> Function()? _disposeOwnedPresetRepository;
 
@@ -131,11 +134,11 @@ class PresetsViewModel extends ChangeNotifier {
   }
 
   Future<void> _refreshThumbnails() async {
-    final sourceFrame = _thumbnailSourceFrame;
     final presets = List<EditorPreset>.of(_presets);
     final generation = ++_thumbnailGeneration;
 
-    if (sourceFrame == null || presets.isEmpty) {
+    if (presets.isEmpty ||
+        (_thumbnailSourceFrame == null && _thumbnailSourceLoader == null)) {
       _thumbnailsByPresetId = {};
       return;
     }
@@ -144,6 +147,10 @@ class PresetsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final sourceFrame =
+          _thumbnailSourceFrame ?? await _thumbnailSourceLoader!.call();
+      if (_isDisposed || generation != _thumbnailGeneration) return;
+      _thumbnailSourceFrame = sourceFrame;
       final thumbnails = await _thumbnailService.buildThumbnails(
         originalFrame: sourceFrame,
         presets: presets,

@@ -142,7 +142,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openPresets() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => const MyPresetsScreen(),
+        builder: (_) => const MyPresetsScreen(
+          useDefaultThumbnailSource: true,
+        ),
       ),
     );
     if (!mounted) return;

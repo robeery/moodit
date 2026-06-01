@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../model/editor_preset.dart';
 import '../../model/rgba_image_frame.dart';
+import '../../services/preset_thumbnail_service.dart';
 import '../../theme/app_theme.dart';
 import '../../viewmodel/presets_viewmodel.dart';
 
@@ -13,11 +14,13 @@ class MyPresetsScreen extends StatefulWidget {
     super.key,
     this.selectionMode = false,
     this.thumbnailSourceFrame,
+    this.useDefaultThumbnailSource = false,
     PresetsViewModel? viewModel,
   }) : _viewModel = viewModel;
 
   final bool selectionMode;
   final RgbaImageFrame? thumbnailSourceFrame;
+  final bool useDefaultThumbnailSource;
   final PresetsViewModel? _viewModel;
 
   @override
@@ -33,8 +36,15 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
   void initState() {
     super.initState();
     _ownsViewModel = widget._viewModel == null;
+    final thumbnailService = const PresetThumbnailService();
     _vm = widget._viewModel ??
-        PresetsViewModel(thumbnailSourceFrame: widget.thumbnailSourceFrame);
+        PresetsViewModel(
+          thumbnailSourceFrame: widget.thumbnailSourceFrame,
+          thumbnailSourceLoader: widget.useDefaultThumbnailSource
+              ? thumbnailService.loadDefaultSourceFrame
+              : null,
+          thumbnailService: thumbnailService,
+        );
     _scrollController = ScrollController();
     unawaited(_vm.loadPresets());
   }
@@ -254,7 +264,8 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
                       return _PresetRow(
                         preset: preset,
                         thumbnailBytes: _vm.thumbnailFor(preset),
-                        showThumbnail: widget.thumbnailSourceFrame != null,
+                        showThumbnail: widget.thumbnailSourceFrame != null ||
+                            widget.useDefaultThumbnailSource,
                         onTap: widget.selectionMode
                             ? () => Navigator.of(context).pop(preset)
                             : null,
