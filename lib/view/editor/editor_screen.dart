@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import '../../model/editor_version.dart';
+import '../../model/editor_preset.dart';
 import '../../model/export_option.dart';
+import '../../repositories/preset_repository.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
 import '../projects/project_details_screen.dart';
+import '../presets/my_presets_screen.dart';
 import '../settings/ai_settings_screen.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/history_action_bar.dart';
@@ -139,8 +142,11 @@ class _EditorScreenState extends State<EditorScreen> {
           endDrawer: EditorDrawer(
             onOpenAiSettings: _openAiSettings,
             onOpenProjectSettings: _openProjectSettings,
+            onOpenPresets: _openPresets,
             showProjectSettings: _vm.hasPersistedProject,
             canOpenProjectSettings: _vm.canOpenProjectSettings,
+            canOpenPresets: _vm.canUsePresets,
+            canSavePreset: _vm.canSavePreset,
             onExport: _handleExport,
             exportSettings: _vm.exportSettings,
             onExportSettingsChanged: _vm.updateExportSettings,
@@ -203,6 +209,11 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (option == ExportOption.project) {
       await _showSaveProjectDialog();
+      return;
+    }
+
+    if (option == ExportOption.preset) {
+      await _showSavePresetDialog();
       return;
     }
 
@@ -393,6 +404,169 @@ class _EditorScreenState extends State<EditorScreen> {
     _showHistoryActionBar(
       message: 'Project saved: ${_vm.currentProject?.name ?? name.trim()}',
       icon: Icons.folder_outlined,
+    );
+  }
+
+  Future<void> _showSavePresetDialog() async {
+    String defaultName;
+    try {
+      defaultName = await _vm.defaultPresetName();
+    } on PresetRepositoryException catch (error) {
+      _showPresetError(error.message);
+      return;
+    } catch (_) {
+      _showPresetError('Could not load presets.');
+      return;
+    }
+    if (!mounted) return;
+
+    final controller = TextEditingController(text: defaultName);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('SAVE AS PRESET', style: AppTextStyles.screenTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: editorPresetNameMaxLength,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(editorPresetNameMaxLength),
+          ],
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+          cursorColor: AppColors.highlight,
+          decoration: const InputDecoration(
+            labelText: 'PRESET NAME',
+            counterText: '',
+            labelStyle: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.muted),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.highlight),
+            ),
+          ),
+          onSubmitted: (value) => Navigator.of(ctx).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text(
+              'SAVE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (name == null) return;
+
+    try {
+      final preset = await _vm.saveCurrentPreset(name);
+      if (!mounted) return;
+      _showHistoryActionBar(
+        message: 'Preset saved: ${preset.name}',
+        icon: Icons.tune_outlined,
+      );
+    } on PresetRepositoryException catch (error) {
+      _showPresetError(error.message);
+    } catch (_) {
+      _showPresetError('Could not save preset.');
+    }
+  }
+
+  Future<void> _openPresets() async {
+    if (!_vm.canUsePresets) return;
+
+    final preset = await Navigator.of(context).push<EditorPreset>(
+      MaterialPageRoute(
+        builder: (_) => const MyPresetsScreen(selectionMode: true),
+      ),
+    );
+    if (!mounted || preset == null) return;
+
+    final mode = await _showPresetApplyModeDialog(preset.name);
+    if (!mounted || mode == null) return;
+
+    final result = await _vm.applyPreset(preset, mode);
+    if (!mounted) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preset already applied.'),
+          backgroundColor: AppColors.surface,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    _showHistoryActionBar(
+      message: 'Preset applied: ${preset.name}',
+      icon: Icons.tune_outlined,
+    );
+  }
+
+  Future<PresetApplyMode?> _showPresetApplyModeDialog(String presetName) {
+    return showDialog<PresetApplyMode>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('APPLY PRESET', style: AppTextStyles.screenTitle),
+        content: Text(
+          'How should "$presetName" be applied?',
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(PresetApplyMode.merge),
+            child: const Text(
+              'MERGE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(PresetApplyMode.replace),
+            child: const Text(
+              'REPLACE',
+              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPresetError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade900,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 

@@ -4,18 +4,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:licenta/main.dart';
 import 'package:licenta/model/chat_message.dart';
 import 'package:licenta/model/editor_edit_state.dart';
+import 'package:licenta/model/edit.dart';
+import 'package:licenta/model/editor_preset.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
 import 'package:licenta/model/export_option.dart';
 import 'package:licenta/model/export_settings.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
+import 'package:licenta/repositories/preset_repository.dart';
 import 'package:licenta/view/home/home_screen.dart';
 import 'package:licenta/view/projects/project_details_screen.dart';
 import 'package:licenta/view/projects/projects_screen.dart';
+import 'package:licenta/view/presets/my_presets_screen.dart';
 import 'package:licenta/view/editor/widgets/editor_drawer.dart';
 import 'package:licenta/viewmodel/home_viewmodel.dart';
 import 'package:licenta/viewmodel/project_details_viewmodel.dart';
 import 'package:licenta/viewmodel/projects_viewmodel.dart';
+import 'package:licenta/viewmodel/presets_viewmodel.dart';
 
 void main() {
   testWidgets('app starts on the home actions', (WidgetTester tester) async {
@@ -29,10 +34,15 @@ void main() {
     expect(find.text('MOOD EDIT'), findsOneWidget);
     expect(find.text('IMPORT PHOTO'), findsOneWidget);
     expect(find.text('MY PROJECTS'), findsOneWidget);
+    expect(find.text('MY PRESETS'), findsOneWidget);
     expect(find.byIcon(Icons.add), findsOneWidget);
     expect(
       tester.getCenter(find.text('MY PROJECTS')).dy,
       greaterThan(tester.getCenter(find.text('IMPORT PHOTO')).dy),
+    );
+    expect(
+      tester.getCenter(find.text('MY PRESETS')).dy,
+      greaterThan(tester.getCenter(find.text('MY PROJECTS')).dy),
     );
     expect(find.text('0'), findsNothing);
   });
@@ -131,31 +141,148 @@ void main() {
   testWidgets('editor drawer exposes project settings when project is loaded',
       (tester) async {
     var openedProjectSettings = false;
+    var openedPresets = false;
+    final scaffoldKey = GlobalKey<ScaffoldState>();
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: EditorDrawer(
+        key: scaffoldKey,
+        endDrawer: EditorDrawer(
           onOpenAiSettings: () {},
           onOpenProjectSettings: () {
             openedProjectSettings = true;
           },
+          onOpenPresets: () {
+            openedPresets = true;
+          },
           showProjectSettings: true,
           canOpenProjectSettings: true,
+          canOpenPresets: true,
+          canSavePreset: true,
           onExport: (ExportOption option) {},
           exportSettings: const ExportSettings(),
           onExportSettingsChanged: (ExportSettings settings) {},
         ),
       ),
     ));
+    scaffoldKey.currentState!.openEndDrawer();
+    await tester.pumpAndSettle();
 
     expect(find.text('AI SETTINGS'), findsOneWidget);
     expect(find.text('PROJECT SETTINGS'), findsOneWidget);
+    expect(find.text('MY PRESETS'), findsOneWidget);
 
     await tester.tap(find.text('PROJECT SETTINGS'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(openedProjectSettings, isTrue);
+
+    scaffoldKey.currentState!.openEndDrawer();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MY PRESETS'));
+    await tester.pumpAndSettle();
+
+    expect(openedPresets, isTrue);
   });
+
+  testWidgets('presets screen shows empty state', (tester) async {
+    final repository = _FakePresetRepository();
+    final presetsViewModel = PresetsViewModel(presetRepository: repository);
+    addTearDown(presetsViewModel.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: MyPresetsScreen(viewModel: presetsViewModel),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text("You don't have any presets yet"), findsOneWidget);
+  });
+
+  testWidgets('presets screen lists presets and confirms deletion', (tester) async {
+    final repository = _FakePresetRepository()
+      ..presets.add(_preset(id: 1, name: 'Portrait'));
+    final presetsViewModel = PresetsViewModel(presetRepository: repository);
+    addTearDown(presetsViewModel.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: MyPresetsScreen(viewModel: presetsViewModel),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('PORTRAIT'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Delete preset'));
+    await tester.pump();
+
+    expect(find.text('DELETE PRESET'), findsOneWidget);
+    expect(find.textContaining('Are you sure? This cannot be restored.'), findsOneWidget);
+
+    await tester.tap(find.text('DELETE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(repository.presets, isEmpty);
+  });
+}
+
+class _FakePresetRepository implements PresetRepository {
+  final List<EditorPreset> presets = [];
+
+  @override
+  Future<EditorPreset> createPreset({
+    required String name,
+    required EditorEditState state,
+    required DateTime createdAt,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deletePreset(int id) async {
+    presets.removeWhere((preset) => preset.id == id);
+  }
+
+  @override
+  Future<List<EditorPreset>> loadPresets() async => List.of(presets);
+
+  @override
+  Future<EditorPreset> renamePreset({
+    required int id,
+    required String name,
+    required DateTime updatedAt,
+  }) async {
+    final index = presets.indexWhere((preset) => preset.id == id);
+    final current = presets[index];
+    final renamed = EditorPreset(
+      id: current.id,
+      name: name,
+      state: current.state,
+      createdAt: current.createdAt,
+      updatedAt: updatedAt,
+    );
+    presets[index] = renamed;
+    return renamed;
+  }
+}
+
+EditorPreset _preset({
+  required int id,
+  required String name,
+}) {
+  final now = DateTime.utc(2026, 6, 1);
+  return EditorPreset(
+    id: id,
+    name: name,
+    state: EditorEditState(
+      edits: [Edit(type: OperationType.contrast, value: 12)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    ),
+    createdAt: now,
+    updatedAt: now,
+  );
 }
 
 class _NoDraftProjectRepository implements EditorProjectRepository {

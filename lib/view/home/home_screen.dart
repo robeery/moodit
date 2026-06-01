@@ -7,6 +7,7 @@ import '../../model/editor_project.dart';
 import '../../theme/app_theme.dart';
 import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
+import '../presets/my_presets_screen.dart';
 import '../projects/projects_screen.dart';
 
 enum _DraftRecoveryAction {
@@ -132,6 +133,16 @@ class _HomeScreenState extends State<HomeScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => const ProjectsScreen(),
+      ),
+    );
+    if (!mounted) return;
+    unawaited(_checkForDraft(force: true));
+  }
+
+  Future<void> _openPresets() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => const MyPresetsScreen(),
       ),
     );
     if (!mounted) return;
@@ -329,6 +340,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: isLoading
                                 ? null
                                 : () => unawaited(_openProjects()),
+                          ),
+                          const SizedBox(height: 16),
+                          _HomeActionTile(
+                            icon: Icons.tune_outlined,
+                            label: 'MY PRESETS',
+                            size: tileSize,
+                            onPressed: isLoading
+                                ? null
+                                : () => unawaited(_openPresets()),
                           ),
                         ],
                       );
