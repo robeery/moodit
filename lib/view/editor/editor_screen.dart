@@ -480,7 +480,7 @@ class _EditorScreenState extends State<EditorScreen> {
       if (!mounted) return;
       _showHistoryActionBar(
         message: 'Preset saved: ${preset.name}',
-        icon: Icons.tune_outlined,
+        icon: Icons.layers_outlined,
       );
     } on PresetRepositoryException catch (error) {
       _showPresetError(error.message);
@@ -494,7 +494,10 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final preset = await Navigator.of(context).push<EditorPreset>(
       MaterialPageRoute(
-        builder: (_) => const MyPresetsScreen(selectionMode: true),
+        builder: (_) => MyPresetsScreen(
+          selectionMode: true,
+          thumbnailSourceFrame: _vm.presetThumbnailSourceFrame,
+        ),
       ),
     );
     if (!mounted || preset == null) return;
@@ -517,7 +520,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
     _showHistoryActionBar(
       message: 'Preset applied: ${preset.name}',
-      icon: Icons.tune_outlined,
+      icon: Icons.layers_outlined,
     );
   }
 
@@ -1068,6 +1071,12 @@ class _EditorScreenState extends State<EditorScreen> {
                 icon: Icons.history,
                 enabled: _vm.canUseVersions,
                 onTap: _showVersionsSheet,
+              ),
+              const SizedBox(width: 8),
+              _buildToolbarIconButton(
+                icon: Icons.layers_outlined,
+                enabled: _vm.canUsePresets,
+                onTap: () => unawaited(_openPresets()),
               ),
               const SizedBox(width: 12),
               _buildToolbarButton('RESET', _showResetDialog),

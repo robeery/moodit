@@ -91,7 +91,7 @@ class EditorDrawer extends StatelessWidget {
               ),
             ListTile(
               leading: Icon(
-                Icons.tune_outlined,
+                Icons.layers_outlined,
                 color: canOpenPresets ? AppColors.accent : AppColors.muted,
                 size: 20,
               ),

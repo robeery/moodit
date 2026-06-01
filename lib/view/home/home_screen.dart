@@ -343,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 16),
                           _HomeActionTile(
-                            icon: Icons.tune_outlined,
+                            icon: Icons.layers_outlined,
                             label: 'MY PRESETS',
                             size: tileSize,
                             onPressed: isLoading

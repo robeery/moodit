@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:licenta/model/edit.dart';
 import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_preset.dart';
 import 'package:licenta/repositories/preset_repository.dart';
+import 'package:licenta/model/rgba_image_frame.dart';
+import 'package:licenta/services/preset_thumbnail_service.dart';
 import 'package:licenta/viewmodel/presets_viewmodel.dart';
 
 void main() {
@@ -39,6 +43,41 @@ void main() {
     vm.clearError();
     expect(vm.errorMessage, isNull);
   });
+
+  test('builds and keeps in-memory thumbnails when a source frame is provided',
+      () async {
+    final repository = _FakePresetRepository()
+      ..presets.add(_preset(id: 1, name: 'Portrait'));
+    final thumbnailService = _FakePresetThumbnailService();
+    final vm = PresetsViewModel(
+      presetRepository: repository,
+      thumbnailSourceFrame: _frame(),
+      thumbnailService: thumbnailService,
+    );
+    addTearDown(vm.dispose);
+
+    await vm.loadPresets();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(thumbnailService.requestedPresetIds, [1]);
+    expect(vm.thumbnailFor(vm.presets.single), Uint8List.fromList([1, 2, 3]));
+    expect(vm.isLoadingThumbnails, isFalse);
+  });
+}
+
+class _FakePresetThumbnailService extends PresetThumbnailService {
+  final List<int> requestedPresetIds = [];
+
+  @override
+  Future<Map<int, Uint8List>> buildThumbnails({
+    required RgbaImageFrame originalFrame,
+    required List<EditorPreset> presets,
+  }) async {
+    requestedPresetIds.addAll(presets.map((preset) => preset.id));
+    return {
+      for (final preset in presets) preset.id: Uint8List.fromList([1, 2, 3]),
+    };
+  }
 }
 
 class _FakePresetRepository implements PresetRepository {
@@ -100,5 +139,18 @@ EditorPreset _preset({
     ),
     createdAt: now,
     updatedAt: now,
+  );
+}
+
+RgbaImageFrame _frame() {
+  return RgbaImageFrame(
+    rgbaBytes: Uint8List.fromList([
+      20, 40, 60, 255,
+      80, 100, 120, 255,
+      140, 160, 180, 255,
+      200, 220, 240, 255,
+    ]),
+    width: 2,
+    height: 2,
   );
 }

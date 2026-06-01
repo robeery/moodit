@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../model/editor_preset.dart';
+import '../../model/rgba_image_frame.dart';
 import '../../theme/app_theme.dart';
 import '../../viewmodel/presets_viewmodel.dart';
 
@@ -11,10 +12,12 @@ class MyPresetsScreen extends StatefulWidget {
   const MyPresetsScreen({
     super.key,
     this.selectionMode = false,
+    this.thumbnailSourceFrame,
     PresetsViewModel? viewModel,
   }) : _viewModel = viewModel;
 
   final bool selectionMode;
+  final RgbaImageFrame? thumbnailSourceFrame;
   final PresetsViewModel? _viewModel;
 
   @override
@@ -30,7 +33,8 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
   void initState() {
     super.initState();
     _ownsViewModel = widget._viewModel == null;
-    _vm = widget._viewModel ?? PresetsViewModel();
+    _vm = widget._viewModel ??
+        PresetsViewModel(thumbnailSourceFrame: widget.thumbnailSourceFrame);
     _scrollController = ScrollController();
     unawaited(_vm.loadPresets());
   }
@@ -249,6 +253,8 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
                       final preset = _vm.presets[index];
                       return _PresetRow(
                         preset: preset,
+                        thumbnailBytes: _vm.thumbnailFor(preset),
+                        showThumbnail: widget.thumbnailSourceFrame != null,
                         onTap: widget.selectionMode
                             ? () => Navigator.of(context).pop(preset)
                             : null,
@@ -262,7 +268,7 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
                     },
                   ),
                 ),
-              if (_vm.isLoading || _vm.isBusy)
+              if (_vm.isLoading || _vm.isBusy || _vm.isLoadingThumbnails)
                 const Align(
                   alignment: Alignment.topCenter,
                   child: LinearProgressIndicator(
@@ -282,12 +288,16 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
 class _PresetRow extends StatelessWidget {
   const _PresetRow({
     required this.preset,
+    required this.thumbnailBytes,
+    required this.showThumbnail,
     required this.onTap,
     required this.onRename,
     required this.onDelete,
   });
 
   final EditorPreset preset;
+  final Uint8List? thumbnailBytes;
+  final bool showThumbnail;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
@@ -300,7 +310,10 @@ class _PresetRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            const Icon(Icons.tune_outlined, color: AppColors.muted, size: 20),
+            if (showThumbnail)
+              _PresetPreview(thumbnailBytes: thumbnailBytes)
+            else
+              const Icon(Icons.layers_outlined, color: AppColors.muted, size: 20),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -335,6 +348,40 @@ class _PresetRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PresetPreview extends StatelessWidget {
+  const _PresetPreview({
+    required this.thumbnailBytes,
+  });
+
+  final Uint8List? thumbnailBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = thumbnailBytes;
+    return Container(
+      width: 64,
+      height: 64,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.muted, width: 1),
+        borderRadius: BorderRadius.circular(4),
+        color: AppColors.surface,
+      ),
+      child: bytes == null
+          ? const Icon(
+              Icons.image_outlined,
+              color: AppColors.muted,
+              size: 24,
+            )
+          : Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
     );
   }
 }

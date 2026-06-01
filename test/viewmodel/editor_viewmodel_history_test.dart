@@ -500,19 +500,19 @@ void main() {
       PresetApplyMode.merge,
     );
 
-    expect(mergeResult?.label, 'Preset Contrast lift');
+    expect(mergeResult?.label, 'Merged preset Contrast lift');
     expect(vm.getEditValue(OperationType.brightness), 15);
     expect(vm.getEditValue(OperationType.contrast), 20);
     expect(projectRepository.updatedPreviewPaths.last, isNot(previewBeforePreset));
     expect(projectRepository.savedVersions.single.state.edits, hasLength(2));
 
     final undoMerge = await vm.undo();
-    expect(undoMerge?.label, 'Preset Contrast lift');
+    expect(undoMerge?.label, 'Merged preset Contrast lift');
     expect(vm.getEditValue(OperationType.brightness), 15);
     expect(vm.getEditValue(OperationType.contrast), 0);
 
     final redoMerge = await vm.redo();
-    expect(redoMerge?.label, 'Preset Contrast lift');
+    expect(redoMerge?.label, 'Merged preset Contrast lift');
     expect(vm.getEditValue(OperationType.contrast), 20);
 
     final blurPreset = _preset(
@@ -525,7 +525,7 @@ void main() {
       PresetApplyMode.replace,
     );
 
-    expect(replaceResult?.label, 'Preset Soft focus');
+    expect(replaceResult?.label, 'Replaced preset Soft focus');
     expect(vm.getEditValue(OperationType.brightness), 0);
     expect(vm.getEditValue(OperationType.contrast), 0);
     expect(vm.getEditValue(OperationType.blur), 6);
@@ -533,7 +533,7 @@ void main() {
       await vm.applyPreset(blurPreset, PresetApplyMode.replace),
       isNull,
     );
-    expect((await vm.undo())?.label, 'Preset Soft focus');
+    expect((await vm.undo())?.label, 'Replaced preset Soft focus');
     expect(vm.getEditValue(OperationType.brightness), 15);
     expect(vm.getEditValue(OperationType.contrast), 20);
   });

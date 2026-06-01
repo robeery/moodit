@@ -339,6 +339,7 @@ class EditorViewModel extends ChangeNotifier {
   }
   ui.Image? get processedImage => _processedPreviewImage;
   ui.Image? get originalPreviewImage => _originalPreviewImage;
+  RgbaImageFrame? get presetThumbnailSourceFrame => _originalFrame;
   Uint8List? get originalBytes => _photoEditingImage?.originalBytes;
   String? get originalImagePath => _photoEditingImage?.originalImagePath;
   bool get isProcessing => _isProcessing;
@@ -1305,6 +1306,10 @@ class EditorViewModel extends ChangeNotifier {
       PresetApplyMode.replace => recipe,
     };
     if (before.contentEquals(after)) return null;
+    final historyLabel = switch (mode) {
+      PresetApplyMode.merge => 'Merged preset ${preset.name}',
+      PresetApplyMode.replace => 'Replaced preset ${preset.name}',
+    };
 
     _manualEditBeforeState = null;
     after.applyTo(image);
@@ -1316,11 +1321,11 @@ class EditorViewModel extends ChangeNotifier {
       await _setProcessedFrame(resultFrame);
       _pushHistoryEntry(
         before: before,
-        label: 'Preset ${preset.name}',
+        label: historyLabel,
         source: EditorEditSource.preset,
       );
       await _persistCurrentProjectStateBestEffort();
-      return HistoryActionResult(label: 'Preset ${preset.name}');
+      return HistoryActionResult(label: historyLabel);
     } finally {
       _isProcessing = false;
       notifyListeners();
