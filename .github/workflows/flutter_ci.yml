@@ -28,7 +28,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -45,7 +45,10 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Verify generated files are committed
-        run: git diff --exit-code
+        run: |
+          git status --short
+          git diff --stat
+          git diff --exit-code
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos
@@ -61,7 +64,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -88,7 +91,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -118,7 +121,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -145,7 +148,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -172,7 +175,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -199,7 +202,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -226,7 +229,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -253,7 +256,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -280,7 +283,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
@@ -318,7 +321,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.6'
           cache: true
 
       - name: Create CI environment asset
