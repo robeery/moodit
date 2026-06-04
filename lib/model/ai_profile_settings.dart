@@ -1,5 +1,6 @@
 class AiProfileSettings {
   static const String geminiProviderId = 'Gemini';
+  static const String openAiProviderId = 'OpenAI';
   static const String defaultProfileId = 'default';
   static const String defaultProfileName = 'Default Profile';
   static const String defaultModel = 'gemini-2.5-flash-lite';

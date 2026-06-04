@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum AiErrorType {
   invalidRequest,
   authFailed,
@@ -24,56 +26,74 @@ class AiException implements Exception {
   });
 
   factory AiException.fromStatusCode(int code, String body) {
+    final providerMessage = _messageFromResponseBody(body);
     switch (code) {
       case 400:
         return AiException(
           type: AiErrorType.invalidRequest,
-          message: 'Invalid request. The prompt may be malformed or the API key may be incorrect. ($code)',
+          message: providerMessage == null
+              ? 'Invalid request. The request payload may be malformed. ($code)'
+              : 'Invalid request: $providerMessage ($code)',
           statusCode: code,
         );
+      case 401:
       case 403:
         return AiException(
           type: AiErrorType.authFailed,
-          message: 'Invalid API key. Check your settings. ($code)',
+          message: providerMessage == null
+              ? 'Invalid API key. Check your settings. ($code)'
+              : 'Authentication failed: $providerMessage ($code)',
           statusCode: code,
         );
       case 404:
         return AiException(
           type: AiErrorType.notFound,
-          message: 'Model not found. Try a different model. ($code)',
+          message: providerMessage == null
+              ? 'Model not found. Try a different model. ($code)'
+              : 'Model not found: $providerMessage ($code)',
           statusCode: code,
         );
       case 429:
         return AiException(
           type: AiErrorType.rateLimited,
-          message: 'Rate limit exceeded. Please retry once the limit resets. ($code)',
+          message: providerMessage == null
+              ? 'Rate limit exceeded. Please retry once the limit resets. ($code)'
+              : 'Rate limit exceeded: $providerMessage ($code)',
           statusCode: code,
         );
       case 500:
         return AiException(
           type: AiErrorType.serverError,
-          message: 'Server error. Retrying... ($code)',
+          message: providerMessage == null
+              ? 'Server error. Retrying... ($code)'
+              : 'Server error: $providerMessage ($code)',
           retryable: true,
           statusCode: code,
         );
       case 503:
         return AiException(
           type: AiErrorType.serviceUnavailable,
-          message: 'Service temporarily unavailable. Retrying... ($code)',
+          message: providerMessage == null
+              ? 'Service temporarily unavailable. Retrying... ($code)'
+              : 'Service temporarily unavailable: $providerMessage ($code)',
           retryable: true,
           statusCode: code,
         );
       case 504:
         return AiException(
           type: AiErrorType.deadlineExceeded,
-          message: 'Request timed out. Retrying... ($code)',
+          message: providerMessage == null
+              ? 'Request timed out. Retrying... ($code)'
+              : 'Request timed out: $providerMessage ($code)',
           retryable: true,
           statusCode: code,
         );
       default:
         return AiException(
           type: AiErrorType.unknown,
-          message: 'Unexpected error occurred. ($code)',
+          message: providerMessage == null
+              ? 'Unexpected error occurred. ($code)'
+              : 'Unexpected error: $providerMessage ($code)',
           statusCode: code,
         );
     }
@@ -81,4 +101,27 @@ class AiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+String? _messageFromResponseBody(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map) return null;
+
+    final error = decoded['error'];
+    if (error is Map) {
+      final message = error['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+
+    final message = decoded['message'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
 }
