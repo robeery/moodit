@@ -537,6 +537,47 @@ void main() {
     expect(vm.getEditValue(OperationType.brightness), 15);
     expect(vm.getEditValue(OperationType.contrast), 20);
   });
+
+  test('active AI profile can be switched from the editor', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+    );
+    addTearDown(vm.dispose);
+
+    await vm.updateAiSettings(
+      const AiProfilesUpdate(
+        profiles: [
+          AiProfileSettings(),
+          AiProfileSettings(
+            id: 'openai-profile',
+            profileName: 'OpenAI profile',
+            providerId: AiProfileSettings.openAiProviderId,
+            model: 'gpt-5.4-mini',
+          ),
+        ],
+        activeProfileId: AiProfileSettings.defaultProfileId,
+      ),
+      const {},
+    );
+
+    expect(vm.activeAiProfileId, AiProfileSettings.defaultProfileId);
+    expect(vm.selectedProvider, AiProfileSettings.geminiProviderId);
+
+    vm.setActiveAiProfile('openai-profile');
+
+    expect(vm.activeAiProfileId, 'openai-profile');
+    expect(vm.aiProfileSettings.profileName, 'OpenAI profile');
+    expect(vm.selectedProvider, AiProfileSettings.openAiProviderId);
+    expect(vm.selectedModel, 'gpt-5.4-mini');
+  });
 }
 
 Future<File> _createTempImage() async {

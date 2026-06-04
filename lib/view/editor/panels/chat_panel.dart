@@ -214,35 +214,52 @@ class _ChatPanelState extends State<ChatPanel> {
               ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.vm.aiProfileSettings.profileName,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 9, letterSpacing: 2),
-                ),
-                const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Text(
-                      'MODEL ',
-                      style: TextStyle(color: AppColors.muted, fontSize: 9, letterSpacing: 2),
+                    const Icon(
+                      Icons.account_circle_outlined,
+                      color: AppColors.muted,
+                      size: 16,
                     ),
-                    DropdownButton<String>(
-                      value: widget.vm.selectedModel,
-                      dropdownColor: AppColors.surface,
-                      style: const TextStyle(color: AppColors.accent, fontSize: 11),
-                      underline: const SizedBox.shrink(),
-                      isDense: true,
-                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.muted, size: 16),
-                      items: widget.vm.availableModels.map((model) {
-                        return DropdownMenuItem(
-                          value: model,
-                          child: Text(model, style: const TextStyle(fontSize: 11)),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) widget.vm.setSelectedModel(value);
-                      },
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: widget.vm.activeAiProfileId,
+                        dropdownColor: AppColors.surface,
+                        style: const TextStyle(color: AppColors.accent, fontSize: 11),
+                        underline: const SizedBox.shrink(),
+                        isDense: true,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.muted, size: 16),
+                        items: widget.vm.aiProfiles.map((profile) {
+                          return DropdownMenuItem(
+                            value: profile.id,
+                            child: Text(
+                              profile.profileName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) widget.vm.setActiveAiProfile(value);
+                        },
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      child: Text(
+                        widget.vm.selectedModel,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 9,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
                     if (widget.vm.messages.isNotEmpty)
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: AppColors.muted, size: 20),

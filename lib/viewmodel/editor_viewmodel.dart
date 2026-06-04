@@ -405,6 +405,16 @@ class EditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setActiveAiProfile(String profileId) {
+    if (profileId == _activeAiProfileId) return;
+    if (!_aiProfiles.any((p) => p.id == profileId)) return;
+
+    _activeAiProfileId = profileId;
+    _initializeAiProvider();
+    unawaited(_persistAiProfiles());
+    notifyListeners();
+  }
+
   Future<void> updateAiSettings(
     AiProfilesUpdate profilesUpdate,
     Map<String, String> apiKeysByProfileId,
