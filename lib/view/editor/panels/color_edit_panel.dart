@@ -115,6 +115,8 @@ class ColorEditPanel extends StatelessWidget {
   }
 
   Widget _buildColorBar() {
+    final pendingAiGradient = aiProviderGradient(vm.pendingAiProviderId);
+
     return SizedBox(
       height: 64,
       child: Padding(
@@ -160,9 +162,7 @@ class ColorEditPanel extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: isPendingAiEdit
-                                  ? const LinearGradient(
-                                      colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-                                    )
+                                  ? pendingAiGradient
                                   : null,
                               color: isPendingAiEdit ? null : AppColors.accent,
                             ),

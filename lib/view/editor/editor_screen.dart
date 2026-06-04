@@ -1157,6 +1157,7 @@ class _EditorScreenState extends State<EditorScreen> {
           hasPendingBasicEdits: _vm.pendingAiEditTypes.isNotEmpty,
           hasPendingColorEdits: _vm.pendingAiColorRanges.isNotEmpty,
           hasPendingGradingEdits: _vm.pendingAiGradingZones.isNotEmpty,
+          pendingAiGradient: aiProviderGradient(_vm.pendingAiProviderId),
         ),
         AnimatedSize(
           duration: const Duration(milliseconds: 300),

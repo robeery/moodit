@@ -84,6 +84,7 @@ class EditorViewModel extends ChangeNotifier {
   String? _activeVersionId;
   ParsedEdits? _pendingEdits;
   EditorHistoryEntry? _pendingAiHistoryEntry;
+  String? _pendingAiProviderId;
   RgbaImageFrame? _snapshotProcessedFrame;
   final Map<String, EditorHistory> _versionHistories = {};
   EditorHistory _history = EditorHistory();
@@ -375,6 +376,7 @@ class EditorViewModel extends ChangeNotifier {
       _pendingEdits?.colorEdits.map((e) => e.range).toSet() ?? {};
   Set<ColorGradingZone> get pendingAiGradingZones =>
       _pendingEdits?.colorGradingEdits.map((e) => e.zone).toSet() ?? {};
+  String? get pendingAiProviderId => _pendingAiProviderId;
   String get selectedModel => _activeProfile().model;
   String get selectedProvider => _activeProfile().providerId;
   AiProvider get aiProvider => _aiProvider;
@@ -988,6 +990,7 @@ class EditorViewModel extends ChangeNotifier {
       _snapshotProcessedFrame = null;
       _pendingEdits = null;
       _pendingAiHistoryEntry = null;
+      _pendingAiProviderId = null;
       _manualEditBeforeState = null;
       _history.clear();
     } finally {
@@ -1249,6 +1252,7 @@ class EditorViewModel extends ChangeNotifier {
     _snapshotProcessedFrame = null;
     _pendingEdits = null;
     _pendingAiHistoryEntry = null;
+    _pendingAiProviderId = null;
     _manualEditBeforeState = null;
     _isProcessing = true;
     _editorMode = EditorMode.basic;
@@ -1667,6 +1671,7 @@ class EditorViewModel extends ChangeNotifier {
     if (text.trim().isEmpty) return null;
     if (_photoEditingImage == null) return 'No image loaded';
     final aiSettings = _activeProfile();
+    final aiProviderId = _resolveProviderId(aiSettings.providerId);
 
     if (_pendingEdits != null) {
       applyPendingEdits();
@@ -1768,6 +1773,7 @@ class EditorViewModel extends ChangeNotifier {
       label: 'AI edit',
       source: EditorEditSource.ai,
     );
+    _pendingAiProviderId = aiProviderId;
 
     _isProcessing = true;
     notifyListeners();
@@ -1827,6 +1833,7 @@ class EditorViewModel extends ChangeNotifier {
     }
     _pendingEdits = null;
     _pendingAiHistoryEntry = null;
+    _pendingAiProviderId = null;
     _photoEditingImage?.clearSnapshot();
     _snapshotProcessedFrame = null;
     return true;
@@ -1842,6 +1849,7 @@ class EditorViewModel extends ChangeNotifier {
     _photoEditingImage!.revertSnapshot();
     _pendingEdits = null;
     _pendingAiHistoryEntry = null;
+    _pendingAiProviderId = null;
 
     if (_snapshotProcessedFrame != null) {
       await _setProcessedFrame(_snapshotProcessedFrame!);

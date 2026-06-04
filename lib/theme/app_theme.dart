@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../model/ai_profile_settings.dart';
 import '../model/color_edit.dart';
 
 class AppColors {
@@ -19,6 +20,24 @@ class AppColors {
     ColorRange.purple:  Color(0xFFAF52DE),
     ColorRange.magenta: Color(0xFFFF2D55),
   };
+}
+
+LinearGradient aiProviderGradient(String? providerId) {
+  switch (providerId) {
+    case AiProfileSettings.openAiProviderId:
+      return const LinearGradient(
+        colors: [Color(0xFF10A37F), Color(0xFFC6F6E3)],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      );
+    case AiProfileSettings.geminiProviderId:
+    default:
+      return const LinearGradient(
+        colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      );
+  }
 }
 
 class AppTextStyles {

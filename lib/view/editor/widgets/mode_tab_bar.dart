@@ -8,6 +8,7 @@ class ModeTabBar extends StatelessWidget {
   final bool hasPendingBasicEdits;
   final bool hasPendingColorEdits;
   final bool hasPendingGradingEdits;
+  final LinearGradient pendingAiGradient;
 
   const ModeTabBar({
     super.key,
@@ -16,6 +17,11 @@ class ModeTabBar extends StatelessWidget {
     this.hasPendingBasicEdits = false,
     this.hasPendingColorEdits = false,
     this.hasPendingGradingEdits = false,
+    this.pendingAiGradient = const LinearGradient(
+      colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    ),
   });
 
   static const _modes = [
@@ -61,11 +67,8 @@ class ModeTabBar extends StatelessWidget {
                 hasPending
                     ? ShaderMask(
                         blendMode: BlendMode.srcIn,
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ).createShader(bounds),
+                        shaderCallback: (bounds) =>
+                            pendingAiGradient.createShader(bounds),
                         child: Padding(
                           // this padding makes it so the shader mask doesn't get cut off above the text
                           padding: const EdgeInsets.symmetric(vertical: 0.2),

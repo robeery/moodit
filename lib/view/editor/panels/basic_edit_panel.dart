@@ -113,6 +113,8 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
   }
 
   Widget _buildOperationBar() {
+    final pendingAiGradient = aiProviderGradient(vm.pendingAiProviderId);
+
     return SizedBox(
       height: 64,
       child: Theme(
@@ -177,9 +179,7 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: isPendingAiEdit
-                                ? const LinearGradient(
-                                    colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-                                  )
+                                ? pendingAiGradient
                                 : null,
                             color: isPendingAiEdit
                                 ? null
