@@ -33,7 +33,7 @@ final class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'moodit_editor'));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -78,6 +78,14 @@ final class AppDatabase extends _$AppDatabase {
               await m.addColumn(
                 editorVersionRecords,
                 editorVersionRecords.aiReferenceImagePath,
+              );
+            }
+          }
+          if (from < 8) {
+            if (!await _hasColumn('editor_versions', 'ai_profile_id')) {
+              await m.addColumn(
+                editorVersionRecords,
+                editorVersionRecords.aiProfileId,
               );
             }
           }

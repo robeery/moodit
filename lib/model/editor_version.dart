@@ -16,6 +16,7 @@ class EditorVersion {
     this.parentVersionId,
     this.thumbnailPath,
     this.aiReferenceImagePath,
+    this.aiProfileId,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class EditorVersion {
   final EditorHistorySnapshot history;
   final String? thumbnailPath;
   final String? aiReferenceImagePath;
+  final String? aiProfileId;
   final int sortOrder;
   final DateTime createdAt;
 
@@ -38,6 +40,7 @@ class EditorVersion {
     EditorHistorySnapshot? history,
     Object? thumbnailPath = _sentinel,
     Object? aiReferenceImagePath = _sentinel,
+    Object? aiProfileId = _sentinel,
     int? sortOrder,
     DateTime? createdAt,
   }) {
@@ -56,6 +59,9 @@ class EditorVersion {
       aiReferenceImagePath: identical(aiReferenceImagePath, _sentinel)
           ? this.aiReferenceImagePath
           : aiReferenceImagePath as String?,
+      aiProfileId: identical(aiProfileId, _sentinel)
+          ? this.aiProfileId
+          : aiProfileId as String?,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
     );

@@ -638,12 +638,178 @@ void main() {
     expect(vm.activeAiProfileId, AiProfileSettings.defaultProfileId);
     expect(vm.selectedProvider, AiProfileSettings.geminiProviderId);
 
-    vm.setActiveAiProfile('openai-profile');
+    await vm.setActiveAiProfile('openai-profile');
 
     expect(vm.activeAiProfileId, 'openai-profile');
     expect(vm.aiProfileSettings.profileName, 'OpenAI profile');
     expect(vm.selectedProvider, AiProfileSettings.openAiProviderId);
     expect(vm.selectedModel, 'gpt-5.4-mini');
+  });
+
+  test('versions inherit and restore independent AI profiles', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final repository = _FakeEditorProjectRepository();
+    final storage = _FakeAiProfilesStorage(
+      persisted: const PersistedAiProfiles(
+        profiles: [
+          AiProfileSettings(),
+          AiProfileSettings(
+            id: 'openai-profile',
+            profileName: 'OpenAI profile',
+            providerId: AiProfileSettings.openAiProviderId,
+            model: 'gpt-5.4-mini',
+          ),
+        ],
+        activeProfileId: 'openai-profile',
+      ),
+    );
+    final vm = EditorViewModel(
+      aiProfilesStorage: storage,
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+      now: () => DateTime.utc(2026, 5, 16, 12),
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    final version1 = vm.activeVersion!;
+
+    expect(version1.aiProfileId, 'openai-profile');
+    expect(vm.activeAiProfileId, 'openai-profile');
+
+    final version2 = await vm.saveCurrentVersion(name: 'Gemini branch');
+
+    expect(version2, isNotNull);
+    expect(version2!.aiProfileId, 'openai-profile');
+
+    await vm.setActiveAiProfile(AiProfileSettings.defaultProfileId);
+
+    expect(vm.activeVersion?.aiProfileId, AiProfileSettings.defaultProfileId);
+    expect(storage.persisted?.activeProfileId,
+        AiProfileSettings.defaultProfileId);
+    final globalSaveCount = storage.saveCount;
+
+    await vm.switchToVersion(version1.id);
+
+    expect(vm.activeAiProfileId, 'openai-profile');
+    expect(vm.selectedProvider, AiProfileSettings.openAiProviderId);
+    expect(storage.saveCount, globalSaveCount);
+    expect(storage.persisted?.activeProfileId,
+        AiProfileSettings.defaultProfileId);
+
+    final restoredVm = EditorViewModel(
+      aiProfilesStorage: storage,
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+    );
+    addTearDown(restoredVm.dispose);
+
+    expect(await restoredVm.loadProject(1), isTrue);
+    expect(restoredVm.activeVersion?.id, version1.id);
+    expect(restoredVm.activeAiProfileId, 'openai-profile');
+    expect(storage.persisted?.activeProfileId,
+        AiProfileSettings.defaultProfileId);
+  });
+
+  test('missing version AI profile falls back and is persisted', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final repository = _FakeEditorProjectRepository();
+    final storage = _FakeAiProfilesStorage(
+      persisted: const PersistedAiProfiles(
+        profiles: [
+          AiProfileSettings(),
+          AiProfileSettings(
+            id: 'openai-profile',
+            profileName: 'OpenAI profile',
+            providerId: AiProfileSettings.openAiProviderId,
+            model: 'gpt-5.4-mini',
+          ),
+        ],
+        activeProfileId: AiProfileSettings.defaultProfileId,
+      ),
+    );
+    final vm = EditorViewModel(
+      aiProfilesStorage: storage,
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    final version1 = vm.activeVersion!;
+    await vm.setActiveAiProfile('openai-profile');
+    final version2 = await vm.saveCurrentVersion(name: 'Current branch');
+
+    expect(version1.id, isNot(version2?.id));
+    expect(version2?.aiProfileId, 'openai-profile');
+    expect(
+      repository.savedVersions
+          .where((version) => version.id == version1.id)
+          .single
+          .aiProfileId,
+      'openai-profile',
+    );
+
+    await vm.updateAiSettings(
+      const AiProfilesUpdate(
+        profiles: [AiProfileSettings()],
+        activeProfileId: AiProfileSettings.defaultProfileId,
+      ),
+      const {},
+    );
+
+    expect(vm.activeVersion?.aiProfileId,
+        AiProfileSettings.defaultProfileId);
+    expect(storage.persisted?.activeProfileId,
+        AiProfileSettings.defaultProfileId);
+
+    await vm.switchToVersion(version1.id);
+
+    expect(vm.activeAiProfileId, AiProfileSettings.defaultProfileId);
+    expect(vm.activeVersion?.aiProfileId,
+        AiProfileSettings.defaultProfileId);
+    expect(
+      repository.savedVersions
+          .where((version) => version.id == version1.id)
+          .single
+          .aiProfileId,
+      AiProfileSettings.defaultProfileId,
+    );
   });
 }
 
@@ -662,14 +828,25 @@ Future<File> _createTempImage() async {
 }
 
 class _FakeAiProfilesStorage extends AiProfilesStorage {
+  _FakeAiProfilesStorage({this.persisted});
+
+  PersistedAiProfiles? persisted;
+  int saveCount = 0;
+
   @override
-  Future<PersistedAiProfiles?> load() async => null;
+  Future<PersistedAiProfiles?> load() async => persisted;
 
   @override
   Future<void> save({
     required List<AiProfileSettings> profiles,
     required String activeProfileId,
-  }) async {}
+  }) async {
+    saveCount++;
+    persisted = PersistedAiProfiles(
+      profiles: List<AiProfileSettings>.from(profiles),
+      activeProfileId: activeProfileId,
+    );
+  }
 }
 
 class _FakeAiProfilesApiKeyStorage extends AiProfilesApiKeyStorage {

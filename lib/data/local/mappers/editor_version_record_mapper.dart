@@ -16,6 +16,7 @@ extension EditorVersionRecordMapper on EditorVersionRecord {
 	      history: EditorHistorySnapshot.fromJsonString(historyJson),
 	      thumbnailPath: thumbnailPath,
 	      aiReferenceImagePath: aiReferenceImagePath,
+	      aiProfileId: aiProfileId,
       sortOrder: sortOrder,
       createdAt: createdAt,
     );
@@ -33,6 +34,7 @@ extension EditorVersionMapper on EditorVersion {
 	      historyJson: Value(history.toJsonString()),
 	      thumbnailPath: Value(thumbnailPath),
 	      aiReferenceImagePath: Value(aiReferenceImagePath),
+	      aiProfileId: Value(aiProfileId),
       sortOrder: sortOrder,
       createdAt: createdAt,
     );

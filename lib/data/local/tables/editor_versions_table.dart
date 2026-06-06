@@ -18,6 +18,7 @@ class EditorVersionRecords extends Table {
       )();
   TextColumn get thumbnailPath => text().nullable()();
   TextColumn get aiReferenceImagePath => text().nullable()();
+  TextColumn get aiProfileId => text().nullable()();
   IntColumn get sortOrder => integer()();
   DateTimeColumn get createdAt => dateTime()();
 

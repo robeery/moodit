@@ -936,6 +936,17 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _aiProfileIdMeta = const VerificationMeta(
+    'aiProfileId',
+  );
+  @override
+  late final GeneratedColumn<String> aiProfileId = GeneratedColumn<String>(
+    'ai_profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sortOrderMeta = const VerificationMeta(
     'sortOrder',
   );
@@ -968,6 +979,7 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
     historyJson,
     thumbnailPath,
     aiReferenceImagePath,
+    aiProfileId,
     sortOrder,
     createdAt,
   ];
@@ -1048,6 +1060,15 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
         ),
       );
     }
+    if (data.containsKey('ai_profile_id')) {
+      context.handle(
+        _aiProfileIdMeta,
+        aiProfileId.isAcceptableOrUnknown(
+          data['ai_profile_id']!,
+          _aiProfileIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('sort_order')) {
       context.handle(
         _sortOrderMeta,
@@ -1105,6 +1126,10 @@ class $EditorVersionRecordsTable extends EditorVersionRecords
         DriftSqlType.string,
         data['${effectivePrefix}ai_reference_image_path'],
       ),
+      aiProfileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_profile_id'],
+      ),
       sortOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
@@ -1132,6 +1157,7 @@ class EditorVersionRecord extends DataClass
   final String historyJson;
   final String? thumbnailPath;
   final String? aiReferenceImagePath;
+  final String? aiProfileId;
   final int sortOrder;
   final DateTime createdAt;
   const EditorVersionRecord({
@@ -1143,6 +1169,7 @@ class EditorVersionRecord extends DataClass
     required this.historyJson,
     this.thumbnailPath,
     this.aiReferenceImagePath,
+    this.aiProfileId,
     required this.sortOrder,
     required this.createdAt,
   });
@@ -1162,6 +1189,9 @@ class EditorVersionRecord extends DataClass
     }
     if (!nullToAbsent || aiReferenceImagePath != null) {
       map['ai_reference_image_path'] = Variable<String>(aiReferenceImagePath);
+    }
+    if (!nullToAbsent || aiProfileId != null) {
+      map['ai_profile_id'] = Variable<String>(aiProfileId);
     }
     map['sort_order'] = Variable<int>(sortOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -1184,6 +1214,9 @@ class EditorVersionRecord extends DataClass
       aiReferenceImagePath: aiReferenceImagePath == null && nullToAbsent
           ? const Value.absent()
           : Value(aiReferenceImagePath),
+      aiProfileId: aiProfileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiProfileId),
       sortOrder: Value(sortOrder),
       createdAt: Value(createdAt),
     );
@@ -1205,6 +1238,7 @@ class EditorVersionRecord extends DataClass
       aiReferenceImagePath: serializer.fromJson<String?>(
         json['aiReferenceImagePath'],
       ),
+      aiProfileId: serializer.fromJson<String?>(json['aiProfileId']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -1221,6 +1255,7 @@ class EditorVersionRecord extends DataClass
       'historyJson': serializer.toJson<String>(historyJson),
       'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
       'aiReferenceImagePath': serializer.toJson<String?>(aiReferenceImagePath),
+      'aiProfileId': serializer.toJson<String?>(aiProfileId),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -1235,6 +1270,7 @@ class EditorVersionRecord extends DataClass
     String? historyJson,
     Value<String?> thumbnailPath = const Value.absent(),
     Value<String?> aiReferenceImagePath = const Value.absent(),
+    Value<String?> aiProfileId = const Value.absent(),
     int? sortOrder,
     DateTime? createdAt,
   }) => EditorVersionRecord(
@@ -1252,6 +1288,7 @@ class EditorVersionRecord extends DataClass
     aiReferenceImagePath: aiReferenceImagePath.present
         ? aiReferenceImagePath.value
         : this.aiReferenceImagePath,
+    aiProfileId: aiProfileId.present ? aiProfileId.value : this.aiProfileId,
     sortOrder: sortOrder ?? this.sortOrder,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -1273,6 +1310,9 @@ class EditorVersionRecord extends DataClass
       aiReferenceImagePath: data.aiReferenceImagePath.present
           ? data.aiReferenceImagePath.value
           : this.aiReferenceImagePath,
+      aiProfileId: data.aiProfileId.present
+          ? data.aiProfileId.value
+          : this.aiProfileId,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
@@ -1289,6 +1329,7 @@ class EditorVersionRecord extends DataClass
           ..write('historyJson: $historyJson, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('aiReferenceImagePath: $aiReferenceImagePath, ')
+          ..write('aiProfileId: $aiProfileId, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -1305,6 +1346,7 @@ class EditorVersionRecord extends DataClass
     historyJson,
     thumbnailPath,
     aiReferenceImagePath,
+    aiProfileId,
     sortOrder,
     createdAt,
   );
@@ -1320,6 +1362,7 @@ class EditorVersionRecord extends DataClass
           other.historyJson == this.historyJson &&
           other.thumbnailPath == this.thumbnailPath &&
           other.aiReferenceImagePath == this.aiReferenceImagePath &&
+          other.aiProfileId == this.aiProfileId &&
           other.sortOrder == this.sortOrder &&
           other.createdAt == this.createdAt);
 }
@@ -1334,6 +1377,7 @@ class EditorVersionRecordsCompanion
   final Value<String> historyJson;
   final Value<String?> thumbnailPath;
   final Value<String?> aiReferenceImagePath;
+  final Value<String?> aiProfileId;
   final Value<int> sortOrder;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
@@ -1346,6 +1390,7 @@ class EditorVersionRecordsCompanion
     this.historyJson = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     this.aiReferenceImagePath = const Value.absent(),
+    this.aiProfileId = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1359,6 +1404,7 @@ class EditorVersionRecordsCompanion
     this.historyJson = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     this.aiReferenceImagePath = const Value.absent(),
+    this.aiProfileId = const Value.absent(),
     required int sortOrder,
     required DateTime createdAt,
     this.rowid = const Value.absent(),
@@ -1377,6 +1423,7 @@ class EditorVersionRecordsCompanion
     Expression<String>? historyJson,
     Expression<String>? thumbnailPath,
     Expression<String>? aiReferenceImagePath,
+    Expression<String>? aiProfileId,
     Expression<int>? sortOrder,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
@@ -1391,6 +1438,7 @@ class EditorVersionRecordsCompanion
       if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
       if (aiReferenceImagePath != null)
         'ai_reference_image_path': aiReferenceImagePath,
+      if (aiProfileId != null) 'ai_profile_id': aiProfileId,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
@@ -1406,6 +1454,7 @@ class EditorVersionRecordsCompanion
     Value<String>? historyJson,
     Value<String?>? thumbnailPath,
     Value<String?>? aiReferenceImagePath,
+    Value<String?>? aiProfileId,
     Value<int>? sortOrder,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
@@ -1419,6 +1468,7 @@ class EditorVersionRecordsCompanion
       historyJson: historyJson ?? this.historyJson,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       aiReferenceImagePath: aiReferenceImagePath ?? this.aiReferenceImagePath,
+      aiProfileId: aiProfileId ?? this.aiProfileId,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
@@ -1454,6 +1504,9 @@ class EditorVersionRecordsCompanion
         aiReferenceImagePath.value,
       );
     }
+    if (aiProfileId.present) {
+      map['ai_profile_id'] = Variable<String>(aiProfileId.value);
+    }
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
@@ -1477,6 +1530,7 @@ class EditorVersionRecordsCompanion
           ..write('historyJson: $historyJson, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('aiReferenceImagePath: $aiReferenceImagePath, ')
+          ..write('aiProfileId: $aiProfileId, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
@@ -3049,6 +3103,7 @@ typedef $$EditorVersionRecordsTableCreateCompanionBuilder =
       Value<String> historyJson,
       Value<String?> thumbnailPath,
       Value<String?> aiReferenceImagePath,
+      Value<String?> aiProfileId,
       required int sortOrder,
       required DateTime createdAt,
       Value<int> rowid,
@@ -3063,6 +3118,7 @@ typedef $$EditorVersionRecordsTableUpdateCompanionBuilder =
       Value<String> historyJson,
       Value<String?> thumbnailPath,
       Value<String?> aiReferenceImagePath,
+      Value<String?> aiProfileId,
       Value<int> sortOrder,
       Value<DateTime> createdAt,
       Value<int> rowid,
@@ -3176,6 +3232,11 @@ class $$EditorVersionRecordsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get aiProfileId => $composableBuilder(
+    column: $table.aiProfileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
@@ -3279,6 +3340,11 @@ class $$EditorVersionRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get aiProfileId => $composableBuilder(
+    column: $table.aiProfileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
@@ -3349,6 +3415,11 @@ class $$EditorVersionRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get aiReferenceImagePath => $composableBuilder(
     column: $table.aiReferenceImagePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiProfileId => $composableBuilder(
+    column: $table.aiProfileId,
     builder: (column) => column,
   );
 
@@ -3456,6 +3527,7 @@ class $$EditorVersionRecordsTableTableManager
                 Value<String> historyJson = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 Value<String?> aiReferenceImagePath = const Value.absent(),
+                Value<String?> aiProfileId = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3468,6 +3540,7 @@ class $$EditorVersionRecordsTableTableManager
                 historyJson: historyJson,
                 thumbnailPath: thumbnailPath,
                 aiReferenceImagePath: aiReferenceImagePath,
+                aiProfileId: aiProfileId,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -3482,6 +3555,7 @@ class $$EditorVersionRecordsTableTableManager
                 Value<String> historyJson = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 Value<String?> aiReferenceImagePath = const Value.absent(),
+                Value<String?> aiProfileId = const Value.absent(),
                 required int sortOrder,
                 required DateTime createdAt,
                 Value<int> rowid = const Value.absent(),
@@ -3494,6 +3568,7 @@ class $$EditorVersionRecordsTableTableManager
                 historyJson: historyJson,
                 thumbnailPath: thumbnailPath,
                 aiReferenceImagePath: aiReferenceImagePath,
+                aiProfileId: aiProfileId,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
                 rowid: rowid,

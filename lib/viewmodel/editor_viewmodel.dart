@@ -91,6 +91,8 @@ class EditorViewModel extends ChangeNotifier {
   EditorEditState? _manualEditBeforeState;
   List<AiProfileSettings> _aiProfiles;
   String _activeAiProfileId;
+  String _globalAiProfileId;
+  late final Future<void> _aiProfilesReady;
   Map<String, String> _apiKeysByProfileId = {};
   int _projectPreviewRevision = 0;
 
@@ -106,6 +108,7 @@ class EditorViewModel extends ChangeNotifier {
   })
       : _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
+        _globalAiProfileId = AiProfileSettings.defaultProfileId,
         _aiProfilesApiKeyStorage =
             aiProfilesApiKeyStorage ?? const AiProfilesApiKeyStorage(),
         _aiProfilesStorage = aiProfilesStorage ?? AiProfilesStorage(),
@@ -118,7 +121,8 @@ class EditorViewModel extends ChangeNotifier {
     _projectFileStore = projectFileStore ?? ProjectFileStore();
 
     _initializeAiProvider();
-    unawaited(_loadPersistedAiProfiles());
+    _aiProfilesReady = _loadPersistedAiProfiles();
+    unawaited(_aiProfilesReady);
 
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
@@ -141,16 +145,21 @@ class EditorViewModel extends ChangeNotifier {
 
   Future<void> _loadPersistedAiProfiles() async {
     try {
-      final persisted = await _aiProfilesStorage.load();
-      if (persisted != null) {
-        _applyAiProfilesUpdate(
-          AiProfilesUpdate(
-            profiles: persisted.profiles,
-            activeProfileId: persisted.activeProfileId,
-          ),
-          persistAfterApply: false,
-        );
+      try {
+        final persisted = await _aiProfilesStorage.load();
+        if (persisted != null) {
+          _applyAiProfilesUpdate(
+            AiProfilesUpdate(
+              profiles: persisted.profiles,
+              activeProfileId: persisted.activeProfileId,
+            ),
+            persistAfterApply: false,
+          );
+        }
+      } catch (_) {
+        // Keep the in-memory default profile if preferences cannot be read.
       }
+      _initializeAiProvider();
       await _loadApiKeysForCurrentProfiles();
     } finally {
       _isAiReady = true;
@@ -162,7 +171,7 @@ class EditorViewModel extends ChangeNotifier {
     try {
       await _aiProfilesStorage.save(
         profiles: _aiProfiles,
-        activeProfileId: _activeAiProfileId,
+        activeProfileId: _globalAiProfileId,
       );
     } catch (_) {
       // Persistence is best-effort; runtime state still stays valid in memory
@@ -220,6 +229,22 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   AiProfileSettings _activeProfile() => _aiProfiles[_activeProfileIndex()];
+
+  bool _hasAiProfile(String? profileId) {
+    return profileId != null &&
+        _aiProfiles.any((profile) => profile.id == profileId);
+  }
+
+  String _resolveAiProfileId(String? profileId) {
+    if (_hasAiProfile(profileId)) return profileId!;
+    if (_hasAiProfile(_globalAiProfileId)) return _globalAiProfileId;
+    return _aiProfiles.first.id;
+  }
+
+  void _activateAiProfileRuntime(String profileId) {
+    _activeAiProfileId = _resolveAiProfileId(profileId);
+    _initializeAiProvider();
+  }
 
   void _replaceActiveProfile(AiProfileSettings profile) {
     final index = _activeProfileIndex();
@@ -279,6 +304,7 @@ class EditorViewModel extends ChangeNotifier {
     final normalizedUpdate = _normalizeAiProfilesUpdate(update);
     _aiProfiles = List<AiProfileSettings>.from(normalizedUpdate.profiles);
     _activeAiProfileId = normalizedUpdate.activeProfileId;
+    _globalAiProfileId = normalizedUpdate.activeProfileId;
 
     if (persistAfterApply) {
       unawaited(_persistAiProfiles());
@@ -412,14 +438,25 @@ class EditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setActiveAiProfile(String profileId) {
-    if (profileId == _activeAiProfileId) return;
+  Future<void> setActiveAiProfile(String profileId) async {
+    await _aiProfilesReady;
     if (!_aiProfiles.any((p) => p.id == profileId)) return;
+    if (profileId == _activeAiProfileId &&
+        profileId == _globalAiProfileId &&
+        _activeVersion()?.aiProfileId == profileId) {
+      return;
+    }
 
     _activeAiProfileId = profileId;
+    _globalAiProfileId = profileId;
     _initializeAiProvider();
-    unawaited(_persistAiProfiles());
+    final versionPersistence =
+        _persistActiveVersionAiProfileBestEffort(profileId);
     notifyListeners();
+    await Future.wait([
+      _persistAiProfiles(),
+      versionPersistence,
+    ]);
   }
 
   Future<bool> attachAiReferenceImage(String sourcePath) async {
@@ -483,14 +520,21 @@ class EditorViewModel extends ChangeNotifier {
     AiProfilesUpdate profilesUpdate,
     Map<String, String> apiKeysByProfileId,
   ) async {
-    _applyAiProfilesUpdate(profilesUpdate);
+    await _aiProfilesReady;
+    _applyAiProfilesUpdate(profilesUpdate, persistAfterApply: false);
     _apiKeysByProfileId = _normalizeApiKeys(
       apiKeysByProfileId,
       _aiProfiles.map((p) => p.id),
     );
     _initializeAiProvider();
+    final versionPersistence =
+        _persistActiveVersionAiProfileBestEffort(_activeAiProfileId);
     notifyListeners();
-    await _persistApiKeys();
+    await Future.wait([
+      _persistAiProfiles(),
+      _persistApiKeys(),
+      versionPersistence,
+    ]);
   }
 
   double getEditValue(OperationType type) {
@@ -546,6 +590,7 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> importImageAsProject(String sourceImagePath) async {
+    await _aiProfilesReady;
     final importFolderId = _createTemporaryProjectFolderId();
     _currentProject = null;
     _versions = [];
@@ -630,6 +675,7 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<bool> loadProject(int projectId) async {
+    await _aiProfilesReady;
     _currentProject = null;
     _versions = [];
     _activeVersionId = null;
@@ -660,9 +706,14 @@ class EditorViewModel extends ChangeNotifier {
           parentVersionId: null,
           state: project.currentState,
           history: EditorHistory(),
+          aiProfileId: _resolveAiProfileId(null),
         );
         versions = [activeVersion];
         await _saveVersionBestEffort(activeVersion);
+      }
+      _versions = versions;
+      if (activeVersion != null) {
+        activeVersion = await _restoreAiProfileForVersion(activeVersion);
       }
       final aiMessages = await _loadAiMessagesForScopeBestEffort(
         projectId: project.id,
@@ -675,7 +726,6 @@ class EditorViewModel extends ChangeNotifier {
       await _setProcessedFrame(resultFrame);
 
       final openedAt = _now();
-      _versions = versions;
       _messages
         ..clear()
         ..addAll(aiMessages);
@@ -921,6 +971,7 @@ class EditorViewModel extends ChangeNotifier {
       return null;
     }
 
+    await _aiProfilesReady;
     await _persistCurrentProjectStateBestEffort();
 
     final sortOrder = _nextVersionSortOrder();
@@ -932,6 +983,7 @@ class EditorViewModel extends ChangeNotifier {
       parentVersionId: _activeVersionId,
       state: _currentEditState(),
       history: EditorHistory.copyOf(_history),
+      aiProfileId: _resolveAiProfileId(_activeVersion()?.aiProfileId),
     );
 
     if (sourceVersionId != null) {
@@ -1048,6 +1100,7 @@ class EditorViewModel extends ChangeNotifier {
         _isWaitingForAi) {
       return null;
     }
+    await _aiProfilesReady;
     if (versionId == _activeVersionId) {
       final active = _activeVersion();
       return active == null ? null : HistoryActionResult(label: active.name);
@@ -1055,8 +1108,9 @@ class EditorViewModel extends ChangeNotifier {
 
     await _persistCurrentProjectStateBestEffort();
 
-    final version = _versions.where((item) => item.id == versionId).firstOrNull;
+    var version = _versions.where((item) => item.id == versionId).firstOrNull;
     if (version == null) return null;
+    version = await _restoreAiProfileForVersion(version);
 
     version.state.applyTo(_photoEditingImage!);
     _activateVersionHistory(
@@ -1211,6 +1265,7 @@ class EditorViewModel extends ChangeNotifier {
     required String? parentVersionId,
     required EditorEditState state,
     required EditorHistory history,
+    required String aiProfileId,
   }) {
     return EditorVersion(
       id: _createVersionId(project.id, sortOrder),
@@ -1219,6 +1274,7 @@ class EditorViewModel extends ChangeNotifier {
       parentVersionId: parentVersionId,
       state: state,
       history: history.toSnapshot(),
+      aiProfileId: aiProfileId,
       sortOrder: sortOrder,
       createdAt: _now(),
     );
@@ -1237,6 +1293,7 @@ class EditorViewModel extends ChangeNotifier {
   }
 
   Future<void> _createInitialVersionBestEffort(EditorProject project) async {
+    await _aiProfilesReady;
     final version = _createVersion(
       project: project,
       sortOrder: 1,
@@ -1244,6 +1301,7 @@ class EditorViewModel extends ChangeNotifier {
       parentVersionId: null,
       state: _currentEditState(),
       history: _history,
+      aiProfileId: _resolveAiProfileId(null),
     );
     await _saveVersionBestEffort(version);
     _versions = [version];
@@ -1271,6 +1329,36 @@ class EditorViewModel extends ChangeNotifier {
     } catch (_) {
       // Version persistence should not block the editor from using the image.
     }
+  }
+
+  Future<void> _persistActiveVersionAiProfileBestEffort(
+    String profileId,
+  ) async {
+    final project = _currentProject;
+    final version = _activeVersion();
+    if (project == null || project.id <= 0 || version == null) return;
+
+    final resolvedProfileId = _resolveAiProfileId(profileId);
+    if (version.aiProfileId == resolvedProfileId) return;
+
+    final updatedVersion = version.copyWith(aiProfileId: resolvedProfileId);
+    _replaceVersion(updatedVersion);
+    await _saveVersionBestEffort(updatedVersion);
+  }
+
+  Future<EditorVersion> _restoreAiProfileForVersion(
+    EditorVersion version,
+  ) async {
+    await _aiProfilesReady;
+    final resolvedProfileId = _resolveAiProfileId(version.aiProfileId);
+    _activateAiProfileRuntime(resolvedProfileId);
+
+    if (version.aiProfileId == resolvedProfileId) return version;
+
+    final updatedVersion = version.copyWith(aiProfileId: resolvedProfileId);
+    _replaceVersion(updatedVersion);
+    await _saveVersionBestEffort(updatedVersion);
+    return updatedVersion;
   }
 
   Future<void> _setActiveVersionBestEffort({

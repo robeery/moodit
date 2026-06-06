@@ -129,6 +129,8 @@ void main() {
 	      state: state,
 	      history: history,
 	      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
+	      aiReferenceImagePath: '/projects/project-1/ai_references/version-1.jpg',
+	      aiProfileId: 'openai-profile',
       sortOrder: 1,
       createdAt: createdAt,
     );
@@ -142,6 +144,11 @@ void main() {
 	    expect(companion.stateJson.value, state.toJsonString());
 	    expect(companion.historyJson.value, history.toJsonString());
 	    expect(companion.thumbnailPath.value, version.thumbnailPath);
+	    expect(
+	      companion.aiReferenceImagePath.value,
+	      version.aiReferenceImagePath,
+	    );
+	    expect(companion.aiProfileId.value, 'openai-profile');
     expect(companion.sortOrder.value, version.sortOrder);
     expect(companion.createdAt.value, createdAt);
   });
@@ -158,6 +165,9 @@ void main() {
 	      stateJson: state.toJsonString(),
 	      historyJson: history.toJsonString(),
 	      thumbnailPath: '/projects/project-1/versions/version-1.jpg',
+	      aiReferenceImagePath:
+	          '/projects/project-1/ai_references/version-1.jpg',
+	      aiProfileId: 'openai-profile',
       sortOrder: 1,
       createdAt: createdAt,
     );
@@ -171,6 +181,8 @@ void main() {
 	    expect(version.state.contentEquals(state), isTrue);
 	    expect(version.history.undoEntries.single.label, 'Brightness +20');
 	    expect(version.thumbnailPath, record.thumbnailPath);
+	    expect(version.aiReferenceImagePath, record.aiReferenceImagePath);
+	    expect(version.aiProfileId, 'openai-profile');
     expect(version.sortOrder, record.sortOrder);
     expect(version.createdAt, createdAt);
   });

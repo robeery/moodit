@@ -330,7 +330,9 @@ class _ChatPanelState extends State<ChatPanel> {
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value != null) widget.vm.setActiveAiProfile(value);
+                          if (value != null) {
+                            unawaited(widget.vm.setActiveAiProfile(value));
+                          }
                         },
                       ),
                     ),
