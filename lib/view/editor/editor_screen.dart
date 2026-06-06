@@ -519,7 +519,10 @@ class _EditorScreenState extends State<EditorScreen> {
     }
 
     _showHistoryActionBar(
-      message: 'Preset applied: ${preset.name}',
+      message: switch (mode) {
+        PresetApplyMode.merge => 'Preset merged: ${preset.name}',
+        PresetApplyMode.replace => 'Replaced with preset: ${preset.name}',
+      },
       icon: Icons.layers_outlined,
     );
   }
@@ -951,35 +954,13 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  Widget _buildToolbarButton(String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: AppColors.muted, width: 0.5),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.accent,
-            fontSize: 10,
-            letterSpacing: 2,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildToolbarIconButton({
     required IconData icon,
     required bool enabled,
     required VoidCallback onTap,
+    String? tooltip,
   }) {
-    return GestureDetector(
+    final button = GestureDetector(
       onTap: enabled ? onTap : null,
       child: Opacity(
         opacity: enabled ? 1.0 : 0.35,
@@ -996,6 +977,8 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       ),
     );
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip, child: button);
   }
 
   Future<void> _handleUndo() async {
@@ -1078,10 +1061,19 @@ class _EditorScreenState extends State<EditorScreen> {
                 enabled: _vm.canUsePresets,
                 onTap: () => unawaited(_openPresets()),
               ),
-              const SizedBox(width: 12),
-              _buildToolbarButton('RESET', _showResetDialog),
-              const SizedBox(width: 12),
-              _buildToolbarButton('LOGS', _vm.printLogs),
+              const SizedBox(width: 8),
+              _buildToolbarIconButton(
+                icon: Icons.restart_alt,
+                enabled: true,
+                onTap: _showResetDialog,
+                tooltip: 'Reset edits',
+              ),
+              // Future debug toolbar action:
+              // _buildToolbarIconButton(
+              //   icon: Icons.terminal,
+              //   enabled: true,
+              //   onTap: _vm.printLogs,
+              // ),
             ],
           ),
         ),
