@@ -46,6 +46,7 @@ class OpenAiProvider implements AiProvider {
   Future<String> sendPrompt(
     String userMessage, {
     Uint8List? imageBytes,
+    Uint8List? referenceImageBytes,
     String? model,
     List<ChatMessage> history = const [],
     String? currentStateJson,
@@ -65,6 +66,7 @@ class OpenAiProvider implements AiProvider {
       'input': _buildInputMessages(
         userMessage,
         imageBytes: imageBytes,
+        referenceImageBytes: referenceImageBytes,
         history: history,
         currentStateJson: currentStateJson,
       ),
@@ -129,6 +131,7 @@ class OpenAiProvider implements AiProvider {
   List<Map<String, dynamic>> _buildInputMessages(
     String userMessage, {
     required Uint8List? imageBytes,
+    required Uint8List? referenceImageBytes,
     required List<ChatMessage> history,
     required String? currentStateJson,
   }) {
@@ -150,8 +153,22 @@ class OpenAiProvider implements AiProvider {
 
     if (imageBytes != null) {
       content.add({
+        'type': 'input_text',
+        'text': 'TARGET IMAGE: current edited photo.',
+      });
+      content.add({
         'type': 'input_image',
         'image_url': 'data:image/jpeg;base64,${base64Encode(imageBytes)}',
+      });
+    }
+    if (referenceImageBytes != null) {
+      content.add({
+        'type': 'input_text',
+        'text': 'REFERENCE IMAGE: visual style guidance only.',
+      });
+      content.add({
+        'type': 'input_image',
+        'image_url': 'data:image/jpeg;base64,${base64Encode(referenceImageBytes)}',
       });
     }
 

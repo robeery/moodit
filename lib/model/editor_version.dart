@@ -15,6 +15,7 @@ class EditorVersion {
     ),
     this.parentVersionId,
     this.thumbnailPath,
+    this.aiReferenceImagePath,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class EditorVersion {
   final EditorEditState state;
   final EditorHistorySnapshot history;
   final String? thumbnailPath;
+  final String? aiReferenceImagePath;
   final int sortOrder;
   final DateTime createdAt;
 
@@ -35,6 +37,7 @@ class EditorVersion {
     EditorEditState? state,
     EditorHistorySnapshot? history,
     Object? thumbnailPath = _sentinel,
+    Object? aiReferenceImagePath = _sentinel,
     int? sortOrder,
     DateTime? createdAt,
   }) {
@@ -50,6 +53,9 @@ class EditorVersion {
       thumbnailPath: identical(thumbnailPath, _sentinel)
           ? this.thumbnailPath
           : thumbnailPath as String?,
+      aiReferenceImagePath: identical(aiReferenceImagePath, _sentinel)
+          ? this.aiReferenceImagePath
+          : aiReferenceImagePath as String?,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
     );

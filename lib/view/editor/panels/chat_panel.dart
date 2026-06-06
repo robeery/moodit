@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../model/chat_message.dart';
 import '../../../theme/app_theme.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
@@ -16,6 +17,7 @@ class ChatPanel extends StatefulWidget {
 
 class _ChatPanelState extends State<ChatPanel> {
   final TextEditingController _chatController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void dispose() {
@@ -167,15 +169,18 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 
   void _showClearChatDialog() {
+    final removesReference = widget.vm.hasAiReferenceImage;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('CLEAR CHAT', style: AppTextStyles.screenTitle),
-        content: const Text(
-          'This will permanently delete the saved AI conversation for this project. The AI will lose this chat context.',
-          style: TextStyle(color: AppColors.accent, fontSize: 13),
+        content: Text(
+          removesReference
+              ? 'This will permanently delete the saved AI conversation for this version and remove the attached reference image. The AI will lose this chat context.'
+              : 'This will permanently delete the saved AI conversation for this version. The AI will lose this chat context.',
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
         ),
         actions: [
           TextButton(
@@ -196,6 +201,89 @@ class _ChatPanelState extends State<ChatPanel> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showReferenceImageDialog() async {
+    if (!widget.vm.canUseAiReferenceImage) return;
+
+    final hasReference = widget.vm.hasAiReferenceImage;
+    final action = await showDialog<_ReferenceImageAction>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: Text(
+          hasReference ? 'REFERENCE IMAGE' : 'ATTACH REFERENCE',
+          style: AppTextStyles.screenTitle,
+        ),
+        content: Text(
+          hasReference
+              ? 'A reference image is attached and will be sent with each new AI message for this version.'
+              : 'Choose a reference image from your gallery. It will be saved for this version and sent with each new AI message as visual guidance.',
+          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.cancel),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+          if (hasReference)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.drop),
+              child: const Text(
+                'DROP',
+                style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.pick),
+            child: Text(
+              hasReference ? 'REPLACE' : 'CONTINUE',
+              style: const TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || action == null || action == _ReferenceImageAction.cancel) {
+      return;
+    }
+
+    if (action == _ReferenceImageAction.drop) {
+      final removed = await widget.vm.clearAiReferenceImage();
+      if (!mounted) return;
+      _showReferenceSnack(
+        removed ? 'Reference image removed.' : 'Failed to remove reference image.',
+        isError: !removed,
+      );
+      return;
+    }
+
+    final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (!mounted || picked == null) return;
+
+    final attached = await widget.vm.attachAiReferenceImage(picked.path);
+    if (!mounted) return;
+    if (!attached) {
+      _showReferenceSnack(
+        'Failed to attach reference image.',
+        isError: true,
+      );
+    }
+  }
+
+  void _showReferenceSnack(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? Colors.red : AppColors.surface,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -260,7 +348,9 @@ class _ChatPanelState extends State<ChatPanel> {
                         ),
                       ),
                     ),
-                    if (widget.vm.messages.isNotEmpty)
+                    _buildReferenceImageButton(),
+                    if (widget.vm.messages.isNotEmpty ||
+                        widget.vm.hasAiReferenceImage)
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: AppColors.muted, size: 20),
                         onPressed: () => _showClearChatDialog(),
@@ -326,4 +416,35 @@ class _ChatPanelState extends State<ChatPanel> {
             ),
     );
   }
+
+  Widget _buildReferenceImageButton() {
+    final hasReference = widget.vm.hasAiReferenceImage;
+    final enabled = widget.vm.canUseAiReferenceImage;
+    final color = hasReference ? AppColors.highlight : AppColors.muted;
+
+    return IconButton(
+      onPressed: enabled ? _showReferenceImageDialog : null,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(Icons.image_outlined, color: enabled ? color : AppColors.muted, size: 20),
+          if (hasReference)
+            Positioned(
+              right: -1,
+              top: -1,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: aiProviderGradient(widget.vm.selectedProvider),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
+
+enum _ReferenceImageAction { cancel, pick, drop }

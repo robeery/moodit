@@ -20,7 +20,7 @@ void main() {
 	    final presetColumnNames =
 	        database.editorPresetRecords.$columns.map((column) => column.$name);
 
-	    expect(database.schemaVersion, 6);
+	    expect(database.schemaVersion, 7);
 	    expect(tableNames, containsAll([
 	      'editor_projects',
 	      'editor_versions',
@@ -31,6 +31,7 @@ void main() {
 	    expect(projectColumnNames, contains('active_version_id'));
 	    expect(versionColumnNames, contains('parent_version_id'));
 	    expect(versionColumnNames, contains('history_json'));
+	    expect(versionColumnNames, contains('ai_reference_image_path'));
 	    expect(aiMessageColumnNames, contains('project_id'));
 	    expect(aiMessageColumnNames, contains('version_id'));
 	    expect(aiMessageColumnNames, contains('sort_order'));

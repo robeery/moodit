@@ -9,6 +9,7 @@ abstract class AiProvider {
   Future<String> sendPrompt(
     String userMessage, {
     Uint8List? imageBytes,
+    Uint8List? referenceImageBytes,
     String? model,
     List<ChatMessage> history,
     String? currentStateJson,
@@ -20,6 +21,7 @@ You are a photo editing assistant. The user describes how they want their photo 
 You must respond with ONLY a valid JSON object matching the schema below. No explanation, no markdown, no extra text.
 
 The image provided shows the CURRENT EDITED STATE of the photo.
+The user may also attach a REFERENCE IMAGE. If present, use it only as visual guidance for mood, hue, color grading, warmth, contrast, or overall vibe. The current edited image remains the target image.
 Each user message includes a CURRENT STATE section with the exact parameters currently applied.
 Build on existing edits — only include operations you want to change or add.
 Operations not in your response remain unchanged.

@@ -370,6 +370,13 @@ class EditorViewModel extends ChangeNotifier {
   ColorGradingZone get selectedGradingZone => _selectedGradingZone;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get hasPendingEdits => _pendingEdits != null;
+  String? get aiReferenceImagePath => _activeVersion()?.aiReferenceImagePath;
+  bool get hasAiReferenceImage => aiReferenceImagePath != null;
+  bool get canUseAiReferenceImage =>
+      hasPersistedProject &&
+      _activeVersion() != null &&
+      !_isProcessing &&
+      !_isWaitingForAi;
   Set<OperationType> get pendingAiEditTypes =>
       _pendingEdits?.edits.map((e) => e.type).toSet() ?? {};
   Set<ColorRange> get pendingAiColorRanges =>
@@ -413,6 +420,63 @@ class EditorViewModel extends ChangeNotifier {
     _initializeAiProvider();
     unawaited(_persistAiProfiles());
     notifyListeners();
+  }
+
+  Future<bool> attachAiReferenceImage(String sourcePath) async {
+    final project = _currentProject;
+    final version = _activeVersion();
+    if (project == null ||
+        project.id <= 0 ||
+        version == null ||
+        _isProcessing ||
+        _isWaitingForAi) {
+      return false;
+    }
+
+    _isProcessing = true;
+    notifyListeners();
+
+    try {
+      final frame = await _previewImageDecoder.decodeFromPath(
+        sourcePath,
+        maxDimension: 1080,
+      );
+      final encoded = encodeJpgFromFrame(frame, quality: 88);
+      final storedPath = await _projectFileStore.writeAiReferenceImageBytes(
+        projectId: '${project.id}',
+        versionId: version.id,
+        bytes: encoded,
+      );
+      final updatedVersion = version.copyWith(
+        aiReferenceImagePath: storedPath,
+      );
+      await _projectRepositoryInstance.saveVersion(updatedVersion);
+      _replaceVersion(updatedVersion);
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> clearAiReferenceImage() async {
+    final project = _currentProject;
+    final version = _activeVersion();
+    if (project == null ||
+        project.id <= 0 ||
+        version == null ||
+        _isProcessing ||
+        _isWaitingForAi) {
+      return false;
+    }
+
+    return _clearAiReferenceImageForVersion(
+      projectId: project.id,
+      version: version,
+      notify: true,
+    );
   }
 
   Future<void> updateAiSettings(
@@ -791,6 +855,56 @@ class EditorViewModel extends ChangeNotifier {
     }
   }
 
+  Future<String?> _cloneAiReferenceImageForVersionBestEffort({
+    required int projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {
+    try {
+      return await _projectFileStore.copyAiReferenceImage(
+        projectId: '$projectId',
+        sourceVersionId: sourceVersionId,
+        targetVersionId: targetVersionId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _deleteAiReferenceImageFileBestEffort({
+    required int projectId,
+    required String versionId,
+  }) async {
+    try {
+      await _projectFileStore.deleteAiReferenceImage(
+        projectId: '$projectId',
+        versionId: versionId,
+      );
+    } catch (_) {
+      // File cleanup should not block version or chat operations.
+    }
+  }
+
+  Future<bool> _clearAiReferenceImageForVersion({
+    required int projectId,
+    required EditorVersion version,
+    required bool notify,
+  }) async {
+    final updatedVersion = version.copyWith(aiReferenceImagePath: null);
+    try {
+      await _deleteAiReferenceImageFileBestEffort(
+        projectId: projectId,
+        versionId: version.id,
+      );
+      await _projectRepositoryInstance.saveVersion(updatedVersion);
+      _replaceVersion(updatedVersion);
+      if (notify) notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _addChatMessage(ChatMessage message) async {
     _messages.add(message);
     await _persistAiMessageBestEffort(message);
@@ -811,7 +925,7 @@ class EditorViewModel extends ChangeNotifier {
 
     final sortOrder = _nextVersionSortOrder();
     final sourceVersionId = _activeVersionId;
-    final version = _createVersion(
+    var version = _createVersion(
       project: project,
       sortOrder: sortOrder,
       name: _normalizeVersionName(name, sortOrder),
@@ -820,6 +934,16 @@ class EditorViewModel extends ChangeNotifier {
       history: EditorHistory.copyOf(_history),
     );
 
+    if (sourceVersionId != null) {
+      final referencePath = await _cloneAiReferenceImageForVersionBestEffort(
+        projectId: project.id,
+        sourceVersionId: sourceVersionId,
+        targetVersionId: version.id,
+      );
+      if (referencePath != null) {
+        version = version.copyWith(aiReferenceImagePath: referencePath);
+      }
+    }
     await _projectRepositoryInstance.saveVersion(version);
     if (sourceVersionId != null) {
       await _cloneAiMessagesForVersionBestEffort(
@@ -886,6 +1010,7 @@ class EditorViewModel extends ChangeNotifier {
     final deleteIndex = _versions.indexWhere((version) => version.id == versionId);
     if (deleteIndex == -1) return false;
 
+    final versionToDelete = _versions[deleteIndex];
     final isActive = versionId == _activeVersionId;
     final fallbackVersion = isActive ? _fallbackVersionAfterDelete(deleteIndex) : null;
     if (isActive) {
@@ -898,6 +1023,13 @@ class EditorViewModel extends ChangeNotifier {
       await _projectRepositoryInstance.deleteVersion(versionId);
     } catch (_) {
       return false;
+    }
+    final project = _currentProject;
+    if (project != null && project.id > 0) {
+      await _deleteAiReferenceImageFileBestEffort(
+        projectId: project.id,
+        versionId: versionToDelete.id,
+      );
     }
 
     _versions = [
@@ -1677,6 +1809,18 @@ class EditorViewModel extends ChangeNotifier {
     return encodeJpgFromFrame(frame);
   }
 
+  Future<Uint8List?> _currentAiReferenceImageBytes() async {
+    final path = aiReferenceImagePath;
+    if (path == null) return null;
+    try {
+      final file = File(path);
+      if (!await file.exists()) return null;
+      return await file.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String?> sendMessage(String text) async {
     if (text.trim().isEmpty) return null;
     if (_photoEditingImage == null) return 'No image loaded';
@@ -1725,11 +1869,11 @@ class EditorViewModel extends ChangeNotifier {
       try {
         _isWaitingForAi = true;
         notifyListeners();
-        aiReply = await _aiProvider.sendPrompt(
+        aiReply = await _sendWithRetry(
           'Your previous response had an error: ${result.error}. Fix and resend as valid JSON.',
-          model: aiSettings.model,
-          history: history,
-          currentStateJson: stateJson,
+          history,
+          stateJson,
+          aiSettings.model,
         );
         _isWaitingForAi = false;
         result = parseEditsJson(aiReply);
@@ -1802,10 +1946,13 @@ class EditorViewModel extends ChangeNotifier {
     String stateJson,
     String model,
   ) async {
+    final imageBytes = _currentAiImageBytes();
+    final referenceImageBytes = await _currentAiReferenceImageBytes();
     try {
       return await _aiProvider.sendPrompt(
         text,
-        imageBytes: _currentAiImageBytes(),
+        imageBytes: imageBytes,
+        referenceImageBytes: referenceImageBytes,
         model: model,
         history: history,
         currentStateJson: stateJson,
@@ -1814,7 +1961,8 @@ class EditorViewModel extends ChangeNotifier {
       if (e.retryable) {
         return await _aiProvider.sendPrompt(
           text,
-          imageBytes: _currentAiImageBytes(),
+          imageBytes: imageBytes,
+          referenceImageBytes: referenceImageBytes,
           model: model,
           history: history,
           currentStateJson: stateJson,
@@ -1912,6 +2060,7 @@ class EditorViewModel extends ChangeNotifier {
   Future<void> clearChat() async {
     final projectId = _currentProject?.id;
     final versionId = _activeVersionId;
+    final version = _activeVersion();
     _messages.clear();
     notifyListeners();
     if (projectId != null && projectId > 0) {
@@ -1919,6 +2068,13 @@ class EditorViewModel extends ChangeNotifier {
         projectId: projectId,
         versionId: versionId,
       );
+      if (version != null) {
+        await _clearAiReferenceImageForVersion(
+          projectId: projectId,
+          version: version,
+          notify: true,
+        );
+      }
     }
   }
 

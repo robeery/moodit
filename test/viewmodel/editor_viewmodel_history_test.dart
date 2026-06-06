@@ -408,6 +408,73 @@ void main() {
     expect(vm.versions, hasLength(1));
   });
 
+  test('AI reference image is stored per version and cleared with chat',
+      () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final repository = _FakeEditorProjectRepository();
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    final version1 = vm.activeVersion!;
+
+    final attached = await vm.attachAiReferenceImage(sourceFile.path);
+
+    expect(attached, isTrue);
+    expect(vm.hasAiReferenceImage, isTrue);
+    final version1ReferencePath = vm.aiReferenceImagePath;
+    expect(version1ReferencePath, isNotNull);
+    expect(await File(version1ReferencePath!).exists(), isTrue);
+    expect(
+      repository.savedVersions
+          .where((version) => version.id == version1.id)
+          .single
+          .aiReferenceImagePath,
+      version1ReferencePath,
+    );
+
+    final version2 = await vm.saveCurrentVersion(name: 'Reference branch');
+
+    expect(version2, isNotNull);
+    expect(version2!.aiReferenceImagePath, isNotNull);
+    expect(version2.aiReferenceImagePath, isNot(version1ReferencePath));
+    expect(await File(version2.aiReferenceImagePath!).exists(), isTrue);
+    expect(vm.aiReferenceImagePath, version2.aiReferenceImagePath);
+
+    await vm.clearChat();
+
+    expect(vm.hasAiReferenceImage, isFalse);
+    expect(await File(version2.aiReferenceImagePath!).exists(), isFalse);
+    expect(await File(version1ReferencePath).exists(), isTrue);
+    expect(
+      repository.savedVersions
+          .where((version) => version.id == version2.id)
+          .single
+          .aiReferenceImagePath,
+      isNull,
+    );
+  });
+
   test('saves compact presets and generates the first available default name',
       () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

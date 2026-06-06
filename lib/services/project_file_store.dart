@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -104,6 +105,65 @@ class ProjectFileStore {
       _join(projectDir.path, 'versions'),
     );
     return _join(versionsDir.path, '${_safeSegment(versionId)}.jpg');
+  }
+
+  Future<String> writeAiReferenceImageBytes({
+    required String projectId,
+    required String versionId,
+    required Uint8List bytes,
+  }) async {
+    final path = await aiReferenceImagePath(
+      projectId: projectId,
+      versionId: versionId,
+    );
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
+  Future<String> aiReferenceImagePath({
+    required String projectId,
+    required String versionId,
+  }) async {
+    final projectDir = await projectDirectory(projectId);
+    final referencesDir = await _ensureDirectory(
+      _join(projectDir.path, 'ai_references'),
+    );
+    return _join(referencesDir.path, '${_safeSegment(versionId)}.jpg');
+  }
+
+  Future<void> deleteAiReferenceImage({
+    required String projectId,
+    required String versionId,
+  }) async {
+    final path = await aiReferenceImagePath(
+      projectId: projectId,
+      versionId: versionId,
+    );
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  Future<String?> copyAiReferenceImage({
+    required String projectId,
+    required String sourceVersionId,
+    required String targetVersionId,
+  }) async {
+    final sourcePath = await aiReferenceImagePath(
+      projectId: projectId,
+      versionId: sourceVersionId,
+    );
+    final source = File(sourcePath);
+    if (!await source.exists()) return null;
+
+    final targetPath = await aiReferenceImagePath(
+      projectId: projectId,
+      versionId: targetVersionId,
+    );
+    final copied = await source.copy(targetPath);
+    return copied.path;
   }
 
   Future<void> deleteProjectFiles(String projectId) async {

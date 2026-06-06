@@ -17,6 +17,7 @@ class EditorVersionRecords extends Table {
         const Constant(EditorHistorySnapshot.emptyJson),
       )();
   TextColumn get thumbnailPath => text().nullable()();
+  TextColumn get aiReferenceImagePath => text().nullable()();
   IntColumn get sortOrder => integer()();
   DateTimeColumn get createdAt => dateTime()();
 

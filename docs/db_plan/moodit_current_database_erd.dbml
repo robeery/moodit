@@ -1,6 +1,6 @@
 // Moodit current persisted database schema
 // Source of truth: lib/data/local/tables/*.dart
-// Drift schema version: 6
+// Drift schema version: 7
 //
 // Import this file at https://dbdiagram.io to render the ER diagram.
 
@@ -31,6 +31,7 @@ Table editor_versions {
   state_json text [not null, note: 'Serialized EditorEditState snapshot']
   history_json text [not null, note: 'Serialized independent undo/redo stacks for this version']
   thumbnail_path text [note: 'Optional app-owned version thumbnail path']
+  ai_reference_image_path text [note: 'Optional app-owned AI reference image path for this version']
   sort_order integer [not null]
   created_at datetime [not null]
 

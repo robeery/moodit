@@ -42,6 +42,7 @@ void main() {
     final reply = await provider.sendPrompt(
       'Make it softer',
       imageBytes: Uint8List.fromList([1, 2, 3]),
+      referenceImageBytes: Uint8List.fromList([4, 5, 6]),
       model: 'gpt-5.4-mini',
       history: [
         ChatMessage(text: 'Previous request', type: MessageType.user),
@@ -77,8 +78,20 @@ void main() {
     expect(content[0]['text'], contains('"edits":[]'));
     expect(content[0]['text'], contains('USER: Make it softer'));
     expect(content[1], {
+      'type': 'input_text',
+      'text': 'TARGET IMAGE: current edited photo.',
+    });
+    expect(content[2], {
       'type': 'input_image',
       'image_url': 'data:image/jpeg;base64,AQID',
+    });
+    expect(content[3], {
+      'type': 'input_text',
+      'text': 'REFERENCE IMAGE: visual style guidance only.',
+    });
+    expect(content[4], {
+      'type': 'input_image',
+      'image_url': 'data:image/jpeg;base64,BAUG',
     });
   });
 

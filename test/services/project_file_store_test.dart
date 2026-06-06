@@ -118,6 +118,49 @@ void main() {
     expect(await Directory('${tempDir.path}/projects/project-1').exists(), isFalse);
   });
 
+  test('writes, copies, and deletes AI reference images', () async {
+    final tempDir = await Directory.systemTemp.createTemp('moodit_files_test_');
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+    final store = ProjectFileStore(
+      documentsDirectoryProvider: () async => tempDir,
+    );
+    final bytes = Uint8List.fromList([7, 8, 9]);
+
+    final referencePath = await store.writeAiReferenceImageBytes(
+      projectId: 'project-1',
+      versionId: 'version-1',
+      bytes: bytes,
+    );
+    final copiedPath = await store.copyAiReferenceImage(
+      projectId: 'project-1',
+      sourceVersionId: 'version-1',
+      targetVersionId: 'version-2',
+    );
+
+    expect(
+      referencePath,
+      endsWith(
+        '${Platform.pathSeparator}ai_references'
+        '${Platform.pathSeparator}version-1.jpg',
+      ),
+    );
+    expect(await File(referencePath).readAsBytes(), bytes);
+    expect(copiedPath, isNotNull);
+    expect(await File(copiedPath!).readAsBytes(), bytes);
+
+    await store.deleteAiReferenceImage(
+      projectId: 'project-1',
+      versionId: 'version-1',
+    );
+
+    expect(await File(referencePath).exists(), isFalse);
+    expect(await File(copiedPath).exists(), isTrue);
+  });
+
   test('rejects invalid path segments', () async {
     final tempDir = await Directory.systemTemp.createTemp('moodit_files_test_');
     addTearDown(() async {

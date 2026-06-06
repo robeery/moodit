@@ -6,13 +6,25 @@ import '../domain/ai_provider.dart';
 import '../model/ai_exception.dart';
 import '../model/chat_message.dart';
 
+typedef GeminiHttpPost = Future<http.Response> Function(
+  Uri url, {
+  Map<String, String>? headers,
+  Object? body,
+  Encoding? encoding,
+});
+
 class GeminiProvider implements AiProvider {
   static const _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
 
   final String? _apiKeyOverride;
+  final GeminiHttpPost _post;
 
-  GeminiProvider({String? apiKey}) : _apiKeyOverride = apiKey;
+  GeminiProvider({
+    String? apiKey,
+    GeminiHttpPost? post,
+  })  : _apiKeyOverride = apiKey,
+        _post = post ?? http.post;
 
   String get _apiKey => _apiKeyOverride ?? '';
 
@@ -33,6 +45,7 @@ class GeminiProvider implements AiProvider {
   Future<String> sendPrompt(
     String userMessage, {
     Uint8List? imageBytes,
+    Uint8List? referenceImageBytes,
     String? model,
     List<ChatMessage> history = const [],
     String? currentStateJson,
@@ -61,10 +74,20 @@ class GeminiProvider implements AiProvider {
     // Build current message: image + current state + user text
     final currentParts = <Map<String, dynamic>>[];
     if (imageBytes != null) {
+      currentParts.add({'text': 'TARGET IMAGE: current edited photo.'});
       currentParts.add({
         'inline_data': {
           'mime_type': 'image/jpeg',
           'data': base64Encode(imageBytes),
+        },
+      });
+    }
+    if (referenceImageBytes != null) {
+      currentParts.add({'text': 'REFERENCE IMAGE: visual style guidance only.'});
+      currentParts.add({
+        'inline_data': {
+          'mime_type': 'image/jpeg',
+          'data': base64Encode(referenceImageBytes),
         },
       });
     }
@@ -88,7 +111,7 @@ class GeminiProvider implements AiProvider {
 
     final http.Response response;
     try {
-      response = await http.post(
+      response = await _post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: body,
