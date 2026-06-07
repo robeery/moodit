@@ -20,4 +20,25 @@ void main() {
     expect(exception.message, contains('Invalid request'));
     expect(exception.statusCode, 400);
   });
+
+  test('status mapper treats Anthropic overloads as retryable', () {
+    final exception = AiException.fromStatusCode(
+      529,
+      '{"error":{"message":"Overloaded"}}',
+    );
+
+    expect(exception.type, AiErrorType.serviceUnavailable);
+    expect(exception.message, contains('Overloaded'));
+    expect(exception.retryable, isTrue);
+    expect(exception.statusCode, 529);
+  });
+
+  test('status mapper explains oversized multimodal requests', () {
+    final exception = AiException.fromStatusCode(413, 'not json');
+
+    expect(exception.type, AiErrorType.invalidRequest);
+    expect(exception.message, contains('too large'));
+    expect(exception.retryable, isFalse);
+    expect(exception.statusCode, 413);
+  });
 }

@@ -24,6 +24,7 @@ import '../model/export_settings.dart';
 import '../domain/ai_provider.dart';
 import '../services/ai_profiles_api_key_storage.dart';
 import '../services/ai_profiles_storage.dart';
+import '../services/claude_provider.dart';
 import '../services/edit_pipeline_worker.dart';
 import '../services/editor_history.dart';
 import '../services/export_service.dart';
@@ -46,6 +47,7 @@ class EditorViewModel extends ChangeNotifier {
   final Map<String, AiProvider Function(String? apiKey)> _providerFactories = {
     AiProfileSettings.geminiProviderId: (apiKey) => GeminiProvider(apiKey: apiKey),
     AiProfileSettings.openAiProviderId: (apiKey) => OpenAiProvider(apiKey: apiKey),
+    AiProfileSettings.claudeProviderId: (apiKey) => ClaudeProvider(apiKey: apiKey),
   };
 
   PhotoEditingImage? _photoEditingImage;

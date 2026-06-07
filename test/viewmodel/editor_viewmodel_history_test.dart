@@ -637,6 +637,14 @@ void main() {
 
     expect(vm.activeAiProfileId, AiProfileSettings.defaultProfileId);
     expect(vm.selectedProvider, AiProfileSettings.geminiProviderId);
+    expect(
+      vm.availableProviders,
+      contains(AiProfileSettings.claudeProviderId),
+    );
+    expect(
+      vm.modelsForProvider(AiProfileSettings.claudeProviderId),
+      contains('claude-haiku-4-5'),
+    );
 
     await vm.setActiveAiProfile('openai-profile');
 

@@ -53,6 +53,23 @@ class AiException implements Exception {
               : 'Model not found: $providerMessage ($code)',
           statusCode: code,
         );
+      case 408:
+        return AiException(
+          type: AiErrorType.deadlineExceeded,
+          message: providerMessage == null
+              ? 'Request timed out. Retrying... ($code)'
+              : 'Request timed out: $providerMessage ($code)',
+          retryable: true,
+          statusCode: code,
+        );
+      case 413:
+        return AiException(
+          type: AiErrorType.invalidRequest,
+          message: providerMessage == null
+              ? 'Request is too large. Try a smaller image or context. ($code)'
+              : 'Request is too large: $providerMessage ($code)',
+          statusCode: code,
+        );
       case 429:
         return AiException(
           type: AiErrorType.rateLimited,
@@ -85,6 +102,15 @@ class AiException implements Exception {
           message: providerMessage == null
               ? 'Request timed out. Retrying... ($code)'
               : 'Request timed out: $providerMessage ($code)',
+          retryable: true,
+          statusCode: code,
+        );
+      case 529:
+        return AiException(
+          type: AiErrorType.serviceUnavailable,
+          message: providerMessage == null
+              ? 'AI service is overloaded. Retrying... ($code)'
+              : 'AI service is overloaded: $providerMessage ($code)',
           retryable: true,
           statusCode: code,
         );

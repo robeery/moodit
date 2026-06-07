@@ -24,6 +24,12 @@ class AppColors {
 
 LinearGradient aiProviderGradient(String? providerId) {
   switch (providerId) {
+    case AiProfileSettings.claudeProviderId:
+      return const LinearGradient(
+        colors: [ui.Color.fromARGB(255, 204, 89, 51), ui.Color.fromARGB(255, 248, 172, 142)],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      );
     case AiProfileSettings.openAiProviderId:
       return const LinearGradient(
         colors: [Color(0xFF10A37F), Color(0xFFC6F6E3)],
