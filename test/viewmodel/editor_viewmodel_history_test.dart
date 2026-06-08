@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:licenta/domain/ai_provider.dart';
+import 'package:licenta/model/color_edit.dart';
+import 'package:licenta/model/color_grading_edit.dart';
 import 'package:licenta/model/ai_profile_settings.dart';
 import 'package:licenta/model/chat_message.dart';
 import 'package:licenta/model/edit.dart';
@@ -10,10 +13,12 @@ import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_preset.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
+import 'package:licenta/model/rgba_image_frame.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
 import 'package:licenta/repositories/preset_repository.dart';
 import 'package:licenta/services/ai_profiles_api_key_storage.dart';
 import 'package:licenta/services/ai_profiles_storage.dart';
+import 'package:licenta/services/edit_pipeline_worker.dart';
 import 'package:licenta/services/project_file_store.dart';
 import 'package:licenta/viewmodel/editor_viewmodel.dart';
 
@@ -654,6 +659,200 @@ void main() {
     expect(vm.selectedModel, 'gpt-5.4-mini');
   });
 
+  test('AI no-edit response persists chat without processing image', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final tempDir = sourceFile.parent;
+    final repository = _FakeEditorProjectRepository();
+    final worker = _TrackingEditPipelineWorker();
+    final provider = _QueueAiProvider([
+      '{"message":"That request does not describe a supported photo edit."}',
+    ]);
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      editPipelineWorker: worker,
+      projectRepository: repository,
+      projectFileStore: ProjectFileStore(
+        documentsDirectoryProvider: () async => tempDir,
+      ),
+      providerFactories: {
+        AiProfileSettings.geminiProviderId: (_) => provider,
+      },
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.importImageAsProject(sourceFile.path);
+    final activeVersionId = vm.activeVersion!.id;
+    final processCount = worker.processCount;
+    final previewCount = repository.updatedPreviewPaths.length;
+
+    await vm.sendMessage('What is the capital of France?');
+
+    expect(provider.callCount, 1);
+    expect(vm.messages.map((message) => message.type), [
+      MessageType.user,
+      MessageType.ai,
+    ]);
+    expect(
+      vm.messages.last.text,
+      'That request does not describe a supported photo edit.',
+    );
+    expect(vm.hasPendingEdits, isFalse);
+    expect(vm.canUndo, isFalse);
+    expect(vm.getEditValue(OperationType.brightness), 0);
+    expect(worker.processCount, processCount);
+    expect(repository.updatedPreviewPaths, hasLength(previewCount));
+    expect(
+      repository.aiMessagesByVersion[activeVersionId]
+          ?.map((message) => message.type),
+      [MessageType.user, MessageType.ai],
+    );
+  });
+
+  test('effective AI no-op does not process or add history', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final worker = _TrackingEditPipelineWorker();
+    final provider = _QueueAiProvider([
+      '{"message":"The brightness already matches that request.",'
+          '"edits":[{"type":"brightness","value":20}]}',
+    ]);
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      editPipelineWorker: worker,
+      providerFactories: {
+        AiProfileSettings.geminiProviderId: (_) => provider,
+      },
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      final tempDir = sourceFile.parent;
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.loadImageFromPath(sourceFile.path);
+    vm.beginManualEdit();
+    vm.updateEditPreview(Edit(type: OperationType.brightness, value: 20));
+    await vm.applyEdit(Edit(type: OperationType.brightness, value: 20));
+    final processCount = worker.processCount;
+
+    await vm.sendMessage('Keep the brightness at twenty.');
+
+    expect(vm.hasPendingEdits, isFalse);
+    expect(vm.getEditValue(OperationType.brightness), 20);
+    expect(worker.processCount, processCount);
+    expect((await vm.undo())?.label, 'Brightness +20');
+    expect(vm.getEditValue(OperationType.brightness), 0);
+    expect(vm.canUndo, isFalse);
+  });
+
+  test('invalid AI response retries before accepting no-edit reply', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final provider = _QueueAiProvider([
+      'not json',
+      '{"message":"I could not identify a supported photo edit."}',
+    ]);
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      providerFactories: {
+        AiProfileSettings.geminiProviderId: (_) => provider,
+      },
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      final tempDir = sourceFile.parent;
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.loadImageFromPath(sourceFile.path);
+    await vm.sendMessage('asdfgh');
+
+    expect(provider.callCount, 2);
+    expect(provider.prompts.last, contains('Invalid JSON'));
+    expect(vm.messages.map((message) => message.type), [
+      MessageType.user,
+      MessageType.ai,
+    ]);
+    expect(vm.hasPendingEdits, isFalse);
+  });
+
+  test('valid AI edit still creates one pending history action', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') return ['wifi'];
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
+    final sourceFile = await _createTempImage();
+    final worker = _TrackingEditPipelineWorker();
+    final provider = _QueueAiProvider([
+      '{"message":"Brightened the image.",'
+          '"edits":[{"type":"brightness","value":15}]}',
+    ]);
+    final vm = EditorViewModel(
+      aiProfilesStorage: _FakeAiProfilesStorage(),
+      aiProfilesApiKeyStorage: const _FakeAiProfilesApiKeyStorage(),
+      editPipelineWorker: worker,
+      providerFactories: {
+        AiProfileSettings.geminiProviderId: (_) => provider,
+      },
+    );
+    addTearDown(vm.dispose);
+    addTearDown(() async {
+      final tempDir = sourceFile.parent;
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await vm.loadImageFromPath(sourceFile.path);
+    await vm.sendMessage('Make it brighter.');
+
+    expect(worker.processCount, 1);
+    expect(vm.hasPendingEdits, isTrue);
+    expect(vm.getEditValue(OperationType.brightness), 15);
+    expect(vm.canUndo, isFalse);
+
+    vm.applyPendingEdits();
+
+    expect(vm.hasPendingEdits, isFalse);
+    expect(vm.canUndo, isTrue);
+    expect((await vm.undo())?.label, 'AI edit');
+    expect(vm.getEditValue(OperationType.brightness), 0);
+  });
+
   test('versions inherit and restore independent AI profiles', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(connectivityChannel, (call) async {
@@ -868,6 +1067,64 @@ class _FakeAiProfilesApiKeyStorage extends AiProfilesApiKeyStorage {
     required Map<String, String> apiKeysByProfileId,
     required Set<String> validProfileIds,
   }) async {}
+}
+
+class _QueueAiProvider implements AiProvider {
+  _QueueAiProvider(this.responses);
+
+  final List<String> responses;
+  final List<String> prompts = [];
+
+  int get callCount => prompts.length;
+
+  @override
+  String get name => 'Test AI';
+
+  @override
+  List<String> get models => const [AiProfileSettings.defaultModel];
+
+  @override
+  String get defaultModel => AiProfileSettings.defaultModel;
+
+  @override
+  Future<String> sendPrompt(
+    String userMessage, {
+    Uint8List? imageBytes,
+    Uint8List? referenceImageBytes,
+    String? model,
+    List<ChatMessage> history = const [],
+    String? currentStateJson,
+  }) async {
+    prompts.add(userMessage);
+    final responseIndex = prompts.length - 1;
+    if (responseIndex >= responses.length) {
+      throw StateError('No queued AI response');
+    }
+    return responses[responseIndex];
+  }
+}
+
+class _TrackingEditPipelineWorker extends EditPipelineWorker {
+  RgbaImageFrame? _originalFrame;
+  int processCount = 0;
+
+  @override
+  Future<void> loadOriginalFrame(RgbaImageFrame frame) async {
+    _originalFrame = frame;
+  }
+
+  @override
+  Future<RgbaImageFrame> process({
+    required List<Edit> edits,
+    required List<ColorEdit> colorEdits,
+    required List<ColorGradingEdit> colorGradingEdits,
+  }) async {
+    processCount++;
+    return _originalFrame!;
+  }
+
+  @override
+  void dispose() {}
 }
 
 class _FakePresetRepository implements PresetRepository {

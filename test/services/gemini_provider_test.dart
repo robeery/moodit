@@ -76,6 +76,10 @@ void main() {
     expect(body['generationConfig'], {
       'responseMimeType': 'application/json',
     });
+    expect(
+      body['systemInstruction']['parts'][0]['text'],
+      contains('Never invent edit operations'),
+    );
 
     final contents = body['contents'] as List<dynamic>;
     expect(contents, hasLength(3));

@@ -4,17 +4,22 @@ import '../model/color_edit.dart';
 import '../model/color_grading_edit.dart';
 
 class ParsedEdits {
-  final String? message;
+  final String message;
   final List<Edit> edits;
   final List<ColorEdit> colorEdits;
   final List<ColorGradingEdit> colorGradingEdits;
 
   const ParsedEdits({
-    this.message,
+    required this.message,
     this.edits = const [],
     this.colorEdits = const [],
     this.colorGradingEdits = const [],
   });
+
+  bool get hasOperations =>
+      edits.isNotEmpty ||
+      colorEdits.isNotEmpty ||
+      colorGradingEdits.isNotEmpty;
 }
 
 class ParseResult {
@@ -44,15 +49,13 @@ ParseResult parseEditsJson(String text) {
     }
   }
 
-  final hasEdits =
-      decoded.containsKey('edits') && (decoded['edits'] as List).isNotEmpty;
-  final hasColorEdits = decoded.containsKey('colorEdits') &&
-      (decoded['colorEdits'] as List).isNotEmpty;
-  final hasGradingEdits = decoded.containsKey('colorGradingEdits') &&
-      (decoded['colorGradingEdits'] as List).isNotEmpty;
-
-  if (!hasEdits && !hasColorEdits && !hasGradingEdits) {
-    return const ParseResult.failure('No operations provided');
+  final message = decoded['message'];
+  if (message is! String) {
+    return const ParseResult.failure('"message" must be a string');
+  }
+  final normalizedMessage = message.trim();
+  if (normalizedMessage.isEmpty) {
+    return const ParseResult.failure('"message" must not be empty');
   }
 
   // Validate and parse basic edits
@@ -212,10 +215,8 @@ ParseResult parseEditsJson(String text) {
     }
   }
 
-  final message = decoded['message'];
-
   return ParseResult.success(ParsedEdits(
-    message: message is String ? message : null,
+    message: normalizedMessage,
     edits: edits,
     colorEdits: colorEdits,
     colorGradingEdits: gradingEdits,

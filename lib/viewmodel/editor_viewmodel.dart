@@ -44,11 +44,7 @@ class EditorViewModel extends ChangeNotifier {
   static const int versionNameMaxLength = 32;
   static const int _projectPreviewMaxDimension = 256;
 
-  final Map<String, AiProvider Function(String? apiKey)> _providerFactories = {
-    AiProfileSettings.geminiProviderId: (apiKey) => GeminiProvider(apiKey: apiKey),
-    AiProfileSettings.openAiProviderId: (apiKey) => OpenAiProvider(apiKey: apiKey),
-    AiProfileSettings.claudeProviderId: (apiKey) => ClaudeProvider(apiKey: apiKey),
-  };
+  final Map<String, AiProvider Function(String? apiKey)> _providerFactories;
 
   PhotoEditingImage? _photoEditingImage;
   RgbaImageFrame? _originalFrame;
@@ -107,8 +103,17 @@ class EditorViewModel extends ChangeNotifier {
     PresetRepository? presetRepository,
     ProjectFileStore? projectFileStore,
     DateTime Function()? now,
+    Map<String, AiProvider Function(String? apiKey)>? providerFactories,
   })
-      : _aiProfiles = [const AiProfileSettings()],
+      : _providerFactories = providerFactories ?? {
+          AiProfileSettings.geminiProviderId:
+              (apiKey) => GeminiProvider(apiKey: apiKey),
+          AiProfileSettings.openAiProviderId:
+              (apiKey) => OpenAiProvider(apiKey: apiKey),
+          AiProfileSettings.claudeProviderId:
+              (apiKey) => ClaudeProvider(apiKey: apiKey),
+        },
+        _aiProfiles = [const AiProfileSettings()],
         _activeAiProfileId = AiProfileSettings.defaultProfileId,
         _globalAiProfileId = AiProfileSettings.defaultProfileId,
         _aiProfilesApiKeyStorage =
@@ -1993,8 +1998,12 @@ class EditorViewModel extends ChangeNotifier {
 
     final parsed = result.edits!;
     await _addChatMessage(
-      ChatMessage(text: parsed.message ?? 'Edits applied.', type: MessageType.ai),
+      ChatMessage(text: parsed.message, type: MessageType.ai),
     );
+    if (!parsed.hasOperations) {
+      notifyListeners();
+      return null;
+    }
 
     final model = _photoEditingImage!;
     final beforeAiEdit = _currentEditState();
@@ -2011,6 +2020,13 @@ class EditorViewModel extends ChangeNotifier {
       model.addOrUpdateColorGradingEdit(gradingEdit);
     }
     final afterAiEdit = _currentEditState();
+    if (beforeAiEdit.activeOnly().contentEquals(afterAiEdit.activeOnly())) {
+      beforeAiEdit.applyTo(model);
+      model.clearSnapshot();
+      _snapshotProcessedFrame = null;
+      notifyListeners();
+      return null;
+    }
     _pendingAiHistoryEntry = EditorHistoryEntry(
       before: beforeAiEdit,
       after: afterAiEdit,

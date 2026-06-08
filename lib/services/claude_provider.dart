@@ -213,7 +213,7 @@ class ClaudeProvider implements AiProvider {
   static const Map<String, dynamic> _responseSchema = {
     'type': 'object',
     'properties': {
-      'message': {'type': 'string'},
+      'message': {'type': 'string', 'minLength': 1},
       'edits': {
         'type': 'array',
         'items': {

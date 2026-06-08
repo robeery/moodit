@@ -82,11 +82,16 @@ void main() {
     expect(body['model'], 'claude-sonnet-4-6');
     expect(body['max_tokens'], 1024);
     expect(body['system'], contains('photo editing assistant'));
+    expect(body['system'], contains('Never invent edit operations'));
 
     final outputFormat =
         body['output_config']['format'] as Map<String, dynamic>;
     expect(outputFormat['type'], 'json_schema');
     expect(outputFormat['schema']['required'], ['message']);
+    expect(
+      outputFormat['schema']['properties']['message']['minLength'],
+      1,
+    );
     expect(outputFormat['schema']['properties'], contains('edits'));
 
     final messages = body['messages'] as List<dynamic>;

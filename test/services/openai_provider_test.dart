@@ -60,6 +60,7 @@ void main() {
     final body = jsonDecode(capturedBody as String) as Map<String, dynamic>;
     expect(body['model'], 'gpt-5.4-mini');
     expect(body['instructions'], contains('photo editing assistant'));
+    expect(body['instructions'], contains('Never invent edit operations'));
     expect(body['text'], {
       'format': {'type': 'json_object'},
     });
