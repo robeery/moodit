@@ -13,6 +13,7 @@ import 'package:licenta/model/editor_edit_state.dart';
 import 'package:licenta/model/editor_preset.dart';
 import 'package:licenta/model/editor_project.dart';
 import 'package:licenta/model/editor_version.dart';
+import 'package:licenta/model/export_settings.dart';
 import 'package:licenta/model/rgba_image_frame.dart';
 import 'package:licenta/repositories/editor_project_repository.dart';
 import 'package:licenta/repositories/preset_repository.dart';
@@ -106,6 +107,7 @@ void main() {
     expect(project.originalImagePath, isNot(sourceFile.path));
     expect(project.originalImagePath, vm.originalImagePath);
     expect(await File(project.originalImagePath).exists(), isTrue);
+    expect(vm.exportSettings.format, ImageFormat.png);
     expect(project.originalWidth, 16);
     expect(project.originalHeight, 16);
     expect(project.previewWidth, 16);

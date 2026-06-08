@@ -58,7 +58,7 @@ RgbaImageFrame applyEditsToRgbaSync({
     colorGradingPrepCache: colorGradingPrepCache,
     colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
-  return frameFromImage(result);
+  return restoreTransparentPixels(frameFromImage(result), originalFrame);
 }
 
 RgbaImageFrame applyEditsToRgbaWithStageCacheSync({
@@ -84,7 +84,7 @@ RgbaImageFrame applyEditsToRgbaWithStageCacheSync({
       colorGradingPrepCache: colorGradingPrepCache,
       colorGradingPrepCacheKey: colorGradingPrepCacheKey,
     );
-    return frameFromImage(result);
+    return restoreTransparentPixels(frameFromImage(result), originalFrame);
   }
 
   final cachedAfterBasic = stageCache.afterBasicFor(basicStageCacheKey);
@@ -114,7 +114,7 @@ RgbaImageFrame applyEditsToRgbaWithStageCacheSync({
     colorGradingPrepCache: colorGradingPrepCache,
     colorGradingPrepCacheKey: colorGradingPrepCacheKey,
   );
-  return frameFromImage(image);
+  return restoreTransparentPixels(frameFromImage(image), originalFrame);
 }
 
 Uint8List applyEditsSync({

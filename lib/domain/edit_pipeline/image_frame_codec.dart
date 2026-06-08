@@ -43,6 +43,24 @@ RgbaImageFrame frameFromImage(img.Image image) {
   );
 }
 
+RgbaImageFrame restoreTransparentPixels(
+  RgbaImageFrame frame,
+  RgbaImageFrame originalFrame,
+) {
+  assert(frame.rgbaBytes.length == originalFrame.rgbaBytes.length);
+  for (var i = 0; i < frame.rgbaBytes.length; i += 4) {
+    final originalAlpha = originalFrame.rgbaBytes[i + 3];
+    frame.rgbaBytes[i + 3] = originalAlpha;
+    if (originalAlpha != 0) continue;
+
+    // PNG transparency case.
+    frame.rgbaBytes[i] = originalFrame.rgbaBytes[i];
+    frame.rgbaBytes[i + 1] = originalFrame.rgbaBytes[i + 1];
+    frame.rgbaBytes[i + 2] = originalFrame.rgbaBytes[i + 2];
+  }
+  return frame;
+}
+
 RgbaImageFrame decodeRgbaImageFrame(Uint8List originalBytes) {
   return frameFromImage(decodeEditableImage(originalBytes));
 }

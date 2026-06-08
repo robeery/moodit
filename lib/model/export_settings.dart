@@ -7,6 +7,12 @@ enum ImageFormat {
   const ImageFormat(this.label, this.extension);
 }
 
+ImageFormat imageFormatForPath(String path) {
+  return path.toLowerCase().endsWith('.png')
+      ? ImageFormat.png
+      : ImageFormat.jpg;
+}
+
 class ExportSettings {
   final ImageFormat format;
   final int quality;

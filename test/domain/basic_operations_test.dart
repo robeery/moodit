@@ -82,6 +82,34 @@ void main() {
     }
   });
 
+  test('preview pipeline preserves fully transparent pixels', () {
+    final image = _fixtureImage();
+    image.setPixelRgba(3, 2, 220, 30, 180, 0);
+    image.setPixelRgba(4, 2, 60, 180, 90, 128);
+    final originalFrame = frameFromImage(image);
+    final transparentOffset = (2 * image.width + 3) * 4;
+
+    final result = applyEditsToRgbaSync(
+      originalFrame: originalFrame,
+      edits: [Edit(type: OperationType.blur, value: 80)],
+      colorEdits: const [],
+      colorGradingEdits: const [],
+    );
+
+    expect(
+      result.rgbaBytes.sublist(transparentOffset, transparentOffset + 4),
+      orderedEquals(
+        originalFrame.rgbaBytes.sublist(
+          transparentOffset,
+          transparentOffset + 4,
+        ),
+      ),
+    );
+    for (var i = 3; i < result.rgbaBytes.length; i += 4) {
+      expect(result.rgbaBytes[i], originalFrame.rgbaBytes[i]);
+    }
+  });
+
   test('blur operation round-trips through JSON names', () {
     final encoded = Edit(type: OperationType.blur, value: 50).toJson();
     expect(encoded['type'], 'blur');

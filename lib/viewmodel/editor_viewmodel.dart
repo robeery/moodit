@@ -1186,6 +1186,9 @@ class EditorViewModel extends ChangeNotifier {
         originalBytes: encodeJpgFromFrame(originalFrame),
         originalImagePath: originalImagePath,
       );
+      _exportSettings = _exportSettings.copyWith(
+        format: imageFormatForPath(originalImagePath),
+      );
       _originalFrame = originalFrame;
       _originalPreviewImage = originalPreviewImage;
       _processedFrame = originalFrame;
