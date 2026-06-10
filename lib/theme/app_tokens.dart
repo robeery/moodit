@@ -93,6 +93,14 @@ class MooditType {
     color: MooditColors.textSecondary,
   );
 
+  static const TextStyle screenTitle = TextStyle(
+    fontFamily: mono,
+    fontSize: 12,
+    letterSpacing: 3.0,
+    fontWeight: FontWeight.w600,
+    color: MooditColors.textPrimary,
+  );
+
   static const TextStyle monoLabel = TextStyle(
     fontFamily: mono,
     fontSize: 11,
@@ -107,5 +115,19 @@ class MooditType {
     letterSpacing: 1.4,
     fontWeight: FontWeight.w400,
     color: MooditColors.textMuted,
+  );
+
+  static const TextStyle bodyText = TextStyle(
+    fontFamily: body,
+    fontSize: 13.5,
+    height: 1.35,
+    color: MooditColors.textPrimary,
+  );
+
+  static const TextStyle bodySecondary = TextStyle(
+    fontFamily: body,
+    fontSize: 12.5,
+    height: 1.35,
+    color: MooditColors.textSecondary,
   );
 }

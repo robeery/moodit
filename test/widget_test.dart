@@ -136,9 +136,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('PROJECT DETAILS'), findsOneWidget);
-    expect(find.text('SAVED PORTRAIT'), findsOneWidget);
-    expect(find.text('RENAME PROJECT'), findsOneWidget);
-    expect(find.text('DELETE PROJECT'), findsOneWidget);
+    expect(find.text('Saved portrait'), findsOneWidget);
+    expect(find.text('RENAME'), findsOneWidget);
+    expect(find.text('DELETE'), findsOneWidget);
     expect(find.text('PROJECT INFO'), findsOneWidget);
     expect(find.text('ORIGINAL SIZE'), findsOneWidget);
   });

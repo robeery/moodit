@@ -22,27 +22,40 @@ class AppColors {
   };
 }
 
-LinearGradient aiProviderGradient(String? providerId) {
+// Per provider gradient stops; start is also used for
+// borders, icon strokes and text where a gradient does not render well.
+List<Color> aiProviderGradientColors(String? providerId) {
   switch (providerId) {
-    case AiProfileSettings.claudeProviderId:
-      return const LinearGradient(
-        colors: [ui.Color.fromARGB(255, 204, 89, 51), ui.Color.fromARGB(255, 248, 172, 142)],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      );
     case AiProfileSettings.openAiProviderId:
-      return const LinearGradient(
-        colors: [Color(0xFF10A37F), Color(0xFFC6F6E3)],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      );
+      return const [Color(0xFF34D6C1), Color(0xFF2A9BD6)];
+    case AiProfileSettings.claudeProviderId:
+      return const [Color(0xFFE9A24C), Color(0xFFE9624C)];
     case AiProfileSettings.geminiProviderId:
     default:
-      return const LinearGradient(
-        colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      );
+      return const [Color(0xFF4C8DF6), Color(0xFF9B5CF6)];
+  }
+}
+
+LinearGradient aiProviderGradient(String? providerId) {
+  return LinearGradient(
+    colors: aiProviderGradientColors(providerId),
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+}
+
+Color aiProviderStartColor(String? providerId) =>
+    aiProviderGradientColors(providerId).first;
+
+String aiProviderTag(String? providerId) {
+  switch (providerId) {
+    case AiProfileSettings.openAiProviderId:
+      return 'OPENAI';
+    case AiProfileSettings.claudeProviderId:
+      return 'ANTHROPIC';
+    case AiProfileSettings.geminiProviderId:
+    default:
+      return 'GOOGLE';
   }
 }
 

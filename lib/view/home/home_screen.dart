@@ -11,6 +11,7 @@ import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
 import '../presets/my_presets_screen.dart';
 import '../projects/projects_screen.dart';
+import '../shared/app_snack_bar.dart';
 
 enum _DraftRecoveryAction {
   discard,
@@ -162,13 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final message = _vm.errorMessage;
     if (message == null || !mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade900,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    showAppSnackBar(context, message, isError: true);
     _vm.clearError();
   }
 
