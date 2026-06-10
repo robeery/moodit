@@ -48,12 +48,10 @@ class _EditorScreenState extends State<EditorScreen> {
   IconData _historyActionIcon = Icons.undo;
   Timer? _historyActionHideTimer;
   Timer? _historyActionClearTimer;
-  int? _lastShownBenchmarkMs; // temporary benchmark
 
   @override
   void initState() {
     super.initState();
-    _vm.addListener(_onVmChanged); // temporary benchmark
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startInitialLoad());
     });
@@ -73,22 +71,6 @@ class _EditorScreenState extends State<EditorScreen> {
     if (projectId != null) {
       await _loadInitialProject(projectId);
     }
-  }
-
-  void _onVmChanged() { // temporary benchmark
-    final ms = _vm.lastBenchmarkMs;
-    if (ms == null || ms == _lastShownBenchmarkMs) return;
-    _lastShownBenchmarkMs = ms;
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Processed in ${ms}ms'),
-        backgroundColor: AppColors.surface,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   Future<void> _importInitialImage(String imagePath) async {
@@ -125,7 +107,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   void dispose() {
-    _vm.removeListener(_onVmChanged); // temporary benchmark
     _historyActionHideTimer?.cancel();
     _historyActionClearTimer?.cancel();
     _vm.dispose();

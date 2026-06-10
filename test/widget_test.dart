@@ -26,25 +26,30 @@ void main() {
   testWidgets('app starts on the home actions', (WidgetTester tester) async {
     final homeViewModel = HomeViewModel(
       projectRepository: _NoDraftProjectRepository(),
+      presetRepository: _FakePresetRepository(),
     );
     addTearDown(homeViewModel.dispose);
 
     await tester.pumpWidget(MyApp(homeViewModel: homeViewModel));
+    await tester.pumpAndSettle();
 
-    expect(find.text('MOOD EDIT'), findsOneWidget);
+    expect(find.text('MOOD-DRIVEN PHOTO EDITING'), findsOneWidget);
     expect(find.text('IMPORT PHOTO'), findsOneWidget);
-    expect(find.text('MY PROJECTS'), findsOneWidget);
-    expect(find.text('MY PRESETS'), findsOneWidget);
+    expect(find.text('PROJECTS'), findsOneWidget);
+    expect(find.text('PRESETS'), findsOneWidget);
     expect(find.byIcon(Icons.add), findsOneWidget);
     expect(
-      tester.getCenter(find.text('MY PROJECTS')).dy,
+      tester.getCenter(find.text('PROJECTS')).dy,
       greaterThan(tester.getCenter(find.text('IMPORT PHOTO')).dy),
     );
+    // projects and presets cards sit side by side
     expect(
-      tester.getCenter(find.text('MY PRESETS')).dy,
-      greaterThan(tester.getCenter(find.text('MY PROJECTS')).dy),
+      tester.getCenter(find.text('PROJECTS')).dy,
+      closeTo(tester.getCenter(find.text('PRESETS')).dy, 1),
     );
-    expect(find.text('0'), findsNothing);
+    // empty database renders zero counts and the empty recent state
+    expect(find.text('0'), findsNWidgets(2));
+    expect(find.text('NO PROJECTS YET'), findsOneWidget);
   });
 
   testWidgets('discarding a draft asks for confirmation', (tester) async {

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../model/editor_project.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
 import '../presets/my_presets_screen.dart';
@@ -41,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _vm = widget._viewModel ?? HomeViewModel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_checkForDraft());
+      unawaited(_vm.loadHomeData());
     });
   }
 
@@ -117,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     unawaited(_checkForDraft(force: true));
+    unawaited(_vm.loadHomeData(force: true));
   }
 
   Future<void> _openProject(int projectId) async {
@@ -127,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     unawaited(_checkForDraft(force: true));
+    unawaited(_vm.loadHomeData(force: true));
   }
 
   Future<void> _openProjects() async {
@@ -137,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     unawaited(_checkForDraft(force: true));
+    unawaited(_vm.loadHomeData(force: true));
   }
 
   Future<void> _openPresets() async {
@@ -149,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     unawaited(_checkForDraft(force: true));
+    unawaited(_vm.loadHomeData(force: true));
   }
 
   void _showErrorIfNeeded() {
@@ -308,66 +315,74 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final isLoading = _vm.isCheckingDraft || _vm.isBusy;
         return Scaffold(
-          backgroundColor: AppColors.bg,
-          appBar: AppBar(
-            backgroundColor: AppColors.bg,
-            elevation: 0,
-            title: const Text('MOOD EDIT', style: AppTextStyles.screenTitle),
-            centerTitle: true,
-          ),
-          body: Stack(
-            children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final tileSize = constraints.maxWidth
-                          .clamp(132.0, 160.0)
-                          .toDouble();
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: MooditColors.pageBackground,
+            ),
+            child: Stack(
+              children: [
+                SafeArea(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      MooditDims.screenPadding,
+                      18,
+                      MooditDims.screenPadding,
+                      28,
+                    ),
+                    children: [
+                      const _HomeHeader(),
+                      const SizedBox(height: 26),
+                      _ImportCard(onTap: isLoading ? null : _pickImage),
+                      const SizedBox(height: 14),
+                      Row(
                         children: [
-                          _HomeActionTile(
-                            icon: Icons.add,
-                            label: 'IMPORT PHOTO',
-                            size: tileSize,
-                            onPressed: isLoading ? null : _pickImage,
+                          Expanded(
+                            child: _CountCard(
+                              label: 'PROJECTS',
+                              count: _vm.projectsCount,
+                              icon: Icons.folder_open_outlined,
+                              onTap: isLoading
+                                  ? null
+                                  : () => unawaited(_openProjects()),
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          _HomeActionTile(
-                            icon: Icons.folder_open_outlined,
-                            label: 'MY PROJECTS',
-                            size: tileSize,
-                            onPressed: isLoading
-                                ? null
-                                : () => unawaited(_openProjects()),
-                          ),
-                          const SizedBox(height: 16),
-                          _HomeActionTile(
-                            icon: Icons.layers_outlined,
-                            label: 'MY PRESETS',
-                            size: tileSize,
-                            onPressed: isLoading
-                                ? null
-                                : () => unawaited(_openPresets()),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CountCard(
+                              label: 'PRESETS',
+                              count: _vm.presetsCount,
+                              icon: Icons.layers_outlined,
+                              onTap: isLoading
+                                  ? null
+                                  : () => unawaited(_openPresets()),
+                            ),
                           ),
                         ],
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 28),
+                      _RecentSection(
+                        projects: _vm.recentProjects,
+                        onSeeAll: isLoading
+                            ? null
+                            : () => unawaited(_openProjects()),
+                        onOpenProject: isLoading
+                            ? null
+                            : (id) => unawaited(_openProject(id)),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              if (isLoading)
-                const Align(
-                  alignment: Alignment.topCenter,
-                  child: LinearProgressIndicator(
-                    minHeight: 1,
-                    backgroundColor: AppColors.surface,
-                    color: AppColors.highlight,
+                if (isLoading)
+                  const Align(
+                    alignment: Alignment.topCenter,
+                    child: LinearProgressIndicator(
+                      minHeight: 1,
+                      backgroundColor: Colors.transparent,
+                      color: MooditColors.baseAccent,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -375,57 +390,310 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _HomeActionTile extends StatelessWidget {
-  const _HomeActionTile({
-    required this.icon,
-    required this.label,
-    required this.size,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final double size;
-  final VoidCallback? onPressed;
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader();
 
   @override
   Widget build(BuildContext context) {
-    final content = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.muted, width: 1),
-        borderRadius: BorderRadius.circular(4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: MooditType.wordmark,
+            children: const [
+              TextSpan(text: 'Mood'),
+              TextSpan(
+                text: 'it',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              TextSpan(
+                text: '.',
+                style: TextStyle(color: MooditColors.baseAccent),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text('MOOD-DRIVEN PHOTO EDITING', style: MooditType.kicker),
+      ],
+    );
+  }
+}
+
+class _ImportCard extends StatelessWidget {
+  const _ImportCard({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 286,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(MooditDims.cardRadius),
+            border: Border.all(color: MooditColors.hairline),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF1A1A1F), Color(0xFF101013)],
+            ),
+            boxShadow: MooditDims.softDrop,
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 0.9,
+                    colors: [
+                      MooditColors.baseGlow,
+                      MooditColors.baseGlowFaint,
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.45, 1.0],
+                  ),
+                ),
+                child: SizedBox.expand(),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: MooditColors.baseAccent,
+                        width: 1.4,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: MooditColors.baseGlow,
+                          blurRadius: 24,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      color: MooditColors.baseAccent,
+                      size: 34,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'IMPORT PHOTO',
+                    style: MooditType.monoLabel.copyWith(letterSpacing: 3),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('START A NEW EDIT', style: MooditType.monoMeta),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: AppColors.muted, size: 32),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12,
-                  letterSpacing: 2,
+    );
+  }
+}
+
+class _CountCard extends StatelessWidget {
+  const _CountCard({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 104,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: MooditColors.card,
+            borderRadius: BorderRadius.circular(MooditDims.cardRadius),
+            border: Border.all(color: MooditColors.hairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: MooditColors.textSecondary, size: 20),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$count',
+                    style: const TextStyle(
+                      fontFamily: MooditType.serif,
+                      fontSize: 26,
+                      color: MooditColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(label, style: MooditType.sectionLabel),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentSection extends StatelessWidget {
+  const _RecentSection({
+    required this.projects,
+    required this.onSeeAll,
+    required this.onOpenProject,
+  });
+
+  final List<EditorProject> projects;
+  final VoidCallback? onSeeAll;
+  final void Function(int projectId)? onOpenProject;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('RECENT', style: MooditType.sectionLabel),
+            if (projects.isNotEmpty)
+              GestureDetector(
+                onTap: onSeeAll,
+                child: Text(
+                  'ALL  ›',
+                  style: MooditType.monoMeta.copyWith(
+                    color: MooditColors.baseAccent,
+                  ),
                 ),
               ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (projects.isEmpty)
+          _RecentEmpty()
+        else
+          Row(
+            children: [
+              for (var i = 0; i < projects.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(
+                  child: _RecentThumb(
+                    project: projects[i],
+                    onTap: onOpenProject == null
+                        ? null
+                        : () => onOpenProject!(projects[i].id),
+                  ),
+                ),
+              ],
+              for (var i = projects.length; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                const Expanded(child: SizedBox.shrink()),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _RecentEmpty extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 84,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: MooditColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+        border: Border.all(color: MooditColors.hairline),
+      ),
+      child: Text(
+        'NO PROJECTS YET',
+        style: MooditType.monoMeta.copyWith(color: MooditColors.textOff),
+      ),
+    );
+  }
+}
+
+class _RecentThumb extends StatelessWidget {
+  const _RecentThumb({required this.project, required this.onTap});
+
+  final EditorProject project;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewPath = project.previewImagePath;
+    final hasPreview = previewPath != null &&
+        previewPath.isNotEmpty &&
+        File(previewPath).existsSync();
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: MooditColors.card,
+                borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+                border: Border.all(color: MooditColors.hairline),
+              ),
+              child: hasPreview
+                  ? Image.file(
+                      File(previewPath),
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    )
+                  : const Icon(
+                      Icons.image_outlined,
+                      color: MooditColors.textOff,
+                      size: 22,
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            displayProjectName(project).toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MooditType.monoMeta.copyWith(
+              color: MooditColors.textSecondary,
             ),
           ),
         ],
-      ),
-    );
-
-    return GestureDetector(
-      onTap: onPressed,
-      child: Opacity(
-        opacity: onPressed == null ? 0.45 : 1,
-        child: content,
       ),
     );
   }
