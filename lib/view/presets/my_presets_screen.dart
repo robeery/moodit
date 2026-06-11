@@ -9,8 +9,8 @@ import '../../services/preset_thumbnail_service.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/presets_viewmodel.dart';
 import '../shared/app_snack_bar.dart';
-import '../shared/app_thumbnail.dart';
 import '../shared/app_top_bar.dart';
+import '../shared/thumbnail_tile.dart';
 
 class MyPresetsScreen extends StatefulWidget {
   const MyPresetsScreen({
@@ -333,12 +333,12 @@ class _PresetRow extends StatelessWidget {
         child: Row(
           children: [
             if (showThumbnail)
-              AppThumbnail(
+              ThumbnailTile(
                 image: bytes == null ? null : MemoryImage(bytes),
                 fallbackIcon: Icons.layers_outlined,
               )
             else
-              const AppThumbnail(fallbackIcon: Icons.layers_outlined),
+              const ThumbnailTile(fallbackIcon: Icons.layers_outlined),
             const SizedBox(width: 14),
             Expanded(
               child: Text(

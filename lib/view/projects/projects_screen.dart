@@ -7,8 +7,8 @@ import '../../theme/app_tokens.dart';
 import '../../viewmodel/projects_viewmodel.dart';
 import '../editor/editor_screen.dart';
 import '../shared/app_snack_bar.dart';
-import '../shared/app_thumbnail.dart';
 import '../shared/app_top_bar.dart';
+import '../shared/thumbnail_tile.dart';
 import 'project_details_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
@@ -183,7 +183,9 @@ class _ProjectRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            AppThumbnail(image: fileThumbnailProvider(project.previewImagePath)),
+            ThumbnailTile(
+              image: fileThumbnailProvider(project.previewImagePath),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

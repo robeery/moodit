@@ -47,6 +47,7 @@ Map<int, Uint8List> _buildPresetThumbnailsSync(Map<String, Object> request) {
     originalFrame,
     maxDimension: PresetThumbnailService.thumbnailMaxDimension,
   );
+  final shouldPreserveTransparency = _hasTransparentPixels(thumbnailSource);
   final presets = request['presets'] as List;
   final thumbnails = <int, Uint8List>{};
 
@@ -59,11 +60,17 @@ Map<int, Uint8List> _buildPresetThumbnailsSync(Map<String, Object> request) {
       colorEdits: state.colorEdits,
       colorGradingEdits: state.colorGradingEdits,
     );
-    thumbnails[preset['id'] as int] = encodeJpgFromFrame(
-      thumbnail,
-      quality: 82,
-    );
+    thumbnails[preset['id'] as int] = shouldPreserveTransparency
+        ? encodePngFromFrame(thumbnail)
+        : encodeJpgFromFrame(thumbnail, quality: 82);
   }
 
   return thumbnails;
+}
+
+bool _hasTransparentPixels(RgbaImageFrame frame) {
+  for (var i = 3; i < frame.rgbaBytes.length; i += 4) {
+    if (frame.rgbaBytes[i] < 255) return true;
+  }
+  return false;
 }

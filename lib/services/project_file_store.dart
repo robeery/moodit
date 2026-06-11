@@ -88,11 +88,12 @@ class ProjectFileStore {
   Future<String> projectPreviewImagePath({
     required String projectId,
     required String revision,
+    String extension = 'jpg',
   }) async {
     final projectDir = await projectDirectory(projectId);
     return _join(
       projectDir.path,
-      'preview_${_safeSegment(revision)}.jpg',
+      'preview_${_safeSegment(revision)}.${_safeExtension(extension)}',
     );
   }
 
@@ -202,6 +203,14 @@ class ProjectFileStore {
       return '';
     }
     return path.substring(dotIndex);
+  }
+
+  static String _safeExtension(String value) {
+    final extension = value.trim().toLowerCase();
+    if (extension != 'jpg' && extension != 'jpeg' && extension != 'png') {
+      throw ArgumentError.value(value, 'value', 'Invalid image extension');
+    }
+    return extension;
   }
 
   static String _join(String first, String second) {

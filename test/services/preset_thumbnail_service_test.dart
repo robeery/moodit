@@ -42,11 +42,43 @@ void main() {
     expect(decoded!.width, PresetThumbnailService.thumbnailMaxDimension);
     expect(decoded.height, 128);
   });
+
+  test('builds png preset thumbnails when the source has transparency',
+      () async {
+    final service = PresetThumbnailService();
+    final preset = EditorPreset(
+      id: 8,
+      name: 'Transparent',
+      state: EditorEditState(
+        edits: [Edit(type: OperationType.brightness, value: 20)],
+        colorEdits: const [],
+        colorGradingEdits: const [],
+      ),
+      createdAt: DateTime.utc(2026, 6, 1),
+      updatedAt: DateTime.utc(2026, 6, 1),
+    );
+
+    final thumbnails = await service.buildThumbnails(
+      originalFrame: _frame(
+        width: 16,
+        height: 16,
+        transparentPixel: true,
+      ),
+      presets: [preset],
+    );
+    final decoded = img.decodePng(thumbnails[8]!);
+
+    expect(decoded, isNotNull);
+    expect(decoded!.width, 16);
+    expect(decoded.height, 16);
+    expect(decoded.toUint8List()[((2 * 16 + 3) * 4) + 3], 0);
+  });
 }
 
 RgbaImageFrame _frame({
   required int width,
   required int height,
+  bool transparentPixel = false,
 }) {
   final bytes = Uint8List(width * height * 4);
   for (var offset = 0; offset < bytes.length; offset += 4) {
@@ -54,6 +86,13 @@ RgbaImageFrame _frame({
     bytes[offset + 1] = 100;
     bytes[offset + 2] = 140;
     bytes[offset + 3] = 255;
+  }
+  if (transparentPixel) {
+    final offset = ((2 * width + 3) * 4);
+    bytes[offset] = 220;
+    bytes[offset + 1] = 30;
+    bytes[offset + 2] = 180;
+    bytes[offset + 3] = 0;
   }
   return RgbaImageFrame(
     rgbaBytes: bytes,

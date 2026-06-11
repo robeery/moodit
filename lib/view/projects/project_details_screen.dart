@@ -6,8 +6,8 @@ import '../../model/editor_project.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/project_details_viewmodel.dart';
 import '../shared/app_snack_bar.dart';
-import '../shared/app_thumbnail.dart';
 import '../shared/app_top_bar.dart';
+import '../shared/thumbnail_tile.dart';
 
 enum ProjectDetailsResult {
   deleted,
@@ -361,7 +361,7 @@ class _ProjectHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppThumbnail(
+        ThumbnailTile(
           image: fileThumbnailProvider(project.previewImagePath),
           size: 84,
         ),

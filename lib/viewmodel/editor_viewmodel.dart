@@ -1787,17 +1787,21 @@ class EditorViewModel extends ChangeNotifier {
           : null;
       final previousPreviewPath =
           currentProjectPreviewPath ?? project.previewImagePath;
+      final previewFormat = imageFormatForPath(project.originalImagePath);
       final previewPath = await _projectFileStore.projectPreviewImagePath(
         projectId: project.id.toString(),
         revision: _nextProjectPreviewRevision(updatedAt),
+        extension: previewFormat.extension,
       );
       final thumbnailFrame = resizeRgbaFrameToFit(
         frame,
         maxDimension: _projectPreviewMaxDimension,
       );
-      await File(previewPath).writeAsBytes(
-        encodeJpgFromFrame(thumbnailFrame, quality: 80),
-      );
+      final previewBytes = switch (previewFormat) {
+        ImageFormat.png => encodePngFromFrame(thumbnailFrame),
+        ImageFormat.jpg => encodeJpgFromFrame(thumbnailFrame, quality: 80),
+      };
+      await File(previewPath).writeAsBytes(previewBytes);
       await _projectRepositoryInstance.updateProjectPreviewPath(
         projectId: project.id,
         previewImagePath: previewPath,

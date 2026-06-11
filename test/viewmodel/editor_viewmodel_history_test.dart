@@ -78,7 +78,7 @@ void main() {
     });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(connectivityStatusChannel, (_) async => null);
-    final sourceFile = await _createTempImage();
+    final sourceFile = await _createTempImage(withTransparentPixel: true);
     final tempDir = sourceFile.parent;
     final repository = _FakeEditorProjectRepository();
     final vm = EditorViewModel(
@@ -128,7 +128,13 @@ void main() {
     final initialPreviewPath = repository.savedProjects.single.previewImagePath;
     expect(initialPreviewPath, isNotNull);
     expect(initialPreviewPath, contains('preview_'));
+    expect(initialPreviewPath, endsWith('.png'));
     expect(await File(initialPreviewPath!).exists(), isTrue);
+    final initialPreview = img.decodePng(
+      await File(initialPreviewPath).readAsBytes(),
+    );
+    expect(initialPreview, isNotNull);
+    expect(initialPreview!.toUint8List()[((2 * 16 + 3) * 4) + 3], 0);
     expect(vm.canOpenProjectSettings, isTrue);
     expect(vm.defaultProjectName, 'Project 1');
 
@@ -155,6 +161,7 @@ void main() {
     expect(repository.updatedPreviewPaths, isNotEmpty);
     expect(repository.savedProjects.single.previewImagePath,
         repository.updatedPreviewPaths.last);
+    expect(repository.updatedPreviewPaths.last, endsWith('.png'));
     expect(await File(repository.updatedPreviewPaths.last).exists(), isTrue);
     expect(repository.updatedPreviewPaths.last, isNot(initialPreviewPath));
 
@@ -1022,13 +1029,16 @@ void main() {
   });
 }
 
-Future<File> _createTempImage() async {
+Future<File> _createTempImage({bool withTransparentPixel = false}) async {
   final tempDir = await Directory.systemTemp.createTemp('moodit_history_test_');
   final image = img.Image(width: 16, height: 16, numChannels: 4);
   for (var y = 0; y < image.height; y++) {
     for (var x = 0; x < image.width; x++) {
       image.setPixelRgba(x, y, 40 + x, 70 + y, 120, 255);
     }
+  }
+  if (withTransparentPixel) {
+    image.setPixelRgba(3, 2, 220, 30, 180, 0);
   }
 
   final sourceFile = File('${tempDir.path}/source.png');
