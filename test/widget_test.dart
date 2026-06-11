@@ -91,7 +91,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text("You don't have any projects yet"), findsOneWidget);
+    expect(find.text('NO PROJECTS YET'), findsOneWidget);
   });
 
   testWidgets('projects screen lists saved projects', (tester) async {
@@ -112,7 +112,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('SAVED PORTRAIT'), findsOneWidget);
+    expect(find.text('Saved portrait'), findsOneWidget);
     expect(find.text('PROJECT 1'), findsNothing);
   });
 
@@ -201,7 +201,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text("You don't have any presets yet"), findsOneWidget);
+    expect(find.text('NO PRESETS YET'), findsOneWidget);
   });
 
   testWidgets('presets screen lists presets and confirms deletion', (tester) async {
@@ -216,7 +216,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('PORTRAIT'), findsOneWidget);
+    expect(find.text('Portrait'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Delete preset'));
     await tester.pump();

@@ -1,12 +1,14 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../model/editor_project.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import '../../viewmodel/projects_viewmodel.dart';
 import '../editor/editor_screen.dart';
+import '../shared/app_snack_bar.dart';
+import '../shared/app_thumbnail.dart';
+import '../shared/app_top_bar.dart';
 import 'project_details_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
@@ -64,13 +66,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     unawaited(_vm.refresh());
     if (result == ProjectDetailsResult.deleted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Project deleted.'),
-          backgroundColor: AppColors.surface,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showAppSnackBar(context, 'Project deleted.');
     }
   }
 
@@ -78,13 +74,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final message = _vm.errorMessage;
     if (message == null || !mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade900,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    showAppSnackBar(context, message, isError: true);
     _vm.clearError();
   }
 
@@ -99,66 +89,74 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           });
         }
         return Scaffold(
-          backgroundColor: AppColors.bg,
-          appBar: AppBar(
-            backgroundColor: AppColors.bg,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            iconTheme: const IconThemeData(color: AppColors.highlight),
-            title: const Text('MY PROJECTS', style: AppTextStyles.screenTitle),
-            centerTitle: true,
-          ),
-          body: Stack(
-            children: [
-              if (_vm.isEmpty)
-                const Center(
-                  child: Text(
-                    "You don't have any projects yet",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                      letterSpacing: 2,
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: MooditColors.pageBackground,
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  AppTopBar(
+                    title: 'MY PROJECTS',
+                    onBack: () => Navigator.of(context).maybePop(),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        if (_vm.isEmpty)
+                          Center(
+                            child: Text(
+                              'NO PROJECTS YET',
+                              style: MooditType.monoMeta.copyWith(
+                                color: MooditColors.textOff,
+                              ),
+                            ),
+                          )
+                        else
+                          Scrollbar(
+                            controller: _scrollController,
+                            thumbVisibility: true,
+                            radius: const Radius.circular(8),
+                            thickness: 3,
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.fromLTRB(
+                                MooditDims.screenPadding,
+                                8,
+                                MooditDims.screenPadding,
+                                24,
+                              ),
+                              itemCount: _vm.projects.length,
+                              separatorBuilder: (_, __) => const Divider(
+                                color: MooditColors.hairline,
+                                height: 1,
+                              ),
+                              itemBuilder: (context, index) {
+                                final project = _vm.projects[index];
+                                return _ProjectRow(
+                                  project: project,
+                                  onTap: () => unawaited(_openProject(project)),
+                                  onDetailsTap: () =>
+                                      unawaited(_openProjectDetails(project)),
+                                );
+                              },
+                            ),
+                          ),
+                        if (_vm.isLoading)
+                          const Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(
+                              minHeight: 1,
+                              backgroundColor: Colors.transparent,
+                              color: MooditColors.baseAccent,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                )
-              else
-                Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  radius: const Radius.circular(8),
-                  thickness: 3,
-                  child: ListView.separated(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 20, 24),
-                    itemCount: _vm.projects.length,
-                    separatorBuilder: (_, __) => const Divider(
-                      color: AppColors.muted,
-                      height: 1,
-                    ),
-                    itemBuilder: (context, index) {
-                      final project = _vm.projects[index];
-                      return _ProjectRow(
-                        project: project,
-                        onTap: () => unawaited(_openProject(project)),
-                        onDetailsTap: () =>
-                            unawaited(_openProjectDetails(project)),
-                      );
-                    },
-                  ),
-                ),
-              if (_vm.isLoading)
-                const Align(
-                  alignment: Alignment.topCenter,
-                  child: LinearProgressIndicator(
-                    minHeight: 1,
-                    backgroundColor: AppColors.surface,
-                    color: AppColors.highlight,
-                  ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -185,33 +183,24 @@ class _ProjectRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            _ProjectPreview(path: project.previewImagePath),
+            AppThumbnail(image: fileThumbnailProvider(project.previewImagePath)),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    project.name.toUpperCase(),
+                    displayProjectName(project),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.highlight,
-                      fontSize: 12,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: MooditType.monoLabel.copyWith(letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'LAST UPDATED ${_formatProjectDate(project.updatedAt)}',
+                    'UPDATED ${_formatProjectDate(project.updatedAt)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 10,
-                      letterSpacing: 2,
-                    ),
+                    style: MooditType.monoMeta,
                   ),
                 ],
               ),
@@ -219,7 +208,7 @@ class _ProjectRow extends StatelessWidget {
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.more_vert, size: 20),
-              color: AppColors.muted,
+              color: MooditColors.textSecondary,
               tooltip: 'Project details',
               constraints: const BoxConstraints.tightFor(width: 40, height: 40),
               padding: EdgeInsets.zero,
@@ -238,44 +227,5 @@ class _ProjectRow extends StatelessWidget {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '$day.$month.$year $hour:$minute';
-  }
-}
-
-class _ProjectPreview extends StatelessWidget {
-  const _ProjectPreview({
-    required this.path,
-  });
-
-  final String? path;
-
-  @override
-  Widget build(BuildContext context) {
-    final previewPath = path;
-    final hasPreview =
-        previewPath != null &&
-        previewPath.isNotEmpty &&
-        File(previewPath).existsSync();
-
-    return Container(
-      width: 64,
-      height: 64,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.muted, width: 1),
-        borderRadius: BorderRadius.circular(4),
-        color: AppColors.surface,
-      ),
-      child: hasPreview
-          ? Image.file(
-              File(previewPath),
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            )
-          : const Icon(
-              Icons.image_outlined,
-              color: AppColors.muted,
-              size: 24,
-            ),
-    );
   }
 }

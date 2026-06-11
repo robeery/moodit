@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -7,6 +6,7 @@ import '../../model/editor_project.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/project_details_viewmodel.dart';
 import '../shared/app_snack_bar.dart';
+import '../shared/app_thumbnail.dart';
 import '../shared/app_top_bar.dart';
 
 enum ProjectDetailsResult {
@@ -361,7 +361,10 @@ class _ProjectHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ProjectPreview(path: project.previewImagePath),
+        AppThumbnail(
+          image: fileThumbnailProvider(project.previewImagePath),
+          size: 84,
+        ),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -397,44 +400,6 @@ class _ProjectHeader extends StatelessWidget {
   }
 }
 
-class _ProjectPreview extends StatelessWidget {
-  const _ProjectPreview({
-    required this.path,
-  });
-
-  final String? path;
-
-  @override
-  Widget build(BuildContext context) {
-    final previewPath = path;
-    final hasPreview =
-        previewPath != null &&
-        previewPath.isNotEmpty &&
-        File(previewPath).existsSync();
-
-    return Container(
-      width: 84,
-      height: 84,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        border: Border.all(color: MooditColors.hairline),
-        borderRadius: BorderRadius.circular(MooditDims.controlRadius),
-        color: MooditColors.card,
-      ),
-      child: hasPreview
-          ? Image.file(
-              File(previewPath),
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            )
-          : const Icon(
-              Icons.image_outlined,
-              color: MooditColors.textOff,
-              size: 26,
-            ),
-    );
-  }
-}
 
 class _DetailButton extends StatelessWidget {
   const _DetailButton({
