@@ -48,7 +48,8 @@ void main() {
       closeTo(tester.getCenter(find.text('PRESETS')).dy, 1),
     );
     // empty database renders zero counts and the empty recent state
-    expect(find.text('0'), findsNWidgets(2));
+    expect(find.text('0 saved'), findsOneWidget);
+    expect(find.text('0 looks'), findsOneWidget);
     expect(find.text('NO PROJECTS YET'), findsOneWidget);
   });
 

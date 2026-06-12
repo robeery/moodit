@@ -32,7 +32,7 @@ class AppTopBar extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: _CircleButton(icon: Icons.arrow_back, onTap: onBack),
+              child: AppCircleButton(icon: Icons.arrow_back, onTap: onBack),
             ),
             Text(title, style: MooditType.screenTitle),
             if (trailing != null)
@@ -44,8 +44,8 @@ class AppTopBar extends StatelessWidget {
   }
 }
 
-class _CircleButton extends StatelessWidget {
-  const _CircleButton({required this.icon, required this.onTap});
+class AppCircleButton extends StatelessWidget {
+  const AppCircleButton({super.key, required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;

@@ -228,6 +228,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Stack(
               children: [
+                const Positioned(
+                  top: 0,
+                  right: 0,
+                  width: 220,
+                  height: 170,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.topRight,
+                        radius: 0.82,
+                        colors: [
+                          Color(0x42FFFFFF),
+                          Color(0x20FFFFFF),
+                          Color(0x08FFFFFF),
+                          Colors.transparent,
+                        ],
+                        stops: [0.0, 0.28, 0.58, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
                 SafeArea(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(
@@ -238,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     children: [
                       const _HomeHeader(),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 24),
                       _ImportCard(onTap: isLoading ? null : _pickImage),
                       const SizedBox(height: 14),
                       Row(
@@ -246,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             child: _CountCard(
                               label: 'PROJECTS',
-                              count: _vm.projectsCount,
+                              subtitle: '${_vm.projectsCount} saved',
                               icon: Icons.folder_open_outlined,
                               onTap: isLoading
                                   ? null
@@ -257,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             child: _CountCard(
                               label: 'PRESETS',
-                              count: _vm.presetsCount,
+                              subtitle: '${_vm.presetsCount} looks',
                               icon: Icons.layers_outlined,
                               onTap: isLoading
                                   ? null
@@ -340,32 +361,52 @@ class _ImportCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 286,
+          height: 272,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-            border: Border.all(color: MooditColors.hairline),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: MooditColors.hairlineStrong),
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF1A1A1F), Color(0xFF101013)],
+              colors: [Color(0xFF19191E), Color(0xFF0D0D10)],
             ),
             boxShadow: MooditDims.softDrop,
           ),
           child: Stack(
             alignment: Alignment.center,
             children: [
+              const Positioned(
+                top: -74,
+                right: -62,
+                width: 188,
+                height: 154,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.topRight,
+                      radius: 0.82,
+                      colors: [
+                        Color(0x32FFFFFF),
+                        Color(0x12FFFFFF),
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.46, 1.0],
+                    ),
+                  ),
+                ),
+              ),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: Alignment.center,
-                    radius: 0.9,
+                    radius: 0.78,
                     colors: [
                       MooditColors.baseGlow,
                       MooditColors.baseGlowFaint,
                       Colors.transparent,
                     ],
-                    stops: [0.0, 0.45, 1.0],
+                    stops: [0.0, 0.38, 1.0],
                   ),
                 ),
                 child: SizedBox.expand(),
@@ -374,35 +415,52 @@ class _ImportCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 66,
+                    height: 66,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      color: Color(0xFF101013),
                       border: Border.all(
                         color: MooditColors.baseAccent,
-                        width: 1.4,
+                        width: 1.2,
                       ),
                       boxShadow: const [
                         BoxShadow(
                           color: MooditColors.baseGlow,
-                          blurRadius: 24,
-                          spreadRadius: 2,
+                          blurRadius: 22,
+                          spreadRadius: 1,
+                        ),
+                        BoxShadow(
+                          color: Color(0x18FFFFFF),
+                          blurRadius: 46,
+                          spreadRadius: 5,
                         ),
                       ],
                     ),
                     child: const Icon(
                       Icons.add,
                       color: MooditColors.baseAccent,
-                      size: 34,
+                      size: 30,
+                      shadows: [
+                        Shadow(
+                          color: Color(0x99FFFFFF),
+                          blurRadius: 14,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 19),
                   Text(
                     'IMPORT PHOTO',
-                    style: MooditType.monoLabel.copyWith(letterSpacing: 3),
+                    style: MooditType.monoLabel.copyWith(letterSpacing: 3.2),
                   ),
-                  const SizedBox(height: 6),
-                  Text('START A NEW EDIT', style: MooditType.monoMeta),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Start a new mood from camera or library',
+                    style: MooditType.bodySecondary.copyWith(
+                      color: MooditColors.textMuted,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -416,13 +474,13 @@ class _ImportCard extends StatelessWidget {
 class _CountCard extends StatelessWidget {
   const _CountCard({
     required this.label,
-    required this.count,
+    required this.subtitle,
     required this.icon,
     required this.onTap,
   });
 
   final String label;
-  final int count;
+  final String subtitle;
   final IconData icon;
   final VoidCallback? onTap;
 
@@ -433,8 +491,8 @@ class _CountCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 104,
-          padding: const EdgeInsets.all(16),
+          height: 116,
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: MooditColors.card,
             borderRadius: BorderRadius.circular(MooditDims.cardRadius),
@@ -444,23 +502,20 @@ class _CountCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: MooditColors.textSecondary, size: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+              Icon(icon, color: MooditColors.textSecondary, size: 22),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '$count',
-                    style: const TextStyle(
-                      fontFamily: MooditType.serif,
-                      fontSize: 26,
-                      color: MooditColors.textPrimary,
-                    ),
+                    label,
+                    style: MooditType.monoLabel.copyWith(letterSpacing: 1.6),
                   ),
-                  const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(label, style: MooditType.sectionLabel),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: MooditType.bodySecondary.copyWith(
+                      color: MooditColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -566,41 +621,27 @@ class _RecentThumb extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: MooditColors.card,
-                borderRadius: BorderRadius.circular(MooditDims.controlRadius),
-                border: Border.all(color: MooditColors.hairline),
-              ),
-              child: hasPreview
-                  ? Image.file(
-                      File(previewPath),
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                    )
-                  : const Icon(
-                      Icons.image_outlined,
-                      color: MooditColors.textOff,
-                      size: 22,
-                    ),
-            ),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: MooditColors.card,
+            borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+            border: Border.all(color: MooditColors.hairline),
           ),
-          const SizedBox(height: 8),
-          Text(
-            displayProjectName(project).toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MooditType.monoMeta.copyWith(
-              color: MooditColors.textSecondary,
-            ),
-          ),
-        ],
+          child: hasPreview
+              ? Image.file(
+                  File(previewPath),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                )
+              : const Icon(
+                  Icons.image_outlined,
+                  color: MooditColors.textOff,
+                  size: 22,
+                ),
+        ),
       ),
     );
   }

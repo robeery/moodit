@@ -66,7 +66,7 @@ class _HistoryActionBarState extends State<HistoryActionBar>
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          color: MooditColors.cardAlt.withValues(alpha: 0.92),
+          color: MooditColors.cardAlt.withValues(alpha: 0.45),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [

@@ -14,6 +14,7 @@ import '../presets/my_presets_screen.dart';
 import '../settings/ai_settings_screen.dart';
 import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';
+import '../shared/app_top_bar.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/history_action_bar.dart';
 import 'widgets/pending_edits_bar.dart';
@@ -122,35 +123,35 @@ class _EditorScreenState extends State<EditorScreen> {
             exportSettings: _vm.exportSettings,
             onExportSettingsChanged: _vm.updateExportSettings,
           ),
-          appBar: AppBar(
-            backgroundColor: MooditColors.bgInner,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            iconTheme: const IconThemeData(color: MooditColors.baseAccent),
-            title: Text('EDIT', style: MooditType.screenTitle),
-            centerTitle: true,
-            actions: [
-              Builder(
-                builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu, color: MooditColors.textSecondary),
-                  onPressed: () => Scaffold.of(ctx).openEndDrawer(),
-                ),
-              ),
-            ],
-          ),
-          body: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: _vm.hasImage
-                ? KeyedSubtree(
-                    key: const ValueKey('editor'),
-                    child: _buildEditor(),
-                  )
-                : KeyedSubtree(
-                    key: const ValueKey('editor-loading'),
-                    child: _buildLoadingState(),
+          body: SafeArea(
+            child: Column(
+              children: [
+                Builder(
+                  builder: (ctx) => AppTopBar(
+                    title: 'EDIT',
+                    onBack: () => Navigator.of(context).maybePop(),
+                    trailing: AppCircleButton(
+                      icon: Icons.menu,
+                      onTap: () => Scaffold.of(ctx).openEndDrawer(),
+                    ),
                   ),
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: _vm.hasImage
+                        ? KeyedSubtree(
+                            key: const ValueKey('editor'),
+                            child: _buildEditor(),
+                          )
+                        : KeyedSubtree(
+                            key: const ValueKey('editor-loading'),
+                            child: _buildLoadingState(),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -778,7 +779,7 @@ class _EditorScreenState extends State<EditorScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

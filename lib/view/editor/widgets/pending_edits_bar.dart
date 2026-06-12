@@ -55,7 +55,7 @@ class _PendingEditsBarState extends State<PendingEditsBar>
     return SlideTransition(
       position: _slideAnimation,
       child: Container(
-        color: MooditColors.cardAlt.withValues(alpha: 0.92),
+        color: MooditColors.cardAlt.withValues(alpha: 0.45),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
