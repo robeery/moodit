@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../model/edit.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
 
 class BasicEditPanel extends StatefulWidget {
@@ -65,11 +66,13 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
             children: [
               Text(
                 vm.selectedOperation.name.toUpperCase(),
-                style: AppTextStyles.sliderLabel,
+                style: MooditType.monoLabel.copyWith(letterSpacing: 2),
               ),
               Text(
                 currentValue.toStringAsFixed(0),
-                style: AppTextStyles.sliderValue,
+                style: MooditType.monoLabel.copyWith(
+                  color: MooditColors.baseAccent,
+                ),
               ),
             ],
           ),
@@ -97,13 +100,13 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: vm.selectedOperation.minValue == 0
                   ? [
-                      Text('0', style: AppTextStyles.mutedSmall),
-                      Text('+100', style: AppTextStyles.mutedSmall),
+                      Text('0', style: MooditType.monoMeta),
+                      Text('+100', style: MooditType.monoMeta),
                     ]
                   : [
-                      Text('-100', style: AppTextStyles.mutedSmall),
-                      Text('0', style: AppTextStyles.mutedSmall),
-                      Text('+100', style: AppTextStyles.mutedSmall),
+                      Text('-100', style: MooditType.monoMeta),
+                      Text('0', style: MooditType.monoMeta),
+                      Text('+100', style: MooditType.monoMeta),
                     ],
             ),
           ),
@@ -119,12 +122,10 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
       height: 64,
       child: Theme(
         data: ThemeData(
-          scrollbarTheme: ScrollbarThemeData(
-            thumbColor: WidgetStatePropertyAll(
-              AppColors.muted.withValues(alpha: 0.4),
-            ),
-            thickness: const WidgetStatePropertyAll(3),
-            radius: const Radius.circular(2),
+          scrollbarTheme: const ScrollbarThemeData(
+            thumbColor: WidgetStatePropertyAll(MooditColors.hairlineStrong),
+            thickness: WidgetStatePropertyAll(3),
+            radius: Radius.circular(2),
             minThumbLength: 40,
           ),
         ),
@@ -154,8 +155,10 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.highlight : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
+                          color: isSelected
+                              ? MooditColors.baseAccent
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(MooditDims.controlRadius),
                         ),
                         child: Transform(
                           alignment: Alignment.center,
@@ -165,7 +168,9 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
                           child: Icon(
                             icon,
                             size: 28,
-                            color: isSelected ? AppColors.bg : AppColors.muted,
+                            color: isSelected
+                                ? MooditColors.bgInner
+                                : MooditColors.textMuted,
                           ),
                         ),
                       ),
@@ -183,7 +188,9 @@ class _BasicEditPanelState extends State<BasicEditPanel> {
                                 : null,
                             color: isPendingAiEdit
                                 ? null
-                                : (isSelected ? AppColors.highlight : AppColors.accent),
+                                : (isSelected
+                                    ? MooditColors.bgInner
+                                    : MooditColors.textPrimary),
                           ),
                         ),
                       ),

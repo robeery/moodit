@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../model/editor_project.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/project_details_viewmodel.dart';
+import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';
 import '../shared/app_top_bar.dart';
 import '../shared/thumbnail_tile.dart';
@@ -88,96 +89,24 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
     Navigator.of(context).pop(ProjectDetailsResult.deleted);
   }
 
-  Future<String?> _showProjectNameDialog(String initialName) async {
-    final controller = TextEditingController(text: initialName);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: MooditColors.cardAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-        ),
-        title: Text('RENAME PROJECT', style: MooditType.screenTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: ProjectDetailsViewModel.projectNameMaxLength,
-          style: MooditType.bodyText,
-          cursorColor: MooditColors.baseAccent,
-          decoration: const InputDecoration(
-            counterStyle: MooditType.monoMeta,
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: MooditColors.hairline),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: MooditColors.baseAccent),
-            ),
-          ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'CANCEL',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.textMuted,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: Text(
-              'SAVE',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.baseAccent,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<String?> _showProjectNameDialog(String initialName) {
+    return showAppTextInputDialog(
+      context,
+      title: 'RENAME PROJECT',
+      initialValue: initialName,
+      maxLength: ProjectDetailsViewModel.projectNameMaxLength,
     );
-    controller.dispose();
-    return name;
   }
 
-  Future<bool> _showDeleteProjectDialog() async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: MooditColors.cardAlt,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-            ),
-            title: Text('DELETE PROJECT', style: MooditType.screenTitle),
-            content: Text(
-              'Delete project? This removes the project, versions, history, '
-              'and app-owned image files. This cannot be restored.',
-              style: MooditType.bodyText,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(
-                  'CANCEL',
-                  style: MooditType.monoMeta.copyWith(
-                    color: MooditColors.textMuted,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(
-                  'DELETE',
-                  style: MooditType.monoMeta.copyWith(
-                    color: MooditColors.destructive,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+  Future<bool> _showDeleteProjectDialog() {
+    return showAppConfirmDialog(
+      context,
+      title: 'DELETE PROJECT',
+      message: 'Delete project? This removes the project, versions, history, '
+          'and app-owned image files. This cannot be restored.',
+      confirmLabel: 'DELETE',
+      destructive: true,
+    );
   }
 
   void _handleBack() {

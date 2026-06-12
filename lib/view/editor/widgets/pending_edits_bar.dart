@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 
 class PendingEditsBar extends StatefulWidget {
   final VoidCallback onApply;
   final VoidCallback onDiscard;
+  final LinearGradient aiGradient;
 
-  const PendingEditsBar({super.key, required this.onApply, required this.onDiscard});
+  const PendingEditsBar({
+    super.key,
+    required this.onApply,
+    required this.onDiscard,
+    this.aiGradient = const LinearGradient(
+      colors: [Color(0xFF4C8DF6), Color(0xFF9B5CF6)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    ),
+  });
 
   @override
   State<PendingEditsBar> createState() => _PendingEditsBarState();
@@ -45,35 +55,36 @@ class _PendingEditsBarState extends State<PendingEditsBar>
     return SlideTransition(
       position: _slideAnimation,
       child: Container(
-        color: AppColors.surface.withValues(alpha: 0.7),
+        color: MooditColors.cardAlt.withValues(alpha: 0.92),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            const Text(
-              'APPLY CHANGES?',
-              style: TextStyle(
-                color: AppColors.accent,
-                fontSize: 11,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w500,
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: widget.aiGradient,
               ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'APPLY CHANGES?',
+              style: MooditType.monoLabel.copyWith(letterSpacing: 2),
             ),
             const Spacer(),
             GestureDetector(
               onTap: () => _animateOut(widget.onDiscard),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: AppColors.muted, width: 0.5),
+                  borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+                  border: Border.all(color: MooditColors.hairlineStrong),
                 ),
-                child: const Text(
+                child: Text(
                   'DISCARD',
-                  style: TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w600,
+                  style: MooditType.monoMeta.copyWith(
+                    color: MooditColors.textMuted,
                   ),
                 ),
               ),
@@ -82,18 +93,16 @@ class _PendingEditsBarState extends State<PendingEditsBar>
             GestureDetector(
               onTap: () => _animateOut(widget.onApply),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppColors.highlight,
-                  borderRadius: BorderRadius.circular(2),
+                  gradient: widget.aiGradient,
+                  borderRadius: BorderRadius.circular(MooditDims.controlRadius),
                 ),
-                child: const Text(
+                child: Text(
                   'APPLY',
-                  style: TextStyle(
-                    color: AppColors.bg,
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w600,
+                  style: MooditType.monoMeta.copyWith(
+                    color: MooditColors.bgInner,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

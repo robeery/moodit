@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import '../../model/editor_version.dart';
 import '../../model/editor_preset.dart';
@@ -9,9 +8,12 @@ import '../../model/export_option.dart';
 import '../../repositories/preset_repository.dart';
 import '../../viewmodel/editor_viewmodel.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import '../projects/project_details_screen.dart';
 import '../presets/my_presets_screen.dart';
 import '../settings/ai_settings_screen.dart';
+import '../shared/app_dialog.dart';
+import '../shared/app_snack_bar.dart';
 import 'widgets/editor_drawer.dart';
 import 'widgets/history_action_bar.dart';
 import 'widgets/pending_edits_bar.dart';
@@ -78,13 +80,7 @@ class _EditorScreenState extends State<EditorScreen> {
       await _vm.importImageAsProject(imagePath);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Could not import photo.'),
-          backgroundColor: Colors.red.shade900,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      showAppSnackBar(context, 'Could not import photo.', isError: true);
     }
   }
 
@@ -96,13 +92,7 @@ class _EditorScreenState extends State<EditorScreen> {
       if (!mounted) return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Could not open project.'),
-        backgroundColor: Colors.red.shade900,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    showAppSnackBar(context, 'Could not open project.', isError: true);
   }
 
   @override
@@ -119,7 +109,7 @@ class _EditorScreenState extends State<EditorScreen> {
       listenable: _vm,
       builder: (context, _) {
         return Scaffold(
-          backgroundColor: AppColors.bg,
+          backgroundColor: MooditColors.bgInner,
           endDrawer: EditorDrawer(
             onOpenAiSettings: _openAiSettings,
             onOpenProjectSettings: _openProjectSettings,
@@ -133,18 +123,18 @@ class _EditorScreenState extends State<EditorScreen> {
             onExportSettingsChanged: _vm.updateExportSettings,
           ),
           appBar: AppBar(
-            backgroundColor: AppColors.bg,
+            backgroundColor: MooditColors.bgInner,
             elevation: 0,
             scrolledUnderElevation: 0,
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            iconTheme: const IconThemeData(color: AppColors.highlight),
-            title: const Text('EDIT', style: AppTextStyles.screenTitle),
+            iconTheme: const IconThemeData(color: MooditColors.baseAccent),
+            title: Text('EDIT', style: MooditType.screenTitle),
             centerTitle: true,
             actions: [
               Builder(
                 builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu, color: AppColors.accent),
+                  icon: const Icon(Icons.menu, color: MooditColors.textSecondary),
                   onPressed: () => Scaffold.of(ctx).openEndDrawer(),
                 ),
               ),
@@ -174,7 +164,7 @@ class _EditorScreenState extends State<EditorScreen> {
         height: 24,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.muted,
+          color: MooditColors.textMuted,
         ),
       ),
     );
@@ -234,13 +224,7 @@ class _EditorScreenState extends State<EditorScreen> {
           GalExceptionType.notEnoughSpace => 'Not enough storage space.',
           GalExceptionType.unexpected => 'Unexpected error occurred.',
         };
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.red.shade900,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showAppSnackBar(context, message, isError: true);
       }
     } catch (e) {
       if (mounted) {
@@ -248,13 +232,7 @@ class _EditorScreenState extends State<EditorScreen> {
           Navigator.of(context, rootNavigator: true).pop();
           exportDialogVisible = false;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save: $e'),
-            backgroundColor: Colors.red.shade900,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showAppSnackBar(context, 'Failed to save: $e', isError: true);
       }
     } finally {
       if (mounted && exportDialogVisible) {
@@ -273,7 +251,7 @@ class _EditorScreenState extends State<EditorScreen> {
           final progress = _vm.exportProgress ?? 0.0;
 
           return AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: MooditColors.cardAlt,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             content: SizedBox(
               width: 240,
@@ -293,7 +271,7 @@ class _EditorScreenState extends State<EditorScreen> {
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                              color: AppColors.highlight,
+                              color: MooditColors.baseAccent,
                               strokeWidth: 2,
                             ),
                           ),
@@ -301,20 +279,20 @@ class _EditorScreenState extends State<EditorScreen> {
                           const Expanded(
                             child: Text(
                               'EXPORTING...',
-                              style: TextStyle(color: AppColors.accent, fontSize: 12, letterSpacing: 2),
+                              style: TextStyle(color: MooditColors.textPrimary, fontSize: 12, letterSpacing: 2),
                             ),
                           ),
                           Text(
                             '$percent%',
-                            style: const TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 1),
+                            style: const TextStyle(color: MooditColors.baseAccent, fontSize: 12, letterSpacing: 1),
                           ),
                         ],
                       ),
                       const SizedBox(height: 18),
                       LinearProgressIndicator(
                         value: animatedProgress,
-                        color: AppColors.highlight,
-                        backgroundColor: AppColors.bg,
+                        color: MooditColors.baseAccent,
+                        backgroundColor: MooditColors.bgInner,
                         minHeight: 3,
                       ),
                     ],
@@ -329,55 +307,12 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _showSaveProjectDialog() async {
-    final controller = TextEditingController(text: _vm.defaultProjectName);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
+    final name = await showAppTextInputDialog(
+      context,
+      title: 'SAVE AS PROJECT',
+      label: 'PROJECT NAME',
+      initialValue: _vm.defaultProjectName,
     );
-
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('SAVE AS PROJECT', style: AppTextStyles.screenTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-          cursorColor: AppColors.highlight,
-          decoration: const InputDecoration(
-            labelText: 'PROJECT NAME',
-            labelStyle: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.muted),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.highlight),
-            ),
-          ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text(
-              'SAVE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    controller.dispose();
     if (name == null) return;
 
     final saved = await _vm.saveCurrentDraftAsProject(name);
@@ -401,59 +336,13 @@ class _EditorScreenState extends State<EditorScreen> {
     }
     if (!mounted) return;
 
-    final controller = TextEditingController(text: defaultName);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
+    final name = await showAppTextInputDialog(
+      context,
+      title: 'SAVE AS PRESET',
+      label: 'PRESET NAME',
+      initialValue: defaultName,
+      maxLength: editorPresetNameMaxLength,
     );
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('SAVE AS PRESET', style: AppTextStyles.screenTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: editorPresetNameMaxLength,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(editorPresetNameMaxLength),
-          ],
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-          cursorColor: AppColors.highlight,
-          decoration: const InputDecoration(
-            labelText: 'PRESET NAME',
-            counterText: '',
-            labelStyle: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.muted),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.highlight),
-            ),
-          ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text(
-              'SAVE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    controller.dispose();
     if (name == null) return;
 
     try {
@@ -489,13 +378,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final result = await _vm.applyPreset(preset, mode);
     if (!mounted) return;
     if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preset already applied.'),
-          backgroundColor: AppColors.surface,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showAppSnackBar(context, 'Preset already applied.');
       return;
     }
 
@@ -509,52 +392,20 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<PresetApplyMode?> _showPresetApplyModeDialog(String presetName) {
-    return showDialog<PresetApplyMode>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('APPLY PRESET', style: AppTextStyles.screenTitle),
-        content: Text(
-          'How should "$presetName" be applied?',
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(PresetApplyMode.merge),
-            child: const Text(
-              'MERGE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(PresetApplyMode.replace),
-            child: const Text(
-              'REPLACE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+    return showAppChoiceDialog<PresetApplyMode>(
+      context,
+      title: 'APPLY PRESET',
+      message: 'How should "$presetName" be applied?',
+      actions: const [
+        AppDialogAction('MERGE', PresetApplyMode.merge),
+        AppDialogAction('REPLACE', PresetApplyMode.replace),
+      ],
     );
   }
 
   void _showPresetError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade900,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    showAppSnackBar(context, message, isError: true);
   }
 
   Future<void> _openProjectSettings() async {
@@ -587,7 +438,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final scrollController = ScrollController();
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: MooditColors.cardAlt,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
       ),
@@ -608,11 +459,11 @@ class _EditorScreenState extends State<EditorScreen> {
                       const Expanded(
                         child: Text(
                           'VERSIONS',
-                          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: MooditColors.baseAccent, fontSize: 12, letterSpacing: 3, fontWeight: FontWeight.w600),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.add, color: AppColors.accent, size: 20),
+                        icon: const Icon(Icons.add, color: MooditColors.textPrimary, size: 20),
                         tooltip: 'Save version',
                         onPressed: _vm.canUseVersions
                             ? () {
@@ -623,14 +474,14 @@ class _EditorScreenState extends State<EditorScreen> {
                       ),
                     ],
                   ),
-                  const Divider(color: AppColors.muted, height: 1),
+                  const Divider(color: MooditColors.textMuted, height: 1),
                   if (versions.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 18),
                       child: Text(
                         'NO VERSIONS SAVED',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+                        style: TextStyle(color: MooditColors.textMuted, fontSize: 11, letterSpacing: 2),
                       ),
                     )
                   else
@@ -659,7 +510,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                       width: 28,
                                       child: Icon(
                                         isActive ? Icons.radio_button_checked : Icons.history,
-                                        color: isActive ? AppColors.highlight : AppColors.accent,
+                                        color: isActive ? MooditColors.baseAccent : MooditColors.textPrimary,
                                         size: 18,
                                       ),
                                     ),
@@ -672,7 +523,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                             version.name.toUpperCase(),
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
-                                              color: isActive ? AppColors.highlight : AppColors.accent,
+                                              color: isActive ? MooditColors.baseAccent : MooditColors.textPrimary,
                                               fontSize: 11,
                                               letterSpacing: 2,
                                             ),
@@ -683,7 +534,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                                 ? 'ACTIVE - ${_formatVersionTimestamp(version.createdAt)}'
                                                 : _formatVersionTimestamp(version.createdAt),
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                                            style: const TextStyle(color: MooditColors.textMuted, fontSize: 10),
                                           ),
                                         ],
                                       ),
@@ -694,7 +545,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                       children: [
                                         IconButton(
                                           icon: const Icon(Icons.edit, size: 17),
-                                          color: AppColors.accent,
+                                          color: MooditColors.textPrimary,
                                           constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                                           padding: EdgeInsets.zero,
                                           tooltip: 'Rename version',
@@ -706,7 +557,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         if (canDelete)
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline, size: 18),
-                                            color: AppColors.accent,
+                                            color: MooditColors.textPrimary,
                                             constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                                             padding: EdgeInsets.zero,
                                             tooltip: 'Delete version',
@@ -785,38 +636,14 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  Future<bool> _showDeleteVersionDialog(String versionName) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
-          'DELETE VERSION',
-          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
-        ),
-        content: Text(
-          'Are you sure? This cannot be restored.\n\n$versionName',
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'DELETE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+  Future<bool> _showDeleteVersionDialog(String versionName) {
+    return showAppConfirmDialog(
+      context,
+      title: 'DELETE VERSION',
+      message: 'Are you sure? This cannot be restored.\n\n$versionName',
+      confirmLabel: 'DELETE',
+      destructive: true,
     );
-    return confirmed ?? false;
   }
 
   Future<String?> _showVersionNameDialog({
@@ -826,55 +653,13 @@ class _EditorScreenState extends State<EditorScreen> {
     final initialValue = initialName.length > EditorViewModel.versionNameMaxLength
         ? initialName.substring(0, EditorViewModel.versionNameMaxLength)
         : initialName;
-    final controller = TextEditingController(text: initialValue);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(
-          title,
-          style: const TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: EditorViewModel.versionNameMaxLength,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(EditorViewModel.versionNameMaxLength),
-          ],
-          style: const TextStyle(color: AppColors.accent),
-          decoration: const InputDecoration(
-            labelText: 'Version name',
-            counterText: '',
-            labelStyle: TextStyle(color: AppColors.muted),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.muted),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.highlight),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text(
-              'SAVE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+    final name = await showAppTextInputDialog(
+      context,
+      title: title,
+      label: 'Version name',
+      initialValue: initialValue,
+      maxLength: EditorViewModel.versionNameMaxLength,
     );
-
-    controller.dispose();
     if (name == null) return null;
     final trimmed = name.trim();
     return trimmed.isEmpty ? initialValue : trimmed;
@@ -901,38 +686,16 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  void _showResetDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('RESET', style: AppTextStyles.screenTitle),
-        content: const Text(
+  Future<void> _showResetDialog() async {
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'RESET',
+      message:
           'Are you sure you want to start over? This will reset your progress.',
-          style: TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'NO',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              unawaited(_vm.resetEdits());
-            },
-            child: const Text(
-              'YES',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+      confirmLabel: 'YES',
+      cancelLabel: 'NO',
     );
+    if (confirmed) unawaited(_vm.resetEdits());
   }
 
   Widget _buildToolbarIconButton({
@@ -946,15 +709,15 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Opacity(
         opacity: enabled ? 1.0 : 0.35,
         child: Container(
-          width: 28,
-          height: 25,
+          width: 30,
+          height: 28,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: AppColors.muted, width: 0.5),
+            color: MooditColors.card,
+            borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+            border: Border.all(color: MooditColors.hairline),
           ),
-          child: Icon(icon, color: AppColors.accent, size: 15),
+          child: Icon(icon, color: MooditColors.textSecondary, size: 15),
         ),
       ),
     );
@@ -1071,7 +834,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       )
                     : const Center(
                         child: CircularProgressIndicator(
-                          color: AppColors.highlight,
+                          color: MooditColors.baseAccent,
                           strokeWidth: 1,
                         ),
                       ),
@@ -1084,6 +847,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   child: PendingEditsBar(
                     onApply: _vm.applyPendingEdits,
                     onDiscard: _vm.discardPendingEdits,
+                    aiGradient: aiProviderGradient(_vm.pendingAiProviderId),
                   ),
                 ),
               if (_historyActionMessage.isNotEmpty && !_vm.hasPendingEdits)
@@ -1109,12 +873,12 @@ class _EditorScreenState extends State<EditorScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppColors.highlight,
+                          color: MooditColors.baseAccent,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
                           'SAVED TO GALLERY',
-                          style: TextStyle(color: AppColors.bg, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: MooditColors.bgInner, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
@@ -1147,7 +911,7 @@ class _EditorScreenState extends State<EditorScreen> {
             child: _vm.editorMode == EditorMode.askAi
                 ? ChatPanel(vm: _vm)
                 : Container(
-                    color: AppColors.surface,
+                    color: MooditColors.card,
                     child: _vm.editorMode == EditorMode.basic
                         ? BasicEditPanel(vm: _vm)
                         : _vm.editorMode == EditorMode.selectiveColor

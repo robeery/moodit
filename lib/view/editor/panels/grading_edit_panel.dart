@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../model/color_grading_edit.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
+import '../widgets/gradient_slider_row.dart';
 
 class GradingEditPanel extends StatelessWidget {
   final EditorViewModel vm;
@@ -13,105 +15,62 @@ class GradingEditPanel extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        _buildSliders(context),
+        _buildSliders(),
         _buildZoneBar(),
       ],
     );
   }
 
-  Widget _buildSliders(BuildContext context) {
+  Widget _buildSliders() {
     final edit = vm.getColorGradingEdit(vm.selectedGradingZone);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         children: [
-          _buildSliderRow(context, 'HUE', edit.hue, 0, 360, '${edit.hue.toStringAsFixed(0)}°',
-            (v) => vm.applyColorGradingEdit(edit.copyWith(hue: v)),
-            (v) => vm.updateColorGradingEditPreview(edit.copyWith(hue: v)),
+          GradientSliderRow(
+            label: 'HUE',
+            value: edit.hue,
+            min: 0,
+            max: 360,
+            valueText: '${edit.hue.toStringAsFixed(0)}°',
+            valueWidth: 40,
             gradient: gradingHueGradientColors(),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) =>
+                vm.updateColorGradingEditPreview(edit.copyWith(hue: v)),
+            onChangeEnd: (v) => vm.applyColorGradingEdit(edit.copyWith(hue: v)),
           ),
-          _buildSliderRow(context, 'SAT', edit.strength, 0, 100, '${edit.strength.toStringAsFixed(0)}%',
-            (v) => vm.applyColorGradingEdit(edit.copyWith(strength: v)),
-            (v) => vm.updateColorGradingEditPreview(edit.copyWith(strength: v)),
+          GradientSliderRow(
+            label: 'SAT',
+            value: edit.strength,
+            min: 0,
+            max: 100,
+            valueText: '${edit.strength.toStringAsFixed(0)}%',
+            valueWidth: 40,
             gradient: gradingStrengthGradientColors(edit.hue),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) =>
+                vm.updateColorGradingEditPreview(edit.copyWith(strength: v)),
+            onChangeEnd: (v) =>
+                vm.applyColorGradingEdit(edit.copyWith(strength: v)),
           ),
-          _buildSliderRow(context, 'LUM', edit.luminance, -100, 100, edit.luminance.toStringAsFixed(0),
-            (v) => vm.applyColorGradingEdit(edit.copyWith(luminance: v)),
-            (v) => vm.updateColorGradingEditPreview(edit.copyWith(luminance: v)),
+          GradientSliderRow(
+            label: 'LUM',
+            value: edit.luminance,
+            min: -100,
+            max: 100,
+            valueText: edit.luminance.toStringAsFixed(0),
+            valueWidth: 40,
             gradient: gradingLuminanceGradientColors(),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) =>
+                vm.updateColorGradingEditPreview(edit.copyWith(luminance: v)),
+            onChangeEnd: (v) =>
+                vm.applyColorGradingEdit(edit.copyWith(luminance: v)),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSliderRow(BuildContext context, String label, double value,
-      double min, double max, String display,
-      Function(double) onChangeEnd, Function(double) onChanged,
-      {List<Color>? gradient}) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 32,
-          child: Text(label, style: AppTextStyles.mutedSmall),
-        ),
-        Expanded(
-          child: gradient != null
-              ? Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 7),
-                      child: Container(
-                        height: 2,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(1),
-                          gradient: LinearGradient(colors: gradient),
-                        ),
-                      ),
-                    ),
-                    SliderTheme(
-                      data: AppSliderTheme.of(context).copyWith(
-                        activeTrackColor: Colors.transparent,
-                        inactiveTrackColor: Colors.transparent,
-                      ),
-                      child: Slider(
-                        min: min,
-                        max: max,
-                        value: value,
-                        onChangeStart: (_) => vm.beginManualEdit(),
-                        onChanged: onChanged,
-                        onChangeEnd: onChangeEnd,
-                      ),
-                    ),
-                  ],
-                )
-              : SliderTheme(
-                  data: AppSliderTheme.of(context),
-                  child: Slider(
-                    min: min,
-                    max: max,
-                    value: value,
-                    onChangeStart: (_) => vm.beginManualEdit(),
-                    onChanged: onChanged,
-                    onChangeEnd: onChangeEnd,
-                  ),
-                ),
-        ),
-        SizedBox(
-          width: 40,
-          child: Text(
-            display,
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: AppColors.highlight,
-              fontSize: 11,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -138,10 +97,12 @@ class GradingEditPanel extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.highlight : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
+                color: isSelected ? MooditColors.baseAccent : Colors.transparent,
+                borderRadius: BorderRadius.circular(MooditDims.pillRadius),
                 border: Border.all(
-                  color: isSelected ? AppColors.highlight : AppColors.muted,
+                  color: isSelected
+                      ? MooditColors.baseAccent
+                      : MooditColors.hairlineStrong,
                   width: 1,
                 ),
               ),
@@ -151,11 +112,11 @@ class GradingEditPanel extends StatelessWidget {
                 children: [
                   Text(
                     zone.name.toUpperCase(),
-                    style: TextStyle(
-                      color: isSelected ? AppColors.bg : AppColors.muted,
-                      fontSize: 11,
+                    style: MooditType.monoLabel.copyWith(
+                      color: isSelected
+                          ? MooditColors.bgInner
+                          : MooditColors.textMuted,
                       letterSpacing: 2,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   Positioned(
@@ -176,7 +137,9 @@ class GradingEditPanel extends StatelessWidget {
                                 : null,
                             color: isPendingAiEdit
                                 ? null
-                                : (isSelected ? AppColors.bg : AppColors.accent),
+                                : (isSelected
+                                    ? MooditColors.bgInner
+                                    : MooditColors.textPrimary),
                           ),
                         ),
                       ),

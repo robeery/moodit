@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../model/export_option.dart';
 import '../../../model/export_settings.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import 'export_settings_dialog.dart';
 
 class EditorDrawer extends StatelessWidget {
@@ -33,139 +33,134 @@ class EditorDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: AppColors.surface,
+      backgroundColor: MooditColors.cardAlt,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-              child: Text(
-                'MENU',
-                style: const TextStyle(
-                  color: AppColors.highlight,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 4,
-                ),
-              ),
+              child: Text('MENU', style: MooditType.screenTitle),
             ),
-            const Divider(color: AppColors.muted, height: 1),
-            ListTile(
-              leading: const Icon(Icons.tune, color: AppColors.accent, size: 20),
-              title: const Text(
-                'AI SETTINGS',
-                style: TextStyle(color: AppColors.accent, fontSize: 11, letterSpacing: 2),
-              ),
+            const Divider(color: MooditColors.hairline, height: 1),
+            _DrawerTile(
+              icon: Icons.tune,
+              label: 'AI SETTINGS',
               onTap: () {
                 Navigator.of(context).pop();
                 onOpenAiSettings();
               },
             ),
             if (showProjectSettings)
-              ListTile(
-                leading: Icon(
-                  Icons.folder_open_outlined,
-                  color: canOpenProjectSettings
-                      ? AppColors.accent
-                      : AppColors.muted,
-                  size: 20,
-                ),
-                title: Text(
-                  'PROJECT SETTINGS',
-                  style: TextStyle(
-                    color: canOpenProjectSettings
-                        ? AppColors.accent
-                        : AppColors.muted,
-                    fontSize: 11,
-                    letterSpacing: 2,
-                  ),
-                ),
+              _DrawerTile(
+                icon: Icons.folder_open_outlined,
+                label: 'PROJECT SETTINGS',
                 enabled: canOpenProjectSettings,
-                onTap: canOpenProjectSettings
-                    ? () {
-                        Navigator.of(context).pop();
-                        onOpenProjectSettings();
-                      }
-                    : null,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onOpenProjectSettings();
+                },
               ),
-            ListTile(
-              leading: Icon(
-                Icons.layers_outlined,
-                color: canOpenPresets ? AppColors.accent : AppColors.muted,
-                size: 20,
-              ),
-              title: Text(
-                'MY PRESETS',
-                style: TextStyle(
-                  color: canOpenPresets ? AppColors.accent : AppColors.muted,
-                  fontSize: 11,
-                  letterSpacing: 2,
-                ),
-              ),
+            _DrawerTile(
+              icon: Icons.layers_outlined,
+              label: 'MY PRESETS',
               enabled: canOpenPresets,
-              onTap: canOpenPresets
-                  ? () {
-                      Navigator.of(context).pop();
-                      onOpenPresets();
-                    }
-                  : null,
+              onTap: () {
+                Navigator.of(context).pop();
+                onOpenPresets();
+              },
             ),
             Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                leading: const Icon(Icons.save_outlined, color: AppColors.accent, size: 20),
-                title: const Text(
-                  'SAVE',
-                  style: TextStyle(color: AppColors.accent, fontSize: 11, letterSpacing: 2),
+                leading: const Icon(
+                  Icons.save_outlined,
+                  color: MooditColors.textSecondary,
+                  size: 20,
                 ),
-                iconColor: AppColors.muted,
-                collapsedIconColor: AppColors.muted,
+                title: Text(
+                  'SAVE',
+                  style: MooditType.monoLabel.copyWith(letterSpacing: 2),
+                ),
+                iconColor: MooditColors.textMuted,
+                collapsedIconColor: MooditColors.textMuted,
                 children: [
                   for (final option in ExportOption.values)
                     Builder(
                       builder: (context) {
                         final enabled = option.implemented &&
                             (option != ExportOption.preset || canSavePreset);
+                        final color = enabled
+                            ? MooditColors.textSecondary
+                            : MooditColors.textOff;
                         return ListTile(
-                      contentPadding: const EdgeInsets.only(left: 40),
-                      leading: Icon(option.icon, color: enabled ? AppColors.accent : AppColors.muted, size: 18),
-                      title: Text(
-                        option.implemented
-                            ? option.label.toUpperCase()
-                            : '${option.label.toUpperCase()} (TBD)',
-                        style: TextStyle(
-                          color: enabled ? AppColors.accent : AppColors.muted,
-                          fontSize: 11,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      trailing: option == ExportOption.gallery
-                          ? IconButton(
-                              icon: const Icon(Icons.settings_outlined, color: AppColors.muted, size: 16),
-                              onPressed: () async {
-                                final result = await showExportSettingsDialog(context, exportSettings);
-                                if (result != null) onExportSettingsChanged(result);
-                              },
-                            )
-                          : null,
-                      enabled: enabled,
-                      onTap: enabled
-                          ? () {
-                              Navigator.of(context).pop();
-                              onExport(option);
-                            }
-                          : null,
-                    );
+                          contentPadding: const EdgeInsets.only(left: 40),
+                          leading: Icon(option.icon, color: color, size: 18),
+                          title: Text(
+                            option.implemented
+                                ? option.label.toUpperCase()
+                                : '${option.label.toUpperCase()} (TBD)',
+                            style: MooditType.monoMeta.copyWith(color: color),
+                          ),
+                          trailing: option == ExportOption.gallery
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.settings_outlined,
+                                    color: MooditColors.textMuted,
+                                    size: 16,
+                                  ),
+                                  onPressed: () async {
+                                    final result = await showExportSettingsDialog(
+                                        context, exportSettings);
+                                    if (result != null) {
+                                      onExportSettingsChanged(result);
+                                    }
+                                  },
+                                )
+                              : null,
+                          enabled: enabled,
+                          onTap: enabled
+                              ? () {
+                                  Navigator.of(context).pop();
+                                  onExport(option);
+                                }
+                              : null,
+                        );
                       },
                     ),
                 ],
               ),
             ),
-            const Divider(color: AppColors.muted, height: 1),
+            const Divider(color: MooditColors.hairline, height: 1),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DrawerTile extends StatelessWidget {
+  const _DrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        enabled ? MooditColors.textSecondary : MooditColors.textOff;
+    return ListTile(
+      leading: Icon(icon, color: color, size: 20),
+      title: Text(label, style: MooditType.monoMeta.copyWith(color: color)),
+      enabled: enabled,
+      onTap: enabled ? onTap : null,
     );
   }
 }

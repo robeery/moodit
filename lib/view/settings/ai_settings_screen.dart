@@ -4,6 +4,7 @@ import '../../model/ai_profile_settings.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/ai_settings_viewmodel.dart';
+import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';
 import '../shared/app_top_bar.dart';
 
@@ -185,40 +186,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _apiKeysByProfileId.remove(deletedId);
   }
 
-  Future<bool?> _showDeleteProfileDialog() {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: MooditColors.cardAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-        ),
-        title: Text('DELETE PROFILE', style: MooditType.screenTitle),
-        content: Text(
-          'Are you sure? This cannot be reverted.',
-          style: MooditType.bodyText,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'CANCEL',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.textMuted,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'DELETE',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.destructive,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<bool> _showDeleteProfileDialog() {
+    return showAppConfirmDialog(
+      context,
+      title: 'DELETE PROFILE',
+      message: 'Are you sure? This cannot be reverted.',
+      confirmLabel: 'DELETE',
+      destructive: true,
     );
   }
 

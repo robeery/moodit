@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 
 class HistoryActionBar extends StatefulWidget {
   final bool visible;
@@ -66,22 +66,17 @@ class _HistoryActionBarState extends State<HistoryActionBar>
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          color: AppColors.surface.withValues(alpha: 0.7),
+          color: MooditColors.cardAlt.withValues(alpha: 0.92),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              Icon(widget.icon, color: AppColors.highlight, size: 15),
+              Icon(widget.icon, color: MooditColors.baseAccent, size: 15),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   widget.message.toUpperCase(),
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.accent,
-                    fontSize: 11,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: MooditType.monoLabel.copyWith(letterSpacing: 2),
                 ),
               ),
             ],

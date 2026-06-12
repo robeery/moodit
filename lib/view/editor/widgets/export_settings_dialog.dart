@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../model/export_settings.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 
 Future<ExportSettings?> showExportSettingsDialog(
   BuildContext context,
@@ -34,17 +34,16 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      title: const Text('EXPORT SETTINGS', style: AppTextStyles.screenTitle),
+      backgroundColor: MooditColors.cardAlt,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(MooditDims.cardRadius),
+      ),
+      title: Text('EXPORT SETTINGS', style: MooditType.screenTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'FORMAT',
-            style: TextStyle(color: AppColors.muted, fontSize: 10, letterSpacing: 2),
-          ),
+          Text('FORMAT', style: MooditType.sectionLabel),
           const SizedBox(height: 8),
           Row(
             children: ImageFormat.values.map((f) {
@@ -54,22 +53,25 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
                 child: GestureDetector(
                   onTap: () => setState(() => _format = f),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.highlight : Colors.transparent,
-                      borderRadius: BorderRadius.circular(2),
+                      color: selected
+                          ? MooditColors.baseAccent
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(MooditDims.controlRadius),
                       border: Border.all(
-                        color: selected ? AppColors.highlight : AppColors.muted,
-                        width: 0.5,
+                        color: selected
+                            ? MooditColors.baseAccent
+                            : MooditColors.hairlineStrong,
                       ),
                     ),
                     child: Text(
                       f.label,
-                      style: TextStyle(
-                        color: selected ? AppColors.bg : AppColors.accent,
-                        fontSize: 11,
+                      style: MooditType.monoLabel.copyWith(
+                        color: selected
+                            ? MooditColors.bgInner
+                            : MooditColors.textPrimary,
                         letterSpacing: 2,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -79,16 +81,13 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
           ),
           if (_format != ImageFormat.png) ...[
             const SizedBox(height: 20),
-            Text(
-              'QUALITY  $_quality%',
-              style: const TextStyle(color: AppColors.muted, fontSize: 10, letterSpacing: 2),
-            ),
+            Text('QUALITY  $_quality%', style: MooditType.sectionLabel),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppColors.highlight,
-                inactiveTrackColor: AppColors.muted,
-                thumbColor: AppColors.highlight,
-                overlayColor: AppColors.highlight.withValues(alpha: 0.1),
+                activeTrackColor: MooditColors.baseAccent,
+                inactiveTrackColor: MooditColors.hairlineStrong,
+                thumbColor: MooditColors.baseAccent,
+                overlayColor: MooditColors.baseGlow,
                 trackHeight: 2,
               ),
               child: Slider(
@@ -105,18 +104,18 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text(
+          child: Text(
             'CANCEL',
-            style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
+            style: MooditType.monoMeta.copyWith(color: MooditColors.textMuted),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(
             ExportSettings(format: _format, quality: _quality),
           ),
-          child: const Text(
+          child: Text(
             'SAVE',
-            style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
+            style: MooditType.monoMeta.copyWith(color: MooditColors.baseAccent),
           ),
         ),
       ],

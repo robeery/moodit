@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
 
 class ModeTabBar extends StatelessWidget {
@@ -18,7 +18,7 @@ class ModeTabBar extends StatelessWidget {
     this.hasPendingColorEdits = false,
     this.hasPendingGradingEdits = false,
     this.pendingAiGradient = const LinearGradient(
-      colors: [Color(0xFF1FBC9C), Color(0xFF647EFF)],
+      colors: [Color(0xFF4C8DF6), Color(0xFF9B5CF6)],
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
     ),
@@ -37,9 +37,9 @@ class ModeTabBar extends StatelessWidget {
       //might have to tweak these values later on other devices
       padding: const EdgeInsets.only(top: 4, bottom: 4, left: 16, right:16),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: MooditColors.card,
         border: Border(
-          bottom: BorderSide(color: AppColors.highlight, width: 0.5),
+          bottom: BorderSide(color: MooditColors.hairline, width: 0.5),
         ),
       ),
       child: Row(
@@ -61,7 +61,9 @@ class ModeTabBar extends StatelessWidget {
                 Icon(
                   m.icon,
                   size: 16,
-                  color: isActive ? AppColors.highlight : AppColors.muted,
+                  color: isActive
+                      ? MooditColors.baseAccent
+                      : MooditColors.textMuted,
                 ),
                 const SizedBox(height: 1),
                 hasPending
@@ -75,6 +77,7 @@ class ModeTabBar extends StatelessWidget {
                           child: Text(
                             m.label,
                             style: const TextStyle(
+                              fontFamily: MooditType.mono,
                               color: Colors.white,
                               fontSize: 8,
                               letterSpacing: 1.5,
@@ -89,7 +92,10 @@ class ModeTabBar extends StatelessWidget {
                         child: Text(
                           m.label,
                           style: TextStyle(
-                            color: isActive ? AppColors.highlight : AppColors.muted,
+                            fontFamily: MooditType.mono,
+                            color: isActive
+                                ? MooditColors.baseAccent
+                                : MooditColors.textMuted,
                             fontSize: 8,
                             letterSpacing: 1.5,
                             fontWeight: FontWeight.w600,

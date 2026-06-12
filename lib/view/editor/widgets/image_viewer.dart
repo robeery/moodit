@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 
 class ImageViewer extends StatefulWidget {
   final ui.Image image;
@@ -58,15 +58,12 @@ class _ImageViewerState extends State<ImageViewer> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 color: Colors.black54,
-                child: const Text(
-                  'ORIGINAL',
-                  style: TextStyle(color: AppColors.accent, fontSize: 10, letterSpacing: 2),
-                ),
+                child: Text('ORIGINAL', style: MooditType.monoMeta),
               ),
             ),
           if (widget.isLoading)
             const CircularProgressIndicator(
-              color: AppColors.highlight,
+              color: MooditColors.baseAccent,
               strokeWidth: 1,
             ),
         ],

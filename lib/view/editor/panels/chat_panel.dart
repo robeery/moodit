@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../model/chat_message.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
+import '../../shared/app_dialog.dart';
+import '../../shared/app_snack_bar.dart';
 
 class ChatPanel extends StatefulWidget {
   final EditorViewModel vm;
@@ -28,15 +31,10 @@ class _ChatPanelState extends State<ChatPanel> {
   Future<void> _sendChat() async {
     if (!widget.vm.isAiReady) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'AI settings are still loading. Please wait.',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
+      showAppSnackBar(
+        context,
+        'AI settings are still loading. Please wait.',
+        isError: true,
       );
       return;
     }
@@ -45,13 +43,7 @@ class _ChatPanelState extends State<ChatPanel> {
     _chatController.clear();
     final error = await widget.vm.sendMessage(text);
     if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error, style: const TextStyle(color: Colors.white)),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      showAppSnackBar(context, error, isError: true);
     }
   }
 
@@ -60,17 +52,16 @@ class _ChatPanelState extends State<ChatPanel> {
     final messages = widget.vm.messages;
 
     return Container(
-      color: AppColors.surface,
+      color: MooditColors.card,
       child: Column(
         children: [
           Expanded(
             child: messages.isEmpty && !widget.vm.isWaitingForAi
-                ? const Center(
+                ? Center(
                     child: Text(
                       'ASK AI ANYTHING',
-                      style: TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
+                      style: MooditType.monoMeta.copyWith(
+                        color: MooditColors.textOff,
                         letterSpacing: 3,
                       ),
                     ),
@@ -100,15 +91,15 @@ class _ChatPanelState extends State<ChatPanel> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.bg,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.muted, width: 0.5),
+          color: MooditColors.cardAlt,
+          borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+          border: Border.all(color: MooditColors.hairline),
         ),
         child: const SizedBox(
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
-            color: AppColors.accent,
+            color: MooditColors.textSecondary,
             strokeWidth: 1.5,
           ),
         ),
@@ -117,27 +108,39 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 
   Widget _buildMessageBubble(ChatMessage msg) {
-    final Color bgColor;
-    final Color borderColor;
-    final Color textColor;
+    final aiGradient = aiProviderGradient(widget.vm.selectedProvider);
 
-    switch (msg.type) {
-      case MessageType.user:
-        bgColor = AppColors.highlight.withValues(alpha: 0.15);
-        borderColor = AppColors.highlight.withValues(alpha: 0.3);
-        textColor = AppColors.highlight;
-      case MessageType.ai:
-        bgColor = AppColors.bg;
-        borderColor = AppColors.muted;
-        textColor = AppColors.accent;
-      case MessageType.error:
-        bgColor = Colors.red.withValues(alpha: 0.1);
-        borderColor = Colors.red.withValues(alpha: 0.3);
-        textColor = Colors.red.shade300;
+    if (msg.isUser) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.7,
+          ),
+          decoration: BoxDecoration(
+            gradient: aiGradient,
+            borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+          ),
+          child: Text(
+            msg.text,
+            style: MooditType.bodyText.copyWith(color: MooditColors.bgInner),
+          ),
+        ),
+      );
     }
 
+    final bool isError = msg.isError;
+    final Color bgColor =
+        isError ? Colors.red.withValues(alpha: 0.1) : MooditColors.cardAlt;
+    final Color borderColor =
+        isError ? Colors.red.withValues(alpha: 0.3) : MooditColors.hairline;
+    final Color textColor =
+        isError ? Colors.red.shade300 : MooditColors.textPrimary;
+
     return Align(
-      alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -146,20 +149,20 @@ class _ChatPanelState extends State<ChatPanel> {
         ),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: borderColor, width: 0.5),
+          borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (msg.isError) ...[
+            if (isError) ...[
               Icon(Icons.warning_amber_rounded, color: textColor, size: 14),
               const SizedBox(width: 6),
             ],
             Flexible(
               child: Text(
                 msg.text,
-                style: TextStyle(color: textColor, fontSize: 13),
+                style: MooditType.bodyText.copyWith(color: textColor),
               ),
             ),
           ],
@@ -168,97 +171,53 @@ class _ChatPanelState extends State<ChatPanel> {
     );
   }
 
-  void _showClearChatDialog() {
+  Future<void> _showClearChatDialog() async {
     final removesReference = widget.vm.hasAiReferenceImage;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('CLEAR CHAT', style: AppTextStyles.screenTitle),
-        content: Text(
-          removesReference
-              ? 'This will permanently delete the saved AI conversation for this version and remove the attached reference image. The AI will lose this chat context.'
-              : 'This will permanently delete the saved AI conversation for this version. The AI will lose this chat context.',
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              unawaited(widget.vm.clearChat());
-            },
-            child: const Text(
-              'CLEAR',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'CLEAR CHAT',
+      message: removesReference
+          ? 'This will permanently delete the saved AI conversation for this version and remove the attached reference image. The AI will lose this chat context.'
+          : 'This will permanently delete the saved AI conversation for this version. The AI will lose this chat context.',
+      confirmLabel: 'CLEAR',
+      destructive: true,
     );
+    if (confirmed) unawaited(widget.vm.clearChat());
   }
 
   Future<void> _showReferenceImageDialog() async {
     if (!widget.vm.canUseAiReferenceImage) return;
 
     final hasReference = widget.vm.hasAiReferenceImage;
-    final action = await showDialog<_ReferenceImageAction>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: Text(
-          hasReference ? 'REFERENCE IMAGE' : 'ATTACH REFERENCE',
-          style: AppTextStyles.screenTitle,
-        ),
-        content: Text(
-          hasReference
-              ? 'A reference image is attached and will be sent with each new AI message for this version.'
-              : 'Choose a reference image from your gallery. It will be saved for this version and sent with each new AI message as visual guidance.',
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.cancel),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
+    final action = await showAppChoiceDialog<_ReferenceImageAction>(
+      context,
+      title: hasReference ? 'REFERENCE IMAGE' : 'ATTACH REFERENCE',
+      message: hasReference
+          ? 'A reference image is attached and will be sent with each new AI message for this version.'
+          : 'Choose a reference image from your gallery. It will be saved for this version and sent with each new AI message as visual guidance.',
+      actions: [
+        if (hasReference)
+          const AppDialogAction(
+            'DROP',
+            _ReferenceImageAction.drop,
+            color: MooditColors.textMuted,
           ),
-          if (hasReference)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.drop),
-              child: const Text(
-                'DROP',
-                style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-              ),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_ReferenceImageAction.pick),
-            child: Text(
-              hasReference ? 'REPLACE' : 'CONTINUE',
-              style: const TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+        AppDialogAction(
+          hasReference ? 'REPLACE' : 'CONTINUE',
+          _ReferenceImageAction.pick,
+        ),
+      ],
     );
 
-    if (!mounted || action == null || action == _ReferenceImageAction.cancel) {
+    if (!mounted || action == null) {
       return;
     }
 
     if (action == _ReferenceImageAction.drop) {
       final removed = await widget.vm.clearAiReferenceImage();
       if (!mounted) return;
-      _showReferenceSnack(
+      showAppSnackBar(
+        context,
         removed ? 'Reference image removed.' : 'Failed to remove reference image.',
         isError: !removed,
       );
@@ -271,21 +230,8 @@ class _ChatPanelState extends State<ChatPanel> {
     final attached = await widget.vm.attachAiReferenceImage(picked.path);
     if (!mounted) return;
     if (!attached) {
-      _showReferenceSnack(
-        'Failed to attach reference image.',
-        isError: true,
-      );
+      showAppSnackBar(context, 'Failed to attach reference image.', isError: true);
     }
-  }
-
-  void _showReferenceSnack(String message, {required bool isError}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-        backgroundColor: isError ? Colors.red : AppColors.surface,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   Widget _buildInputArea() {
@@ -295,7 +241,7 @@ class _ChatPanelState extends State<ChatPanel> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.muted, width: 0.5)),
+        border: Border(top: BorderSide(color: MooditColors.hairline)),
       ),
       child: isOnline
           ? (isAiReady
@@ -304,28 +250,32 @@ class _ChatPanelState extends State<ChatPanel> {
               children: [
                 Row(
                   children: [
-                    const Icon(
-                      Icons.account_circle_outlined,
-                      color: AppColors.muted,
-                      size: 16,
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: aiProviderGradient(widget.vm.selectedProvider),
+                      ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButton<String>(
                         value: widget.vm.activeAiProfileId,
-                        dropdownColor: AppColors.surface,
-                        style: const TextStyle(color: AppColors.accent, fontSize: 11),
+                        dropdownColor: MooditColors.cardAlt,
+                        borderRadius: BorderRadius.circular(MooditDims.controlRadius),
+                        style: MooditType.bodySecondary,
                         underline: const SizedBox.shrink(),
                         isDense: true,
                         isExpanded: true,
-                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.muted, size: 16),
+                        icon: const Icon(Icons.keyboard_arrow_down, color: MooditColors.textMuted, size: 16),
                         items: widget.vm.aiProfiles.map((profile) {
                           return DropdownMenuItem(
                             value: profile.id,
                             child: Text(
                               profile.profileName,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11),
+                              style: MooditType.bodySecondary,
                             ),
                           );
                         }).toList(),
@@ -343,18 +293,14 @@ class _ChatPanelState extends State<ChatPanel> {
                         widget.vm.selectedModel,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 9,
-                          letterSpacing: 1,
-                        ),
+                        style: MooditType.monoMeta,
                       ),
                     ),
                     _buildReferenceImageButton(),
                     if (widget.vm.messages.isNotEmpty ||
                         widget.vm.hasAiReferenceImage)
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, color: AppColors.muted, size: 20),
+                        icon: const Icon(Icons.delete_outline, color: MooditColors.textMuted, size: 20),
                         onPressed: () => _showClearChatDialog(),
                       ),
                   ],
@@ -364,56 +310,57 @@ class _ChatPanelState extends State<ChatPanel> {
                     Expanded(
                       child: TextField(
                         controller: _chatController,
-                        style: const TextStyle(color: AppColors.highlight, fontSize: 13),
-                        decoration: const InputDecoration(
-                          hintText: 'Type a message...',
-                          hintStyle: TextStyle(color: AppColors.muted, fontSize: 13),
+                        style: MooditType.bodyText,
+                        cursorColor: MooditColors.baseAccent,
+                        decoration: InputDecoration(
+                          hintText: 'Describe a mood...',
+                          hintStyle: MooditType.bodySecondary.copyWith(
+                            color: MooditColors.textOff,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                         onSubmitted: (_) => _sendChat(),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.send, color: AppColors.accent, size: 20),
-                      onPressed: _sendChat,
+                    GestureDetector(
+                      onTap: _sendChat,
+                      child: Container(
+                        margin: const EdgeInsets.only(left: 4),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: aiProviderGradient(widget.vm.selectedProvider),
+                        ),
+                        child: const Icon(Icons.send, color: MooditColors.bgInner, size: 18),
+                      ),
                     ),
                   ],
                 ),
               ],
             )
-              : const Row(
+              : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
-                        color: AppColors.muted,
+                        color: MooditColors.textMuted,
                         strokeWidth: 1.5,
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Text(
-                      'LOADING AI SETTINGS',
-                      style: TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                        letterSpacing: 2,
-                      ),
-                    ),
+                    const SizedBox(width: 8),
+                    Text('LOADING AI SETTINGS', style: MooditType.monoMeta),
                   ],
                 ))
-          : const Row(
+          : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.wifi_off, color: AppColors.muted, size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'NO CONNECTION',
-                  style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-                ),
+                const Icon(Icons.wifi_off, color: MooditColors.textMuted, size: 16),
+                const SizedBox(width: 8),
+                Text('NO CONNECTION', style: MooditType.monoMeta),
               ],
             ),
     );
@@ -422,14 +369,14 @@ class _ChatPanelState extends State<ChatPanel> {
   Widget _buildReferenceImageButton() {
     final hasReference = widget.vm.hasAiReferenceImage;
     final enabled = widget.vm.canUseAiReferenceImage;
-    final color = hasReference ? AppColors.highlight : AppColors.muted;
+    final color = hasReference ? MooditColors.textPrimary : MooditColors.textMuted;
 
     return IconButton(
       onPressed: enabled ? _showReferenceImageDialog : null,
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(Icons.image_outlined, color: enabled ? color : AppColors.muted, size: 20),
+          Icon(Icons.image_outlined, color: enabled ? color : MooditColors.textOff, size: 20),
           if (hasReference)
             Positioned(
               right: -1,
@@ -449,4 +396,4 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 }
 
-enum _ReferenceImageAction { cancel, pick, drop }
+enum _ReferenceImageAction { pick, drop }

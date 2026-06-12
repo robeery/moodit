@@ -1,13 +1,14 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../model/editor_preset.dart';
 import '../../model/rgba_image_frame.dart';
 import '../../services/preset_thumbnail_service.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/presets_viewmodel.dart';
+import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';
 import '../shared/app_top_bar.dart';
 import '../shared/thumbnail_tile.dart';
@@ -103,106 +104,24 @@ class _MyPresetsScreenState extends State<MyPresetsScreen> {
   Future<String?> _showNameDialog({
     required String title,
     required String initialName,
-  }) async {
-    final controller = TextEditingController(text: initialName);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
+  }) {
+    return showAppTextInputDialog(
+      context,
+      title: title,
+      label: 'PRESET NAME',
+      initialValue: initialName,
+      maxLength: editorPresetNameMaxLength,
     );
-
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: MooditColors.cardAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-        ),
-        title: Text(title, style: MooditType.screenTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: editorPresetNameMaxLength,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(editorPresetNameMaxLength),
-          ],
-          style: MooditType.bodyText,
-          cursorColor: MooditColors.baseAccent,
-          decoration: InputDecoration(
-            labelText: 'PRESET NAME',
-            counterText: '',
-            labelStyle: MooditType.monoMeta,
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: MooditColors.hairline),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: MooditColors.baseAccent),
-            ),
-          ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'CANCEL',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.textMuted,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: Text(
-              'SAVE',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.baseAccent,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    controller.dispose();
-    return name;
   }
 
-  Future<bool> _showDeleteDialog(String name) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: MooditColors.cardAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-        ),
-        title: Text('DELETE PRESET', style: MooditType.screenTitle),
-        content: Text(
-          'Are you sure? This cannot be restored.\n\n$name',
-          style: MooditType.bodyText,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'CANCEL',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.textMuted,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'DELETE',
-              style: MooditType.monoMeta.copyWith(
-                color: MooditColors.destructive,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<bool> _showDeleteDialog(String name) {
+    return showAppConfirmDialog(
+      context,
+      title: 'DELETE PRESET',
+      message: 'Are you sure? This cannot be restored.\n\n$name',
+      confirmLabel: 'DELETE',
+      destructive: true,
     );
-    return confirmed ?? false;
   }
 
   @override

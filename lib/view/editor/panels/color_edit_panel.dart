@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../model/color_edit.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
+import '../widgets/gradient_slider_row.dart';
 
 class ColorEditPanel extends StatelessWidget {
   final EditorViewModel vm;
@@ -13,104 +15,58 @@ class ColorEditPanel extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        _buildSliders(context),
+        _buildSliders(),
         _buildColorBar(),
       ],
     );
   }
 
-  Widget _buildSliders(BuildContext context) {
+  Widget _buildSliders() {
     final colorEdit = vm.getColorEdit(vm.selectedColorRange);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         children: [
-          _buildSliderRow(context, 'HUE', colorEdit.hue,
-            (v) => vm.applyColorEdit(colorEdit.copyWith(hue: v)),
-            (v) => vm.updateColorEditPreview(colorEdit.copyWith(hue: v)),
+          GradientSliderRow(
+            label: 'HUE',
+            value: colorEdit.hue,
+            min: -100,
+            max: 100,
+            valueText: colorEdit.hue.toStringAsFixed(0),
             gradient: hueGradientColors(vm.selectedColorRange),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) => vm.updateColorEditPreview(colorEdit.copyWith(hue: v)),
+            onChangeEnd: (v) => vm.applyColorEdit(colorEdit.copyWith(hue: v)),
           ),
-          _buildSliderRow(context, 'SAT', colorEdit.saturation,
-            (v) => vm.applyColorEdit(colorEdit.copyWith(saturation: v)),
-            (v) => vm.updateColorEditPreview(colorEdit.copyWith(saturation: v)),
+          GradientSliderRow(
+            label: 'SAT',
+            value: colorEdit.saturation,
+            min: -100,
+            max: 100,
+            valueText: colorEdit.saturation.toStringAsFixed(0),
             gradient: saturationGradientColors(vm.selectedColorRange),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) =>
+                vm.updateColorEditPreview(colorEdit.copyWith(saturation: v)),
+            onChangeEnd: (v) =>
+                vm.applyColorEdit(colorEdit.copyWith(saturation: v)),
           ),
-          _buildSliderRow(context, 'LUM', colorEdit.luminance,
-            (v) => vm.applyColorEdit(colorEdit.copyWith(luminance: v)),
-            (v) => vm.updateColorEditPreview(colorEdit.copyWith(luminance: v)),
+          GradientSliderRow(
+            label: 'LUM',
+            value: colorEdit.luminance,
+            min: -100,
+            max: 100,
+            valueText: colorEdit.luminance.toStringAsFixed(0),
             gradient: luminanceGradientColors(vm.selectedColorRange),
+            onChangeStart: vm.beginManualEdit,
+            onChanged: (v) =>
+                vm.updateColorEditPreview(colorEdit.copyWith(luminance: v)),
+            onChangeEnd: (v) =>
+                vm.applyColorEdit(colorEdit.copyWith(luminance: v)),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSliderRow(BuildContext context, String label, double value,
-      Function(double) onChangeEnd, Function(double) onChanged,
-      {List<Color>? gradient}) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 32,
-          child: Text(label, style: AppTextStyles.mutedSmall),
-        ),
-        Expanded(
-          child: gradient != null
-              ? Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 7),
-                      child: Container(
-                        height: 2,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(1),
-                          gradient: LinearGradient(colors: gradient),
-                        ),
-                      ),
-                    ),
-                    SliderTheme(
-                      data: AppSliderTheme.of(context).copyWith(
-                        activeTrackColor: Colors.transparent,
-                        inactiveTrackColor: Colors.transparent,
-                      ),
-                      child: Slider(
-                        min: -100,
-                        max: 100,
-                        value: value,
-                        onChangeStart: (_) => vm.beginManualEdit(),
-                        onChanged: onChanged,
-                        onChangeEnd: onChangeEnd,
-                      ),
-                    ),
-                  ],
-                )
-              : SliderTheme(
-                  data: AppSliderTheme.of(context),
-                  child: Slider(
-                    min: -100,
-                    max: 100,
-                    value: value,
-                    onChangeStart: (_) => vm.beginManualEdit(),
-                    onChanged: onChanged,
-                    onChangeEnd: onChangeEnd,
-                  ),
-                ),
-        ),
-        SizedBox(
-          width: 32,
-          child: Text(
-            value.toStringAsFixed(0),
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: AppColors.highlight,
-              fontSize: 11,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -147,7 +103,9 @@ class ColorEditPanel extends StatelessWidget {
                             color: color,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isSelected ? AppColors.highlight : Colors.transparent,
+                              color: isSelected
+                                  ? MooditColors.baseAccent
+                                  : Colors.transparent,
                               width: 2,
                             ),
                           ),
@@ -164,7 +122,9 @@ class ColorEditPanel extends StatelessWidget {
                               gradient: isPendingAiEdit
                                   ? pendingAiGradient
                                   : null,
-                              color: isPendingAiEdit ? null : AppColors.accent,
+                              color: isPendingAiEdit
+                                  ? null
+                                  : MooditColors.textPrimary,
                             ),
                           ),
                         ),

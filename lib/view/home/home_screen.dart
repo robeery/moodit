@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../model/editor_project.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/app_tokens.dart';
 import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
 import '../presets/my_presets_screen.dart';
 import '../projects/projects_screen.dart';
+import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';
 
 enum _DraftRecoveryAction {
@@ -170,134 +170,46 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<_DraftRecoveryAction?> _showDraftRecoveryDialog(
     EditorProject draft,
   ) {
-    return showDialog<_DraftRecoveryAction>(
-      context: context,
+    return showAppChoiceDialog<_DraftRecoveryAction>(
+      context,
+      title: 'UNSAVED PROJECT',
+      message: 'You have an unsaved project.',
+      cancelLabel: null,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text(
-          'UNSAVED PROJECT',
-          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
+      actions: const [
+        AppDialogAction(
+          'DISCARD',
+          _DraftRecoveryAction.discard,
+          color: MooditColors.textMuted,
         ),
-        content: Text(
-          'You have an unsaved project.\n',
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
+        AppDialogAction('CONTINUE', _DraftRecoveryAction.continueEditing),
+        AppDialogAction(
+          'SAVE AS PROJECT',
+          _DraftRecoveryAction.saveAsProject,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_DraftRecoveryAction.discard),
-            child: const Text(
-              'DISCARD',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_DraftRecoveryAction.continueEditing),
-            child: const Text(
-              'CONTINUE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_DraftRecoveryAction.saveAsProject),
-            child: const Text(
-              'SAVE AS PROJECT',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
-  Future<bool> _showDiscardDraftDialog() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text(
-          'DISCARD PROJECT',
-          style: TextStyle(color: AppColors.highlight, fontSize: 12, letterSpacing: 3),
-        ),
-        content: const Text(
-          'Are you sure? This is irreversible.',
-          style: TextStyle(color: AppColors.accent, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'NO',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'YES',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
+  Future<bool> _showDiscardDraftDialog() {
+    return showAppConfirmDialog(
+      context,
+      title: 'DISCARD PROJECT',
+      message: 'Are you sure? This is irreversible.',
+      confirmLabel: 'YES',
+      cancelLabel: 'NO',
+      destructive: true,
     );
-    return confirmed ?? false;
   }
 
   Future<String?> _showProjectNameDialog(EditorProject draft) async {
     final initialName = _vm.suggestedProjectNameForDraft(draft);
-    final controller = TextEditingController(text: initialName);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
+    final name = await showAppTextInputDialog(
+      context,
+      title: 'SAVE AS PROJECT',
+      label: 'PROJECT NAME',
+      initialValue: initialName,
     );
-
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('SAVE AS PROJECT', style: AppTextStyles.screenTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.accent, fontSize: 13),
-          cursorColor: AppColors.highlight,
-          decoration: const InputDecoration(
-            labelText: 'PROJECT NAME',
-            labelStyle: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.muted),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.highlight),
-            ),
-          ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text(
-              'SAVE',
-              style: TextStyle(color: AppColors.highlight, fontSize: 11, letterSpacing: 2),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    controller.dispose();
     if (name == null) return null;
     final trimmed = name.trim();
     return trimmed.isEmpty ? initialName : trimmed;
