@@ -6,7 +6,7 @@ import '../../theme/app_tokens.dart';
 // Shared cinematic dialogs so every popup has the same look and we avoid
 // repeating the AlertDialog boilerplate in each screen.
 
-TextButton _dialogButton(
+TextButton appDialogButton(
   BuildContext ctx,
   String label,
   Object? popValue, {
@@ -18,17 +18,17 @@ TextButton _dialogButton(
   );
 }
 
-AlertDialog _baseDialog({
-  required String title,
+AlertDialog appDialogShell({
+  String? title,
   required Widget content,
-  required List<Widget> actions,
+  List<Widget>? actions,
 }) {
   return AlertDialog(
     backgroundColor: MooditColors.cardAlt,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(MooditDims.cardRadius),
     ),
-    title: Text(title, style: MooditType.screenTitle),
+    title: title == null ? null : Text(title, style: MooditType.screenTitle),
     content: content,
     actions: actions,
   );
@@ -45,12 +45,12 @@ Future<bool> showAppConfirmDialog(
 }) async {
   final result = await showDialog<bool>(
     context: context,
-    builder: (ctx) => _baseDialog(
+    builder: (ctx) => appDialogShell(
       title: title,
       content: Text(message, style: MooditType.bodyText),
       actions: [
-        _dialogButton(ctx, cancelLabel, false, color: MooditColors.textMuted),
-        _dialogButton(
+        appDialogButton(ctx, cancelLabel, false, color: MooditColors.textMuted),
+        appDialogButton(
           ctx,
           confirmLabel,
           true,
@@ -82,7 +82,7 @@ Future<String?> showAppTextInputDialog(
 
   final result = await showDialog<String>(
     context: context,
-    builder: (ctx) => _baseDialog(
+    builder: (ctx) => appDialogShell(
       title: title,
       content: TextField(
         controller: controller,
@@ -110,8 +110,8 @@ Future<String?> showAppTextInputDialog(
         onSubmitted: (value) => Navigator.of(ctx).pop(value),
       ),
       actions: [
-        _dialogButton(ctx, 'CANCEL', null, color: MooditColors.textMuted),
-        _dialogButton(ctx, confirmLabel, controller.text),
+        appDialogButton(ctx, 'CANCEL', null, color: MooditColors.textMuted),
+        appDialogButton(ctx, confirmLabel, controller.text),
       ],
     ),
   );
@@ -140,14 +140,14 @@ Future<T?> showAppChoiceDialog<T>(
   return showDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder: (ctx) => _baseDialog(
+    builder: (ctx) => appDialogShell(
       title: title,
       content: Text(message, style: MooditType.bodyText),
       actions: [
         if (cancelLabel != null)
-          _dialogButton(ctx, cancelLabel, null, color: MooditColors.textMuted),
+          appDialogButton(ctx, cancelLabel, null, color: MooditColors.textMuted),
         for (final action in actions)
-          _dialogButton(
+          appDialogButton(
             ctx,
             action.label,
             action.value,
@@ -167,10 +167,10 @@ Future<void> showAppMessageDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (ctx) => _baseDialog(
+    builder: (ctx) => appDialogShell(
       title: title,
       content: Text(message, style: MooditType.bodyText),
-      actions: [_dialogButton(ctx, buttonLabel, null)],
+      actions: [appDialogButton(ctx, buttonLabel, null)],
     ),
   );
 }

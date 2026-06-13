@@ -10,6 +10,13 @@ Future<void> main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+  // Keep the status bar icons white. Without an AppBar nothing sets this, so
+  // the platform default would draw dark icons.
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+  ));
   await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
@@ -30,6 +37,18 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        // Reapplies the light style every frame. The imperative call in main()
+        // gets overridden by the framework on Android 15+ edge-to-edge.
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
+          child: child!,
+        );
+      },
       home: HomeScreen(viewModel: homeViewModel),
     );
   }

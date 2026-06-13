@@ -251,9 +251,7 @@ class _EditorScreenState extends State<EditorScreen> {
         builder: (context, _) {
           final progress = _vm.exportProgress ?? 0.0;
 
-          return AlertDialog(
-            backgroundColor: MooditColors.cardAlt,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          return appDialogShell(
             content: SizedBox(
               width: 240,
               child: TweenAnimationBuilder<double>(
@@ -277,15 +275,17 @@ class _EditorScreenState extends State<EditorScreen> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'EXPORTING...',
-                              style: TextStyle(color: MooditColors.textPrimary, fontSize: 12, letterSpacing: 2),
+                              style: MooditType.monoLabel.copyWith(letterSpacing: 2),
                             ),
                           ),
                           Text(
                             '$percent%',
-                            style: const TextStyle(color: MooditColors.baseAccent, fontSize: 12, letterSpacing: 1),
+                            style: MooditType.monoLabel.copyWith(
+                              color: MooditColors.baseAccent,
+                            ),
                           ),
                         ],
                       ),

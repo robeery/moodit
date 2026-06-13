@@ -251,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 SafeArea(
                   child: ListView(
+                    physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(
                       MooditDims.screenPadding,
                       18,

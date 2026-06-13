@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../model/export_settings.dart';
 import '../../../theme/app_tokens.dart';
+import '../../shared/app_dialog.dart';
 
 Future<ExportSettings?> showExportSettingsDialog(
   BuildContext context,
@@ -33,12 +34,8 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: MooditColors.cardAlt,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(MooditDims.cardRadius),
-      ),
-      title: Text('EXPORT SETTINGS', style: MooditType.screenTitle),
+    return appDialogShell(
+      title: 'EXPORT SETTINGS',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,21 +99,11 @@ class _ExportSettingsDialogState extends State<_ExportSettingsDialog> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            'CANCEL',
-            style: MooditType.monoMeta.copyWith(color: MooditColors.textMuted),
-          ),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(
-            ExportSettings(format: _format, quality: _quality),
-          ),
-          child: Text(
-            'SAVE',
-            style: MooditType.monoMeta.copyWith(color: MooditColors.baseAccent),
-          ),
+        appDialogButton(context, 'CANCEL', null, color: MooditColors.textMuted),
+        appDialogButton(
+          context,
+          'SAVE',
+          ExportSettings(format: _format, quality: _quality),
         ),
       ],
     );
