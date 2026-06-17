@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../model/color_grading_edit.dart';
+import '../../../theme/ai_provider_theme.dart';
+import '../../../theme/slider_theme.dart';
 import '../../../theme/app_theme.dart';
-import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
 import '../widgets/gradient_slider_row.dart';
 

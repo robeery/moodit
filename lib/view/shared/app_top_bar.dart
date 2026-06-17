@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_tokens.dart';
+import '../../theme/app_theme.dart';
 
 // Cinematic top bar: circular back button, centered mono title and an optional
 // trailing action. Shared by the settings and project detail screens.

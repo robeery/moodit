@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_tokens.dart';
+import '../../../theme/app_theme.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
 
 class ModeTabBar extends StatelessWidget {

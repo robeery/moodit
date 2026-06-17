@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../model/editor_project.dart';
-import '../../theme/app_tokens.dart';
+import '../../theme/app_theme.dart';
 import '../../viewmodel/project_details_viewmodel.dart';
 import '../shared/app_dialog.dart';
 import '../shared/app_snack_bar.dart';

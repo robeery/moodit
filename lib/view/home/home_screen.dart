@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../model/editor_project.dart';
-import '../../theme/app_tokens.dart';
+import '../../theme/app_theme.dart';
 import '../../viewmodel/home_viewmodel.dart';
 import '../editor/editor_screen.dart';
 import '../presets/my_presets_screen.dart';

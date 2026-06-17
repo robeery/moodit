@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../../../theme/app_tokens.dart';
+import '../../../theme/app_theme.dart';
 
 class ImageViewer extends StatefulWidget {
   final ui.Image image;

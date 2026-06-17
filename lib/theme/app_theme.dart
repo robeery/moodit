@@ -1,199 +1,133 @@
-import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
-import '../model/ai_profile_settings.dart';
-import '../model/color_edit.dart';
-import 'app_tokens.dart';
+import 'package:flutter/widgets.dart';
 
-// Selective color swatch colors. Functional color data for the color panel,
-// kept separate from the cinematic chrome tokens in MooditColors.
-class AppColors {
-  static const colorRange = <ColorRange, Color>{
-    ColorRange.red:     Color(0xFFFF3B30),
-    ColorRange.orange:  Color(0xFFFF9500),
-    ColorRange.yellow:  Color(0xFFFFCC00),
-    ColorRange.green:   Color(0xFF34C759),
-    ColorRange.cyan:    Color(0xFF5AC8FA),
-    ColorRange.blue:    Color(0xFF007AFF),
-    ColorRange.purple:  Color(0xFFAF52DE),
-    ColorRange.magenta: Color(0xFFFF2D55),
-  };
-}
+// Base accent drives all normal chrome. AI gradients only signal AI edits or
+// the active profile.
+class MooditColors {
+  MooditColors._();
 
-// Per provider gradient stops; start is also used for
-// borders, icon strokes and text where a gradient does not render well.
-List<Color> aiProviderGradientColors(String? providerId) {
-  switch (providerId) {
-    case AiProfileSettings.openAiProviderId:
-      return const [Color(0xFF34D6C1), Color(0xFF2A9BD6)];
-    case AiProfileSettings.claudeProviderId:
-      return const [Color(0xFFE9A24C), Color(0xFFE9624C)];
-    case AiProfileSettings.geminiProviderId:
-    default:
-      return const [Color(0xFF4C8DF6), Color(0xFF9B5CF6)];
-  }
-}
+  static const Color baseAccent = Color(0xFFE9E9EF);
+  static const Color baseGlow = Color(0x22E9E9EF);
+  static const Color baseGlowFaint = Color(0x0CE9E9EF);
 
-LinearGradient aiProviderGradient(String? providerId) {
-  return LinearGradient(
-    colors: aiProviderGradientColors(providerId),
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
+  static const Color bgOuter = Color(0xFF15151A);
+  static const Color bgMid = Color(0xFF0A0A0C);
+  static const Color bgInner = Color(0xFF050506);
+
+  static const Color card = Color(0xFF101013);
+  static const Color cardAlt = Color(0xFF15151A);
+  static const Color surfaceSubtle = Color(0x0DFFFFFF);
+
+  static const Color hairline = Color(0x16FFFFFF);
+  static const Color hairlineStrong = Color(0x26FFFFFF);
+
+  static const Color textPrimary = Color(0xFFE9E9EE);
+  static const Color textPrimaryAlt = Color(0xFFEDEDF0);
+  static const Color textSecondary = Color(0xFF9A9AA4);
+  static const Color textMuted = Color(0xFF76767F);
+  static const Color textOff = Color(0xFF5C5C62);
+
+  static const Color destructive = Color(0xFFE95050);
+
+  static const RadialGradient pageBackground = RadialGradient(
+    center: Alignment(-0.08, -0.42),
+    radius: 1.08,
+    colors: [bgOuter, bgMid, bgInner],
+    stops: [0.0, 0.44, 1.0],
   );
 }
 
-Color aiProviderStartColor(String? providerId) =>
-    aiProviderGradientColors(providerId).first;
+class MooditDims {
+  MooditDims._();
 
-String aiProviderTag(String? providerId) {
-  switch (providerId) {
-    case AiProfileSettings.openAiProviderId:
-      return 'OPENAI';
-    case AiProfileSettings.claudeProviderId:
-      return 'ANTHROPIC';
-    case AiProfileSettings.geminiProviderId:
-    default:
-      return 'GOOGLE';
-  }
-}
+  static const double screenPadding = 18;
+  static const double cardRadius = 20;
+  static const double canvasRadius = 16;
+  static const double controlRadius = 12;
+  static const double pillRadius = 16;
 
-class AppSliderTheme {
-  static SliderThemeData of(BuildContext context) =>
-      SliderTheme.of(context).copyWith(
-        trackHeight: 2,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-        activeTrackColor: MooditColors.baseAccent,
-        inactiveTrackColor: MooditColors.hairlineStrong,
-        thumbColor: MooditColors.baseAccent,
-        overlayColor: MooditColors.baseGlow,
-      );
-}
-
-/// Center hue (degrees) for each color range  used for gradient sliders
-const Map<ColorRange, double> _rangeHue = {
-  ColorRange.red: 0,
-  ColorRange.orange: 30,
-  ColorRange.yellow: 60,
-  ColorRange.green: 120,
-  ColorRange.cyan: 180,
-  ColorRange.blue: 225,
-  ColorRange.purple: 270,
-  ColorRange.magenta: 315,
-};
-
-/// Converts HSL (h 0-360, s/l 0-1) to a Flutter Color
-Color _hslColor(double h, double s, double l) {
-  final hue = ((h % 360) + 360) % 360;
-  return HSLColor.fromAHSL(1.0, hue, s.clamp(0.0, 1.0), l.clamp(0.0, 1.0)).toColor();
-}
-
-/// Builds a gradient for the hue slider, shows neighboring hues
-List<Color> hueGradientColors(ColorRange range) {
-  final center = _rangeHue[range]!;
-  return [
-    _hslColor(center - 40, 0.5, 0.45),
-    _hslColor(center - 20, 0.5, 0.45),
-    _hslColor(center, 0.5, 0.45),
-    _hslColor(center + 20, 0.5, 0.45),
-    _hslColor(center + 40, 0.5, 0.45),
+  static const List<BoxShadow> softDrop = [
+    BoxShadow(
+      color: Color(0xE6000000),
+      blurRadius: 44,
+      offset: Offset(0, 20),
+      spreadRadius: -26,
+    ),
   ];
 }
 
-/// Builds a gradient for the saturation slider, gray to full color
-List<Color> saturationGradientColors(ColorRange range) {
-  final center = _rangeHue[range]!;
-  return [
-    _hslColor(center, 0.0, 0.4),
-    _hslColor(center, 0.5, 0.45),
-  ];
-}
+// serif: brand/titles, mono: labels/values, body: message/input text.
+class MooditType {
+  MooditType._();
 
-/// Builds a gradient for the luminance slider, dark to bright
-List<Color> luminanceGradientColors(ColorRange range) {
-  final center = _rangeHue[range]!;
-  return [
-    _hslColor(center, 0.4, 0.2),
-    _hslColor(center, 0.5, 0.45),
-    _hslColor(center, 0.4, 0.7),
-  ];
-}
+  static const String serif = 'InstrumentSerif';
+  static const String mono = 'GeistMono';
+  static const String body = 'HankenGrotesk';
 
-/// Rainbow gradient for color grading hue slider (0-360)
-List<Color> gradingHueGradientColors() {
-  return [
-    _hslColor(0, 0.5, 0.45),
-    _hslColor(60, 0.5, 0.45),
-    _hslColor(120, 0.5, 0.45),
-    _hslColor(180, 0.5, 0.45),
-    _hslColor(240, 0.5, 0.45),
-    _hslColor(300, 0.5, 0.45),
-    _hslColor(360, 0.5, 0.45),
-  ];
-}
+  static const TextStyle wordmark = TextStyle(
+    fontFamily: serif,
+    fontSize: 27,
+    height: 1.0,
+    color: MooditColors.textPrimary,
+  );
 
-/// Gradient for color grading strength slider, gray to the selected hue
-List<Color> gradingStrengthGradientColors(double hue) {
-  return [
-    _hslColor(hue, 0.0, 0.35),
-    _hslColor(hue, 0.5, 0.45),
-  ];
-}
+  static const TextStyle displayTitle = TextStyle(
+    fontFamily: serif,
+    fontSize: 26,
+    height: 1.05,
+    color: MooditColors.textPrimary,
+  );
 
-/// Gradient for color grading luminance slider — dark to bright (zone-tinted)
-List<Color> gradingLuminanceGradientColors() {
-  return [
-    _hslColor(0, 0.0, 0.15),
-    _hslColor(0, 0.0, 0.5),
-    _hslColor(0, 0.0, 0.85),
-  ];
-}
+  static const TextStyle kicker = TextStyle(
+    fontFamily: mono,
+    fontSize: 9,
+    letterSpacing: 3.4,
+    fontWeight: FontWeight.w500,
+    color: MooditColors.textMuted,
+  );
 
-/// A slider track that paints a horizontal gradient instead of flat colors
-class GradientSliderTrackShape extends SliderTrackShape {
-  final List<Color> colors;
+  static const TextStyle sectionLabel = TextStyle(
+    fontFamily: mono,
+    fontSize: 10.5,
+    letterSpacing: 2.4,
+    fontWeight: FontWeight.w500,
+    color: MooditColors.textSecondary,
+  );
 
-  const GradientSliderTrackShape({required this.colors});
+  static const TextStyle screenTitle = TextStyle(
+    fontFamily: mono,
+    fontSize: 12,
+    letterSpacing: 3.0,
+    fontWeight: FontWeight.w600,
+    color: MooditColors.textPrimary,
+  );
 
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final trackHeight = sliderTheme.trackHeight ?? 2;
-    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final trackLeft = offset.dx + 7;
-    final trackWidth = parentBox.size.width - 14;
-    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
-  }
+  static const TextStyle monoLabel = TextStyle(
+    fontFamily: mono,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    fontWeight: FontWeight.w500,
+    color: MooditColors.textPrimary,
+  );
 
-  @override
-  void paint(
-    PaintingContext context,
-    Offset offset, {
-    required RenderBox parentBox,
-    required SliderThemeData sliderTheme,
-    required Animation<double> enableAnimation,
-    required Offset thumbCenter,
-    Offset? secondaryOffset,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-    required TextDirection textDirection,
-  }) {
-    final rect = getPreferredRect(
-      parentBox: parentBox,
-      offset: offset,
-      sliderTheme: sliderTheme,
-    );
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(1));
-    final paint = Paint()
-      ..shader = ui.Gradient.linear(
-        rect.centerLeft,
-        rect.centerRight,
-        colors,
-      );
-    context.canvas.drawRRect(rrect, paint);
-  }
+  static const TextStyle monoMeta = TextStyle(
+    fontFamily: mono,
+    fontSize: 9.5,
+    letterSpacing: 1.4,
+    fontWeight: FontWeight.w400,
+    color: MooditColors.textMuted,
+  );
+
+  static const TextStyle bodyText = TextStyle(
+    fontFamily: body,
+    fontSize: 13.5,
+    height: 1.35,
+    color: MooditColors.textPrimary,
+  );
+
+  static const TextStyle bodySecondary = TextStyle(
+    fontFamily: body,
+    fontSize: 12.5,
+    height: 1.35,
+    color: MooditColors.textSecondary,
+  );
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/slider_theme.dart';
 import '../../../theme/app_theme.dart';
-import '../../../theme/app_tokens.dart';
 
 // Shared slider row for the color and grading panels: a label, a slider that
 // can paint a gradient track behind it, and a value readout.

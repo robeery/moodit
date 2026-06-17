@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../model/color_edit.dart';
+import '../../../theme/ai_provider_theme.dart';
+import '../../../theme/color_swatches.dart';
+import '../../../theme/slider_theme.dart';
 import '../../../theme/app_theme.dart';
-import '../../../theme/app_tokens.dart';
 import '../../../viewmodel/editor_viewmodel.dart';
 import '../widgets/gradient_slider_row.dart';
 
@@ -83,7 +85,7 @@ class ColorEditPanel extends StatelessWidget {
             final hasEdit = vm.hasColorEdit(range);
             final isPendingAiEdit = vm.hasPendingEdits && vm.pendingAiColorRanges.contains(range);
             final showIndicator = hasEdit || isPendingAiEdit;
-            final color = AppColors.colorRange[range]!;
+            final color = SelectiveColorSwatches.colorRange[range]!;
 
             return Expanded(
               child: GestureDetector(
