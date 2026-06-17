@@ -20,7 +20,7 @@ void main() {
 	    final presetColumnNames =
 	        database.editorPresetRecords.$columns.map((column) => column.$name);
 
-	    expect(database.schemaVersion, 8);
+	    expect(database.schemaVersion, 1);
 	    expect(tableNames, containsAll([
 	      'editor_projects',
 	      'editor_versions',

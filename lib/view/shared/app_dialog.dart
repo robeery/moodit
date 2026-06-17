@@ -73,30 +73,82 @@ Future<String?> showAppTextInputDialog(
   String? hint,
   int? maxLength,
   String confirmLabel = 'SAVE',
-}) async {
-  final controller = TextEditingController(text: initialValue);
-  controller.selection = TextSelection(
-    baseOffset: 0,
-    extentOffset: controller.text.length,
-  );
-
-  final result = await showDialog<String>(
+}) {
+  return showDialog<String>(
     context: context,
-    builder: (ctx) => appDialogShell(
+    builder: (ctx) => _TextInputDialog(
       title: title,
+      initialValue: initialValue,
+      label: label,
+      hint: hint,
+      maxLength: maxLength,
+      confirmLabel: confirmLabel,
+    ),
+  );
+}
+
+// Owns the controller so its lifetime matches the dialog route. Disposing it
+// outside (right after showDialog) would touch a disposed controller while the
+// dialog is still animating out.
+class _TextInputDialog extends StatefulWidget {
+  const _TextInputDialog({
+    required this.title,
+    required this.initialValue,
+    required this.label,
+    required this.hint,
+    required this.maxLength,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final String initialValue;
+  final String? label;
+  final String? hint;
+  final int? maxLength;
+  final String confirmLabel;
+
+  @override
+  State<_TextInputDialog> createState() => _TextInputDialogState();
+}
+
+class _TextInputDialogState extends State<_TextInputDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.of(context).pop(_controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return appDialogShell(
+      title: widget.title,
       content: TextField(
-        controller: controller,
+        controller: _controller,
         autofocus: true,
-        maxLength: maxLength,
-        inputFormatters: maxLength == null
+        maxLength: widget.maxLength,
+        inputFormatters: widget.maxLength == null
             ? null
-            : [LengthLimitingTextInputFormatter(maxLength)],
+            : [LengthLimitingTextInputFormatter(widget.maxLength!)],
         style: MooditType.bodyText,
         cursorColor: MooditColors.baseAccent,
         decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          counterText: maxLength == null ? null : '',
+          labelText: widget.label,
+          hintText: widget.hint,
+          counterText: widget.maxLength == null ? null : '',
           labelStyle: MooditType.monoMeta,
           hintStyle:
               MooditType.bodySecondary.copyWith(color: MooditColors.textOff),
@@ -107,17 +159,20 @@ Future<String?> showAppTextInputDialog(
             borderSide: BorderSide(color: MooditColors.baseAccent),
           ),
         ),
-        onSubmitted: (value) => Navigator.of(ctx).pop(value),
+        onSubmitted: (_) => _submit(),
       ),
       actions: [
-        appDialogButton(ctx, 'CANCEL', null, color: MooditColors.textMuted),
-        appDialogButton(ctx, confirmLabel, controller.text),
+        appDialogButton(context, 'CANCEL', null, color: MooditColors.textMuted),
+        TextButton(
+          onPressed: _submit,
+          child: Text(
+            widget.confirmLabel,
+            style: MooditType.monoMeta.copyWith(color: MooditColors.baseAccent),
+          ),
+        ),
       ],
-    ),
-  );
-
-  controller.dispose();
-  return result;
+    );
+  }
 }
 
 class AppDialogAction<T> {
