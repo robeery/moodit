@@ -38,15 +38,24 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       builder: (context, child) {
-        // Reapplies the light style every frame. The imperative call in main()
-        // gets overridden by the framework on Android 15+ edge-to-edge.
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-            statusBarBrightness: Brightness.dark,
+        // Cap the system font scale so the fixed-height layouts cannot overflow
+        // on devices with a large accessibility font. At the default scale this
+        // is a no-op and the UI looks identical.
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: media.textScaler.clamp(maxScaleFactor: 1.0),
           ),
-          child: child!,
+          // Reapplies the light style every frame. The imperative call in main()
+          // gets overridden by the framework on Android 15+ edge-to-edge.
+          child: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              statusBarBrightness: Brightness.dark,
+            ),
+            child: child!,
+          ),
         );
       },
       home: HomeScreen(viewModel: homeViewModel),

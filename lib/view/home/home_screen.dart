@@ -251,7 +251,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 SafeArea(
                   child: ListView(
-                    physics: const NeverScrollableScrollPhysics(),
+                    // Clamping keeps the no-bounce feel and stays unscrollable
+                    // when the content fits, but lets short screens scroll
+                    // instead of clipping.
+                    physics: const ClampingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(
                       MooditDims.screenPadding,
                       18,
