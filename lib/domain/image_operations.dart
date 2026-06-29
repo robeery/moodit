@@ -2,9 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
-//all of these should be improved/modified later in development
-//by using better/more complex formulas and more parameters
-//prototype operations
+
 
 // Every pixel is stored as 4 consecutive bytes: R, G, B, A.
 // So for a pixel starting at index i:
@@ -58,7 +56,7 @@ Float64List _identityFloatLut() {
 Uint8List _freezeFloatLut(Float64List lut) {
   final frozen = Uint8List(lut.length);
   for (var i = 0; i < lut.length; i++) {
-    // We compose in floating point, then quantize once when the LUT is ready.
+    // We compose in floating point, then quantize once when the LUT is ready
     frozen[i] = _clampByteRound(lut[i]);
   }
   return frozen;
@@ -73,7 +71,7 @@ void _applyRgbLuts(
   final data = _rgbaBytes(image);
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // data[i] is red, data[i + 1] is green, data[i + 2] is blue.
+    // data[i] is red, data[i + 1] is green, data[i + 2] is blue
     data[i] = lutR[data[i]];
     data[i + 1] = lutG[data[i + 1]];
     data[i + 2] = lutB[data[i + 2]];
@@ -84,7 +82,7 @@ void _applySharedLut(img.Image image, Uint8List lut) {
   final data = _rgbaBytes(image);
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // The same per-channel LUT is applied to R, G, and B.
+    // The same per-channel LUT is applied to R, G, and B
     data[i] = lut[data[i]];
     data[i + 1] = lut[data[i + 1]];
     data[i + 2] = lut[data[i + 2]];
@@ -123,7 +121,7 @@ img.Image applyFusedColorBalanceOps(
   if (warmth.abs() > 0.001) {
     final offset = warmth * 20;
     for (var i = 0; i < 256; i++) {
-      // Warmth pushes red up and blue down. Green stays unchanged.
+      // Warmth pushes red up and blue down. Green stays unchanged
       lutR[i] = _clampChannelDouble(lutR[i] + offset);
       lutB[i] = _clampChannelDouble(lutB[i] - offset);
     }
@@ -132,7 +130,7 @@ img.Image applyFusedColorBalanceOps(
   if (tint.abs() > 0.001) {
     final offset = tint * 15;
     for (var i = 0; i < 256; i++) {
-      // Positive tint adds magenta: R+, G-, B+.
+      // Positive tint adds magenta: R+, G-, B+
       lutR[i] = _clampChannelDouble(lutR[i] + offset);
       lutG[i] = _clampChannelDouble(lutG[i] - offset * 1.5);
       lutB[i] = _clampChannelDouble(lutB[i] + offset);
@@ -165,7 +163,7 @@ img.Image applyExposure(img.Image image, double value) {
   final factor = pow(2.0, value).toDouble();
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // data[i], data[i + 1], data[i + 2] are R, G, B for the current pixel.
+    // data[i], data[i + 1], data[i + 2] are R, G, B for the current pixel
     data[i] = _clampByteFloor(data[i] * factor);
     data[i + 1] = _clampByteFloor(data[i + 1] * factor);
     data[i + 2] = _clampByteFloor(data[i + 2] * factor);
@@ -182,7 +180,7 @@ img.Image applyBrightness(img.Image image, double value) {
   final gamma = pow(2.0, -value).toDouble();
 
   for (var i = 0; i < data.length; i += _channelsPerPixel) {
-    // Apply the same gamma curve separately to R, G, and B.
+    // Apply the same gamma curve separately to R, G, and B
     data[i] = _clampByteFloor(pow(data[i] / 255.0, gamma) * 255);
     data[i + 1] =
         _clampByteFloor(pow(data[i + 1] / 255.0, gamma) * 255);
@@ -719,7 +717,7 @@ Uint32List _buildLuminanceIntegral(
   return integral;
 }
 
-// I might have to tweak these values later, same for Vibrance
+
 img.Image applySaturation(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
@@ -848,7 +846,7 @@ img.Image applyFusedChromaOps(
   return image;
 }
 
-// I might have to tweak these values later, same for Saturation
+
 img.Image applyVibrance(img.Image image, double value) {
   if (value.abs() <= 0.001) return image;
 
@@ -1266,7 +1264,7 @@ img.Image applyFade(img.Image image, double value) {
 }
 
 Uint8List _buildFadeLut(double value) {
-  //fade lifts shadows and slightly desaturates, like a film wash
+  //fade lifts shadows and slightly desaturates (visually), like a film wash
   final strength = value * 0.4;
   final lift = strength * 80;
   final lut = Uint8List(256);

@@ -142,7 +142,7 @@ class EditorEditState {
       try {
         result.add(decode(Map<String, dynamic>.from(item)));
       } catch (_) {
-        // Ignore malformed persisted entries and keep the rest of the state.
+       
       }
     }
     return result;

@@ -64,3 +64,5 @@ color_grading_cached_benchmark_results.json
 stage_cache_benchmark_results.json
 test/fixtures/synthetic_*.jpg
 test/golden/failures/
+tool/results
+tool/photos

@@ -15,7 +15,7 @@ abstract class AiProvider {
     String? currentStateJson,
   });
 
-  // I might have to move this later elsewhere but should do for now
+ 
   static const String systemPrompt = '''
 You are a photo editing assistant. The user describes how they want their photo to look.
 You must respond with ONLY a valid JSON object matching the schema below. No explanation, no markdown, no extra text.

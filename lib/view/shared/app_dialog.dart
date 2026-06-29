@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
 
-// Shared cinematic dialogs so every popup has the same look and we avoid
-// repeating the AlertDialog boilerplate in each screen.
+// Shared cinematic dialogs so every popup has the same look and we avoid 
+// repeating the AlertDialog boilerplate in each screen
 
 TextButton appDialogButton(
   BuildContext ctx,
@@ -34,7 +34,6 @@ AlertDialog appDialogShell({
   );
 }
 
-// Yes/No style confirmation. Returns false when dismissed.
 Future<bool> showAppConfirmDialog(
   BuildContext context, {
   required String title,
@@ -64,7 +63,7 @@ Future<bool> showAppConfirmDialog(
   return result ?? false;
 }
 
-// Single text field dialog. Returns the entered text, or null on cancel.
+
 Future<String?> showAppTextInputDialog(
   BuildContext context, {
   required String title,
@@ -87,9 +86,7 @@ Future<String?> showAppTextInputDialog(
   );
 }
 
-// Owns the controller so its lifetime matches the dialog route. Disposing it
-// outside (right after showDialog) would touch a disposed controller while the
-// dialog is still animating out.
+
 class _TextInputDialog extends StatefulWidget {
   const _TextInputDialog({
     required this.title,
@@ -183,7 +180,6 @@ class AppDialogAction<T> {
   final Color? color;
 }
 
-// Dialog with several positive choices plus an optional cancel button.
 Future<T?> showAppChoiceDialog<T>(
   BuildContext context, {
   required String title,
@@ -213,7 +209,7 @@ Future<T?> showAppChoiceDialog<T>(
   );
 }
 
-// Informational popup with a single dismiss button.
+
 Future<void> showAppMessageDialog(
   BuildContext context, {
   required String title,

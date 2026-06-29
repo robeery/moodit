@@ -3,9 +3,9 @@ enum ColorGradingZone { shadows, midtones, highlights, global }
 
 class ColorGradingEdit {
   final ColorGradingZone zone;
-  final double hue;        
-  final double strength;   
-  final double luminance;  
+  final double hue;        // 0-360 -> target tint color in degrees
+  final double strength;   // 0-100 -> how strongly the tint is applied
+  final double luminance;  // -100..+100 -> brighten/darken this zone
 
   ColorGradingEdit({
     required this.zone,
